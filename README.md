@@ -18,6 +18,7 @@ ChatGPT / Claude の本番画面、署名済みインストーラーは未検証
 既に対応する Node.js 24.18.0 以降の 24.x と npm があれば再利用し、なければ
 Node.js 公式の **24.22.0** をプロジェクト内の `.tools/` に配置します。
 管理者権限と PC 全体の PATH 変更は不要です。Git と Chrome は別途導入してください。
+Node の自動準備は [Windows の CI で確認済み](https://github.com/kaduiro/mori-desk/actions/runs/39269532172)です。
 
 ```powershell
 git clone https://github.com/kaduiro/mori-desk.git

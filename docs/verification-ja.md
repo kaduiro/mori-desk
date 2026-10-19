@@ -55,7 +55,8 @@ node --test --test-reporter=spec test/server-permission-ingress.test.js test/ser
 
 ## 未検証・初期対応の範囲外
 
-- Windows の BAT 実行、ネイティブ GUI、透過・最前面・DPI・複数画面。
+- Windows の Explorer からの手動起動、Mori 本体のネイティブ GUI、透過・最前面・DPI・複数画面。
+- Windows ARM64 上での Node 自動導入の実行。ARM64 ZIP 自体の取得・ハッシュ検証は実施済み。
 - Windows 上での NSIS EXE 作成、インストール、更新、アンインストール。
 - macOS のビルド、Keychain、署名・公証、Spaces、全画面、Finder / Chrome 操作。
 - Chrome 本体への拡張読み込み、CSP の適用、localhost / loopback の許可、会社の管理ポリシー。
@@ -68,6 +69,35 @@ node --test --test-reporter=spec test/server-permission-ingress.test.js test/ser
 
 ブラウザの `completed` はこの版の adapter から生成しません。
 「回答を確認」は生成が落ち着いた候補の通知で、回答の完全性や正常終了の証明ではありません。
+
+## Node.js 自動準備の追加検証
+
+2026-10-19、Node の準備処理を追加して以下を確認しました。
+
+| 項目 | 実測結果 |
+|---|---|
+| Node.js 24.22.0 の公式 Windows ZIP | x64 / ARM64 を実際に取得。固定 SHA-256、ZIP の整合性、Node / npm / LICENSE の同梱を確認 |
+| Node の互換性判定 | Linux 上で 4 テスト成功。下限・別 major・プレビュー版・npm 不在を確認 |
+| Windows Server 2022 x64 の CI | **10 テスト成功、失敗・スキップなし**。未導入からの公式 ZIP 導入、再利用、特殊文字のパス、引用符付き PATH、失敗コード、ハッシュ不一致を確認 |
+| Mori の再構築と既存テスト | Linux / Node 24.19.0 で再構築成功。Browser / Mori の 73 テストも再実行し、すべて成功 |
+
+Windows の実行記録: [Windows Node bootstrap / 成功した実行](https://github.com/kaduiro/mori-desk/actions/runs/39269532172)
+（コード commit `48febfb4b95574a4d7f4103b9a70cb925dd23bbc`）。
+チェックアウト時の改行変換で問題が隠れないよう、CI は Git の blob から BAT を読み、
+GitHub の ZIP と同じバイト列を実際の `cmd.exe` / Windows PowerShell で実行します。
+
+Node のダウンロード、ハッシュ検証、展開、Node / npm のバージョン確認は実処理です。
+アプリに処理を渡す部分は一時フォルダーの小さなスクリプトへ差し替えて、選択した Node、
+引数、終了コードと既存 runtime の保持を検査します。Mori の GUI・Electron の Windows
+インストール・Chrome 連携の実機確認とは区別してください。
+
+開発環境での再現コマンド:
+
+```powershell
+node --test --test-reporter=spec test/check-windows-node.test.js test/windows-node-bootstrap.test.js
+```
+
+Windows 以外では BAT の統合テストを明示的にスキップします。
 
 ## Windows での受け入れ手順
 
