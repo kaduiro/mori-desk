@@ -1,5 +1,8 @@
 @echo off
 setlocal DisableDelayedExpansion
+rem PATH entries do not need surrounding quotes. Normalize them for where.exe
+rem inside this helper only; the caller's environment is restored by endlocal.
+set "PATH=%PATH:"=%"
 rem Called from the repository root with "install" or "existing".
 rem Export a selected Node only. Do not modify the machine/user PATH.
 set "MORI_NODE_MODE=%~1"
