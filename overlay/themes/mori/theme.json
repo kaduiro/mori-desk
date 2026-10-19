@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "name": "Mori",
+  "author": "Mori Desk contributors",
+  "version": "0.1.0",
+  "description": "A small forest companion. Original code-drawn artwork for Mori Desk.",
+  "license": "MIT",
+  "preview": "mori-idle.svg",
+  "viewBox": { "x": 0, "y": 0, "width": 32, "height": 32 },
+  "layout": {
+    "contentBox": { "x": 4, "y": 2, "width": 24, "height": 28 },
+    "centerX": 16,
+    "baselineY": 30,
+    "visibleHeightRatio": 0.58,
+    "baselineBottomRatio": 0.05
+  },
+  "eyeTracking": { "enabled": false, "states": [] },
+  "customization": { "petTint": false },
+  "states": {
+    "idle": ["mori-idle.svg"],
+    "thinking": ["mori-thinking.svg"],
+    "working": ["mori-working.svg"],
+    "juggling": ["mori-juggling.svg"],
+    "attention": ["mori-attention.svg"],
+    "notification": ["mori-notification.svg"],
+    "error": ["mori-error.svg"],
+    "sleeping": ["mori-sleeping.svg"],
+    "waking": ["mori-waking.svg"],
+    "sweeping": { "fallbackTo": "working" },
+    "carrying": { "fallbackTo": "working" }
+  },
+  "sleepSequence": { "mode": "direct" },
+  "hitBoxes": {
+    "default": { "x": 4, "y": 10, "w": 24, "h": 20 },
+    "sleeping": { "x": 4, "y": 10, "w": 24, "h": 20 },
+    "wide": { "x": 4, "y": 10, "w": 24, "h": 20 }
+  },
+  "sleepingHitboxFiles": ["mori-sleeping.svg"],
+  "workingTiers": [
+    { "minSessions": 2, "file": "mori-juggling.svg" },
+    { "minSessions": 1, "file": "mori-working.svg" }
+  ],
+  "miniMode": { "supported": false },
+  "sounds": { "complete": null, "confirm": null },
+  "idleAnimations": []
+}

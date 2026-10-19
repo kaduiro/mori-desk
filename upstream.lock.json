@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "project": "mori-desk",
+  "repository": "https://github.com/rullerzhou-afk/clawd-on-desk.git",
+  "commit": "384a9322972c46d17122845bcc26e5b4b90e670c",
+  "sourceVersion": "1.3.0",
+  "sourceLicense": "AGPL-3.0-only",
+  "artworkPolicy": "Exclude upstream artwork; generate original Mori artwork from source."
+}

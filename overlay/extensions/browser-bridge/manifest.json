@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "MORI Browser Bridge（プレビュー）",
+  "version": "0.1.0",
+  "description": "ChatGPT と Claude の生成状態を、この PC の MORI Desk に表示します。会話本文は送信しません。",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAre+X1x6KDWnBcWbBtPXvovNUjXiAWSFuF1UDVJGZCZmDE8e3ibIJIWHEWCh8zDspz2DAZ5eOkeaPMsuhAzGav7+yy+mRf+xJ9MWnh81BT4QkBbGrU3owEQCy8G0HZTZFd2uSa0YeQGqC1Lc4VuMHsdJBuXgkzLvY/lVvtNPTTsd1v/DWCaPRtrHhSP5g3AZGtTNAjSGQmVZM3+Yx+lo9DENQIyuJs5xOc35BttVaJQY/vEDtUSLLzT5Ry0A04aSEPX82X/nO2aNpFzTv7esnfJgxyYwThBeu184ldD2ciRrkQQYg7korZ4JbrXU6Pu7PdrdTkoqIFwJ7LOQVKaTXfwIDAQAB",
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "MORI Desk に接続"
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "provider-utils.js",
+        "adapters/chatgpt.js",
+        "adapters/claude.js",
+        "observation-controller.js",
+        "content-script.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src ws://127.0.0.1:23333 ws://127.0.0.1:23334 ws://127.0.0.1:23335 ws://127.0.0.1:23336 ws://127.0.0.1:23337; base-uri 'none'"
+  }
+}

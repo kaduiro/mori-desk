@@ -1,0 +1,120 @@
+# Mori Desk の技術構成
+
+## 1. 実装範囲
+
+Mori Desk は clawd-on-desk のコードを固定 commit から取り込み、既存の
+Electron ウィンドウと HUD を利用する派生版です。ブラウザの状態取得は新しい
+拡張機能、保存と認証は新しい Electron main のモジュールが担当します。
+
+```mermaid
+flowchart TD
+  DOM["ChatGPT / Claude の DOM"] --> CS["Content Script"]
+  CS --> SW["拡張 Service Worker"]
+  SW <-->|"認証済み WebSocket"| BR["Browser Bridge"]
+  BR --> BS["ブラウザ専用ストア"]
+  CLI["CLI hooks / monitor"] --> LS["既存 CLI ストア"]
+  BS --> HUD["キャラクターと HUD"]
+  LS --> HUD
+  BS --> PANEL["ブラウザ連携画面"]
+  LS --> OLD["既存 CLI ダッシュボード"]
+  HUD -->|"タブへの移動要求"| BR
+```
+
+新規モジュールは `overlay/`、既存ファイルの変更は `patches/mori.patch` にあります。
+実行時にはそれらが `.runtime/` に組み立てられます。
+
+## 2. ブラウザでの観測
+
+Content Script は対象サービスのページ内で、停止ボタン、入力欄、回答枠などの
+**要素の存在・可視性・属性**を観測します。MutationObserver で変化を拾い、
+一定間隔の再観測で observer 対象の差し替えなどを補います。
+
+入力文や回答文を `textContent` で取得する必要はありません。サイト固有の観測は
+`adapters/chatgpt.js` と `adapters/claude.js` に分離し、画面変更時はこの層を直します。
+
+生成中を観測した後、停止ボタンなどが消え、入力欄と回答枠が 800 ms 以上確認できた
+場合に終了候補を通知します。正常終了の確証ではないため、この版は
+`completed` を生成せず、`unverified` / 「回答を確認」にします。
+
+生成開始前から表示されていた過去の回答を開いただけでは終了通知を作りません。
+音声、画像・動画生成、Deep Research、カスタム GPT / Projects の専用パスは
+初期対応範囲外です。
+
+## 3. 拡張機能の責任
+
+Service Worker は Content Script の sender が対象ドメインの top frame かを確認し、
+ブラウザ起動 ID、タブ ID、ページ ID、画面遷移の revision、ターン ID を管理します。
+Content Script は認証鍵を持ちません。
+
+終了・閉鎖イベントは local outbox に保存してから送信します。アプリが保存完了の
+ACK を返すまで消しません。再接続時に同じイベントが届いても、アプリ側で重複を
+識別できます。接続の ping と DOM 再観測は別で、ping が届いただけで古い状態を
+「生成中」に戻すことはありません。
+
+`storage` と `alarms`、二つのサービスの host permissions を使用します。
+同期ストレージ、全サイト権限、リモートコード、API キーの取得は使いません。
+実際の Chrome のローカルネットワーク権限や組織ポリシーは実機で確認します。
+
+## 4. Electron 側の責任
+
+`browser-bridge-server.js` が、既存ローカル HTTP サーバーの WebSocket upgrade に
+`/browser/v1` を追加します。接続先は実際に bind できた `127.0.0.1` の
+23333～23337 番ポートのいずれかです。
+
+Origin、Host、ポート、アプリの instance、双方の nonce を検証し、HMAC で相互認証
+します。鍵は Electron safeStorage で保護します。保護された保存先が使えないときに
+平文保存へ切り替える機能はありません。WebSocket はローカル平文通信であり、
+HMAC は認証であって内容全体の暗号化ではありません。
+
+ブラウザ用モードでは従来の HTTP `/state` などに 404 を返します。従来 CLI hooks が
+Mori を自分たちの受信先だと誤認しないためです。CLI モードでは従来経路を維持し、
+Origin を持つ Web ページからの native hook 呼び出しを引き続き拒否します。
+
+## 5. 状態と未確認通知を分ける
+
+一つの行に、現在の生成状態と、過去のターンの未確認通知を別々に保存します。
+「前の回答をまだ見ていないまま、次の質問を送る」場合でも未確認を失いません。
+
+主な独立した軸は次のとおりです。
+
+| 軸 | 値の例 | 意味 |
+|---|---|---|
+| phase | idle / running / settled | 現在のターンの進行 |
+| outcome | unverified / interrupted / error | 終了した場合に観測できた内容 |
+| observation | fresh / stale / closed / unsupported | その画面を今も観測できるか |
+| receipt | 未確認 / 確認済み | 利用者への通知の確認状況 |
+
+状態を JSON に保存してから終了イベントの ACK を返します。保存失敗時は ACK を
+返さず、拡張機能に再送の機会を残します。原子的な置き換えと既知の正常なバックアップを
+使いますが、ディスク故障や OS 異常に対する無損失を保証するものではありません。
+
+HUD を押すと、ブラウザ起動・タブ・ページ・会話の識別子を含む移動要求を送ります。
+拡張機能は移動前後に識別子を確認し、成功したときだけ応答します。アプリは
+**クリック時に捕捉した通知番号まで**を確認済みにするため、その途中で新しい回答が
+終了しても新しい未確認を消しません。
+
+## 6. 既存 CLI と OS の境界
+
+ブラウザ状態は既存 CLI reducer に投入しません。`mori-desktop-snapshot.js` が
+キャラクター下の HUD 向けにだけ表示を統合します。従来ダッシュボード、recap、
+LAN などの CLI snapshot の入力は維持します。外部通知機能は初期設定で無効です。
+
+アプリ ID と userData、recap と quota の保存先を Mori 用に分けます。
+ブラウザ用モードは shared CLI runtime や CLI 自動セットアップを使いません。
+CLI モードは起動前・runtime 書き込み前に既存の所有プロセスを確認します。
+競合アプリを後から同時に起動する使い方や、自動移行は未対応です。
+
+Electron の JavaScript / HTML / CSS は共有できます。ただし最前面・透過ウィンドウ、
+フォーカス、DPI、複数画面、safeStorage、署名、インストーラーには OS ごとの確認が
+必要です。Windows でビルド・検証できても Mac の動作保証にはなりません。
+
+## 7. 社内保守へ向けた分離
+
+上流のコード取得は完全な SHA に固定し、上流の自動更新・テーマダウンロード・
+protocol 登録をプレビューでは停止しています。独自の Mori 素材だけを生成・同梱します。
+
+正式配布では、組織が所有するリポジトリと拡張機能 ID、レビュー、署名、更新承認、
+DOM adapter の保守、保存履歴の整理 UI を運用に含めます。所有者を自社にするだけで
+依存関係や開発者アカウントに由来するリスクが消えるわけではありません。
+
+実装上の定数や正確な schema は各モジュールと [通信仕様](browser-protocol-v1.md) を参照してください。

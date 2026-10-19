@@ -1,0 +1,17 @@
+{
+  "name": "mori-desk-source",
+  "version": "0.1.0-preview.1",
+  "private": true,
+  "description": "Pinned source assembly and development tools for Mori Desk.",
+  "license": "AGPL-3.0-only",
+  "engines": { "node": ">=24.18.0 <25" },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "start": "node scripts/run.js start",
+    "start:cli": "node scripts/run.js start --enable-cli",
+    "test": "node scripts/run.js test",
+    "verify:electron": "node scripts/run.js verify:electron",
+    "build:win:x64": "node scripts/run.js build:win:x64"
+  },
+  "repository": { "type": "git", "url": "https://github.com/kaduiro/mori-desk.git" }
+}

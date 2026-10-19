@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mori Desk · ブラウザ連携</title><link rel="stylesheet" href="mori-browser.css"></head>
+<body><main>
+<header><div><span class="eyebrow">MORI DESK / PREVIEW</span><h1>AI の待ち時間を、ひと目で。</h1></div><span id="connection" class="badge">準備中</span></header>
+<p class="intro">生成中のタブを見守り、回答を確認するタイミングをキャラクターと一覧でお知らせします。</p>
+<section><h2>Chrome と接続</h2>
+<ol><li>Chrome の <code>chrome://extensions</code> を開き、デベロッパーモードをオンにします。</li>
+<li>「パッケージ化されていない拡張機能を読み込む」で、下のボタンから開くフォルダーを選びます。</li>
+<li>接続コードを作成・コピーし、Mori Desk Bridge 拡張機能の設定画面に貼り付けます。</li></ol>
+<div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
+<div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
+<p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
+<section><div class="section-heading"><h2>ブラウザのセッション</h2><span id="count">0 件</span></div>
+<p id="empty">接続後、ChatGPT / Claude のページを再読み込みして質問を送信してください。</p>
+<div id="sessions"></div></section>
+<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。会話本文・入力内容は収集しません。</p><p id="mode"></p></footer>
+</main><script src="mori-browser-renderer.js"></script></body></html>

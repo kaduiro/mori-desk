@@ -1,0 +1,1459 @@
+diff --git a/package-lock.json b/package-lock.json
+index d177f08..44ef022 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+-  "name": "clawd-on-desk",
+-  "version": "1.3.0",
++  "name": "mori-desk",
++  "version": "0.1.0-preview.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+-      "name": "clawd-on-desk",
+-      "version": "1.3.0",
++      "name": "mori-desk",
++      "version": "0.1.0-preview.1",
+       "hasInstallScript": true,
+       "license": "AGPL-3.0-only",
+       "dependencies": {
+diff --git a/package.json b/package.json
+index e7a7fc7..e0172aa 100644
+--- a/package.json
++++ b/package.json
+@@ -1,22 +1,22 @@
+ {
+-  "name": "clawd-on-desk",
+-  "version": "1.3.0",
+-  "description": "A desktop pet that reacts to your Claude Code sessions in real-time.",
++  "name": "mori-desk",
++  "version": "0.1.0-preview.1",
++  "description": "A desktop companion showing browser AI and CLI session progress.",
+   "main": "src/main.js",
+   "scripts": {
+     "start": "node launch.js",
+-    "build": "electron-builder --win",
+-    "build:win:x64": "electron-builder --win nsis:x64",
+-    "build:win:arm64": "electron-builder --win nsis:arm64",
+-    "build:win:all": "electron-builder --win nsis:x64 nsis:arm64",
+-    "build:mac": "electron-builder --mac",
+-    "build:mac:x64": "electron-builder --mac dmg:x64 zip:x64",
+-    "build:mac:arm64": "electron-builder --mac dmg:arm64 zip:arm64",
+-    "build:linux": "electron-builder --linux",
+-    "build:linux:x64": "electron-builder --linux AppImage:x64 deb:x64",
+-    "build:all": "electron-builder --win --mac --linux",
++    "build": "node scripts/generate-mori-assets.js && electron-builder --win --publish never",
++    "build:win:x64": "node scripts/generate-mori-assets.js && electron-builder --win nsis:x64 --publish never",
++    "build:win:arm64": "node scripts/generate-mori-assets.js && electron-builder --win nsis:arm64 --publish never",
++    "build:win:all": "node scripts/generate-mori-assets.js && electron-builder --win nsis:x64 nsis:arm64 --publish never",
++    "build:mac": "node scripts/generate-mori-assets.js && electron-builder --mac --publish never",
++    "build:mac:x64": "node scripts/generate-mori-assets.js && electron-builder --mac dmg:x64 zip:x64 --publish never",
++    "build:mac:arm64": "node scripts/generate-mori-assets.js && electron-builder --mac dmg:arm64 zip:arm64 --publish never",
++    "build:linux": "node scripts/generate-mori-assets.js && electron-builder --linux --publish never",
++    "build:linux:x64": "node scripts/generate-mori-assets.js && electron-builder --linux AppImage:x64 deb:x64 --publish never",
++    "build:all": "node scripts/generate-mori-assets.js && electron-builder --win --mac --linux --publish never",
+     "verify:electron": "node scripts/verify-electron-install.js",
+-    "postinstall": "node scripts/verify-electron-install.js --context postinstall",
++    "postinstall": "node scripts/generate-mori-assets.js && node scripts/verify-electron-install.js --context postinstall",
+     "test": "node test/run-tests.js",
+     "audit:assets": "node scripts/audit-repository-assets.js",
+     "audit:pr-history-assets": "node scripts/audit-pr-history-assets.js",
+@@ -76,7 +76,9 @@
+     "install:dsh": "node hooks/dsh-install.js",
+     "uninstall:dsh": "node hooks/dsh-install.js --uninstall",
+     "cleanup:integrations": "node hooks/cleanup-integrations.js --apply",
+-    "register-protocol:dev": "node launch.js --register-protocol"
++    "assets:mori": "node scripts/generate-mori-assets.js",
++    "verify:mori-assets": "node scripts/generate-mori-assets.js --check",
++    "verify:mori-theme": "node scripts/validate-theme.js themes/mori --assets assets/svg"
+   },
+   "keywords": [
+     "clawd",
+@@ -84,25 +86,18 @@
+     "electron",
+     "claude-code"
+   ],
+-  "author": "rullerzhou-afk",
++  "author": "Mori Desk contributors",
+   "license": "AGPL-3.0-only",
+   "type": "commonjs",
+   "build": {
+-    "appId": "com.clawd.on-desk",
+-    "productName": "Clawd on Desk",
++    "appId": "com.kaduiro.moridesk",
++    "productName": "Mori Desk",
+     "afterPack": "scripts/after-pack-koffi.js",
+-    "protocols": [
+-      {
+-        "name": "Clawd Import Protocol",
+-        "schemes": [
+-          "clawd"
+-        ]
+-      }
+-    ],
++    "protocols": [],
+     "mac": {
+       "icon": "assets/icon.png",
+       "identity": "-",
+-      "artifactName": "Clawd-on-Desk-${version}-${arch}.${ext}",
++      "artifactName": "Mori-Desk-${version}-${arch}.${ext}",
+       "target": [
+         {
+           "target": "dmg",
+@@ -126,7 +121,7 @@
+     },
+     "win": {
+       "icon": "assets/icon.ico",
+-      "artifactName": "Clawd-on-Desk-Setup-${version}-${arch}.${ext}",
++      "artifactName": "Mori-Desk-Setup-${version}-${arch}.${ext}",
+       "target": [
+         {
+           "target": "nsis",
+@@ -138,10 +133,10 @@
+       ]
+     },
+     "linux": {
+-      "maintainer": "rullerzhou-afk <rullerzhou-afk@users.noreply.github.com>",
++      "maintainer": "Mori Desk contributors",
+       "icon": "assets/icons",
+       "category": "Utility",
+-      "artifactName": "Clawd-on-Desk-${version}-${arch}.${ext}",
++      "artifactName": "Mori-Desk-${version}-${arch}.${ext}",
+       "target": [
+         {
+           "target": "AppImage",
+@@ -164,32 +159,46 @@
+       "installerIcon": "assets/icon.ico",
+       "uninstallerIcon": "assets/icon.ico",
+       "installerHeaderIcon": "assets/icon.ico",
+-      "include": "build/installer.nsh"
++      "deleteAppDataOnUninstall": false
+     },
+     "files": [
++      "LICENSE",
+       "NOTICE.md",
++      "MORI-NOTICE.md",
+       "src/**/*",
+-      "assets/icon.png",
+-      "assets/icons/**/*",
+-      "assets/icons/agents/**/*",
+-      "assets/svg/**/*",
+-      "assets/accessories/**/*",
+-      "assets/sounds/**/*",
+-      "assets/dock-icon.png",
+-      "assets/tray-icon*.png",
+       "hooks/**/*",
+-      "extensions/**/*",
+       "agents/**/*",
+-      "themes/**/*",
+-      "pwa/**/*"
++      "extensions/**/*",
++      "themes/mori/**/*",
++      "assets/icon.png",
++      "assets/icon.ico",
++      "assets/dock-icon.png",
++      "assets/tray-iconTemplate.png",
++      "assets/tray-iconTemplate@2x.png",
++      "assets/tray-icon-flash.png",
++      "assets/tray-icon-flashTemplate.png",
++      "assets/tray-icon-flashTemplate@2x.png",
++      "assets/svg/mori-*.svg",
++      "assets/mori-manifest.json",
++      "assets/icons/16x16.png",
++      "assets/icons/32x32.png",
++      "assets/icons/48x48.png",
++      "assets/icons/64x64.png",
++      "assets/icons/128x128.png",
++      "assets/icons/256x256.png",
++      "assets/icons/512x512.png",
++      "assets/icons/1024x1024.png",
++      "pwa/**/*.js",
++      "pwa/**/*.html",
++      "pwa/**/*.css",
++      "pwa/*.json"
+     ],
+     "asarUnpack": [
+-      "assets/svg/**/*",
+-      "assets/accessories/**/*",
++      "assets/svg/mori-*.svg",
+       "hooks/**/*",
+       "extensions/**/*",
+       "agents/**/*",
+-      "themes/**/*",
++      "themes/mori/**/*",
+       "node_modules/jsonc-parser/**/*"
+     ],
+     "extraResources": [
+@@ -198,13 +207,7 @@
+         "to": "icon.ico"
+       }
+     ],
+-    "publish": [
+-      {
+-        "provider": "github",
+-        "owner": "rullerzhou-afk",
+-        "repo": "clawd-on-desk"
+-      }
+-    ]
++    "publish": null
+   },
+   "engines": {
+     "node": ">=22.12.0"
+@@ -224,5 +227,13 @@
+     "markdown-it": "15.0.0",
+     "ws": "^8.21.0",
+     "yauzl": "^2.10.0"
++  },
++  "homepage": "https://github.com/kaduiro/mori-desk",
++  "repository": {
++    "type": "git",
++    "url": "https://github.com/kaduiro/mori-desk.git"
++  },
++  "bugs": {
++    "url": "https://github.com/kaduiro/mori-desk/issues"
+   }
+ }
+diff --git a/src/index.html b/src/index.html
+index 19c8a26..8202b67 100644
+--- a/src/index.html
++++ b/src/index.html
+@@ -4,7 +4,7 @@
+   <meta charset="UTF-8">
+   <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self'; style-src 'self'; img-src 'self' file:; media-src 'self';">
+   <link rel="stylesheet" href="styles.css">
+-  <title>Clawd</title>
++  <title>Mori Desk</title>
+ </head>
+ <body>
+   <div id="pet-clip">
+diff --git a/src/login-item.js b/src/login-item.js
+index 1eabd64..485f808 100644
+--- a/src/login-item.js
++++ b/src/login-item.js
+@@ -20,7 +20,7 @@ const os = require("os");
+ const path = require("path");
+ 
+ const AUTOSTART_DIR = path.join(os.homedir(), ".config", "autostart");
+-const AUTOSTART_FILE = path.join(AUTOSTART_DIR, "clawd-on-desk.desktop");
++const AUTOSTART_FILE = path.join(AUTOSTART_DIR, "mori-desk.desktop");
+ 
+ function getLoginItemSettings({ isPackaged, openAtLogin, execPath, appPath }) {
+   if (isPackaged) return { openAtLogin };
+@@ -48,7 +48,7 @@ function linuxSetOpenAtLogin(enable, { execCmd } = {}) {
+       [
+         "[Desktop Entry]",
+         "Type=Application",
+-        "Name=Clawd on Desk",
++        "Name=Mori Desk",
+         `Exec=${execCmd}`,
+         "Hidden=false",
+         "NoDisplay=false",
+diff --git a/src/main.js b/src/main.js
+index 6f84bbc..394b4fc 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -1,4 +1,24 @@
+ const { app, BrowserWindow, Notification, screen, ipcMain, globalShortcut, nativeTheme, dialog, shell, nativeImage, powerSaveBlocker, powerMonitor, clipboard, safeStorage, net } = require("electron");
++const moriProduct = require("./mori-product");
++moriProduct.configureApp(app);
++const { mergeHudSnapshot } = require("./mori-desktop-snapshot");
++let moriBridge = null;
++let moriBrowserWindow = null;
++let moriBoundPort = null;
++let moriStartupError = "";
++
++function getMoriHudSnapshot(snapshot) {
++  return mergeHudSnapshot(snapshot || _state.buildSessionSnapshot(), moriBridge?.getSnapshot() || []);
++}
++
++function refreshMoriBrowserSnapshot() {
++  broadcastSessionHudSnapshot(getMoriHudSnapshot());
++  moriBrowserWindow?.notify();
++  if (!doNotDisturb && !_mini.getMiniMode()) {
++    const next = _state.resolveDisplayState();
++    _state.setState(next);
++  }
++}
+ const { maybeRunPackageKoffiSmoke } = require("./package-koffi-smoke");
+ if (maybeRunPackageKoffiSmoke({ app, BrowserWindow })) {
+   return;
+@@ -375,7 +395,10 @@ const _evaluateCodexAutoStartGate = createCodexAutoStartGateEvaluator({
+ });
+ 
+ function _persistCodexAutoStartGate(enabled) {
+-  return writeCodexAutoStartGate(enabled === true);
++  if (!moriProduct.cliEnabled) return true;
++  moriProduct.requireCliMode();
++  // Cold CLI launch is not supported by this preview's renamed executable.
++  return writeCodexAutoStartGate(false);
+ }
+ 
+ function _syncCodexAutoStartGate(snapshot, source) {
+@@ -393,12 +416,14 @@ function _syncCodexAutoStartGate(snapshot, source) {
+ // mutation must be serialized against the fs watcher, periodic health audit,
+ // and other Settings actions (#657).
+ function _installAutoStartHook() {
+-  return _server.setClaudeAutoStart({ enabled: true, source: "auto-start" });
++  throw new Error("Mori Desk 開発版では start-cli-windows.bat から CLI モードを起動してください。");
+ }
+ function _uninstallAutoStartHook() {
++  moriProduct.requireCliMode();
+   return _server.setClaudeAutoStart({ enabled: false, source: "auto-start" });
+ }
+ async function _uninstallClaudeHooksNow() {
++  moriProduct.requireCliMode();
+   return _server.uninstallClaudeHooks({ source: "settings", automatic: false });
+ }
+ 
+@@ -523,14 +548,15 @@ const _settingsController = createSettingsController({
+   prefsPath: PREFS_PATH,
+   loadResult: _initialPrefsLoad,
+   injectedDeps: {
++    allowCliColdStart: false,
+     installAutoStart: _installAutoStartHook,
+     uninstallAutoStart: _uninstallAutoStartHook,
+     resolveTextScaleDisplayKey: () => getSettingsDisplayKey(),
+-    syncClaudeHooksNow: () => _server.syncClawdHooks({ source: "settings", automatic: false }),
++    syncClaudeHooksNow: () => { moriProduct.requireCliMode(); return _server.syncClawdHooks({ source: "settings", automatic: false }); },
+     setClaudeQuotaCollectionEnabled: (enabled) => setClaudeCollectionWithConsent(enabled, {
+-      setEnabled: (options) => _server.setClaudeQuotaCollectionEnabled({
++      setEnabled: (options) => { moriProduct.requireCliMode(); return _server.setClaudeQuotaCollectionEnabled({
+         ...options, source: "settings-quota-collection",
+-      }),
++      }); },
+       confirm: async () => {
+         const parent = settingsWindowRuntime.getWindow();
+         const options = {
+@@ -546,27 +572,32 @@ const _settingsController = createSettingsController({
+       },
+     }),
+     uninstallClaudeHooksNow: _uninstallClaudeHooksNow,
+-    startClaudeSettingsWatcher: () => _server.startClaudeSettingsWatcher(),
++    startClaudeSettingsWatcher: () => moriProduct.cliEnabled && _server.startClaudeSettingsWatcher(),
+     stopClaudeSettingsWatcher: () => _server.stopClaudeSettingsWatcher(),
+     setOpenAtLogin: _writeSystemOpenAtLogin,
+-    startMonitorForAgent: (id) => agentRuntime && agentRuntime.startMonitorForAgent(id),
++    startMonitorForAgent: (id) => moriProduct.cliEnabled && agentRuntime && agentRuntime.startMonitorForAgent(id),
+     stopMonitorForAgent: (id) => agentRuntime && agentRuntime.stopMonitorForAgent(id),
+-    syncIntegrationForAgent: (id, options) =>
+-      agentRuntime ? agentRuntime.syncIntegrationForAgent(id, options) : false,
+-    repairIntegrationForAgent: (id, options) =>
+-      agentRuntime ? agentRuntime.repairIntegrationForAgent(id, options) : false,
++    syncIntegrationForAgent: (id, options) => {
++      moriProduct.requireCliMode(); return agentRuntime ? agentRuntime.syncIntegrationForAgent(id, options) : false;
++    },
++    repairIntegrationForAgent: (id, options) => {
++      moriProduct.requireCliMode(); return agentRuntime ? agentRuntime.repairIntegrationForAgent(id, options) : false;
++    },
+     stopIntegrationForAgent: (id) => agentRuntime ? agentRuntime.stopIntegrationForAgent(id) : false,
+-    uninstallIntegrationForAgent: (id) => agentRuntime ? agentRuntime.uninstallIntegrationForAgent(id) : false,
++    uninstallIntegrationForAgent: (id) => { moriProduct.requireCliMode(); return agentRuntime ? agentRuntime.uninstallIntegrationForAgent(id) : false; },
+     writeCodexAutoStartGate: _persistCodexAutoStartGate,
+     deployHooksToWsl: async (distro, agentId) => {
++      moriProduct.requireCliMode();
+       const { deployToWsl } = require("./wsl-deploy");
+       return deployToWsl(distro, { agentId, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath });
+     },
+     removeHooksFromWsl: async (distro, agentId) => {
++      moriProduct.requireCliMode();
+       const { removeFromWsl } = require("./wsl-deploy");
+       return removeFromWsl(distro, { agentId, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath });
+     },
+     cleanupIntegrations: async (options = {}) => {
++      moriProduct.requireCliMode();
+       // Claude hooks + statusline unregister as one queue task, awaited here so
+       // it settles (and any in-flight repair drains) before the generic cleaner
+       // runs. hooks/cleanup-integrations.js records this precomputed result
+@@ -848,7 +879,7 @@ function safeConsoleError(...args) {
+ // ── Theme loader ──
+ const themeLoader = require("./theme-loader");
+ const createCodexPetMain = require("./codex-pet-main");
+-const createOfficialThemeMain = require("./official-theme-main");
++const createOfficialThemeMain = require("./mori-local-themes");
+ themeLoader.init(__dirname, app.getPath("userData"));
+ themeRuntime = createThemeRuntime({
+   themeLoader,
+@@ -1029,12 +1060,12 @@ try {
+ // load path, not activateTheme (which requires ready windows) and not the
+ // setThemeSelection command (which goes through activateTheme). The runtime
+ // switch path via UI goes through setThemeSelection post-window-ready.
+-let _requestedThemeId = _settingsController.get("theme") || "clawd";
++let _requestedThemeId = _settingsController.get("theme") || "mori";
+ const _initialVariantMap = _settingsController.get("themeVariant") || {};
+ let _requestedVariantId = _initialVariantMap[_requestedThemeId] || "default";
+ const _initialThemeOverrides = _settingsController.get("themeOverrides") || {};
+ let _requestedThemeOverrides = _initialThemeOverrides[_requestedThemeId] || null;
+-let _startupCodexPetSyncSummary = codexPetMain.syncThemes(_requestedThemeId);
++let _startupCodexPetSyncSummary = moriProduct.cliEnabled ? codexPetMain.syncThemes(_requestedThemeId) : null;
+ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedThemeId)) {
+   const orphanThemeId = _requestedThemeId;
+   const nextVariantMap = { ...(_settingsController.get("themeVariant") || {}) };
+@@ -1042,7 +1073,7 @@ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedT
+   delete nextVariantMap[orphanThemeId];
+   delete nextOverrides[orphanThemeId];
+ 
+-  _requestedThemeId = "clawd";
++  _requestedThemeId = "mori";
+   _requestedVariantId = nextVariantMap[_requestedThemeId] || "default";
+   _requestedThemeOverrides = nextOverrides[_requestedThemeId] || null;
+   const result = _settingsController.hydrate({
+@@ -2075,7 +2106,7 @@ const _runtimeAgentGate = createRuntimeAgentGate({
+   // Both unreadable prefs and a writable recovered-defaults snapshot are
+   // non-authoritative for this process. The latter may repair the primary file,
+   // but only a clean load after restart can re-open agent paths.
+-  isAuthoritative: () => !_initialPrefsRecovered && !_settingsController.hasReadFailure(),
++  isAuthoritative: () => moriProduct.cliEnabled && !_initialPrefsRecovered && !_settingsController.hasReadFailure(),
+ });
+ const _permCtx = {
+   get win() { return win; },
+@@ -2353,6 +2384,7 @@ function deliverRendererThemeConfig() {
+ }
+ 
+ const recapRuntime = createRecapRuntime({
++  root: path.join(app.getPath("userData"), "recap-v1"),
+   // A default-filled snapshot is not user authority when prefs were unreadable,
+   // recovered, or written by a future app version. Start paused in that case;
+   // a later explicit, controller-accepted toggle may still call setEnabled().
+@@ -2368,7 +2400,7 @@ const _stateCtx = {
+   get win() { return win; },
+   get hitWin() { return hitWin; },
+   // Last-known account quota survives app restarts (state-account-quota.js).
+-  accountQuotaPersistPath: require("./state-account-quota").DEFAULT_PERSIST_PATH,
++  accountQuotaPersistPath: path.join(app.getPath("userData"), "account-quota.json"),
+   recapSink: recapRuntime,
+   get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
+   get kimiQuotaCollectionEnabled() { return kimiQuotaCollectionEnabled; },
+@@ -2422,7 +2454,7 @@ const _stateCtx = {
+     quotaAlertsRuntime?.observeQuota();
+     reconcilePowerSaveBlocker();
+     broadcastDashboardSessionSnapshot(snapshot);
+-    broadcastSessionHudSnapshot(snapshot);
++    broadcastSessionHudSnapshot(getMoriHudSnapshot(snapshot));
+     repositionFloatingBubbles();
+     // R1a: best-effort completion notifications. Must never throw or block the
+     // broadcast — the companion computes synchronously and fires sends async.
+@@ -2451,6 +2483,7 @@ const _stateCtx = {
+     }
+     if (_lanWss) { try { _lanWss.onSnapshot(); } catch {} }
+   },
++  getBrowserDisplayState: () => moriBridge?.getVisualState() || "idle",
+   // Phase 3b: 读 prefs.themeOverrides 判断某个 oneshot state 是否被用户禁用。
+   // state.js gate 调这个做 early-return。不做白名单校验——settings-actions
+   // 负责写入合法性，这里只读。
+@@ -2903,7 +2936,7 @@ function getTutorialDoneHeroSvg() {
+   if (_tutorialDoneHeroSvgCache != null) return _tutorialDoneHeroSvgCache;
+   try {
+     _tutorialDoneHeroSvgCache = fs.readFileSync(
+-      path.join(__dirname, "..", "assets", "svg", "clawd-about-hero.svg"),
++      path.join(__dirname, "..", "assets", "svg", "mori-about-hero.svg"),
+       "utf8"
+     );
+   } catch (err) {
+@@ -2966,7 +2999,7 @@ const _sessionHud = require("./session-hud")({
+   get lowPowerIdleMode() { return lowPowerIdleMode; },
+   getMiniMode: () => _mini.getMiniMode(),
+   getMiniTransitioning: () => _mini.getMiniTransitioning(),
+-  getSessionSnapshot: () => _state.buildSessionSnapshot(),
++  getSessionSnapshot: () => getMoriHudSnapshot(),
+   getI18n: () => getDashboardI18nPayload(),
+   getPetWindowBounds,
+   getHitRectScreen,
+@@ -3007,8 +3040,11 @@ agentRuntime = createAgentRuntimeMain({
+ 
+ // ── HTTP server — delegated to src/server.js ──
+ const _serverCtx = {
+-  get manageClaudeHooksAutomatically() { return manageClaudeHooksAutomatically; },
+-  get autoStartWithClaude() { return autoStartWithClaude; },
++  ...moriProduct.privateRuntimeOptions(app.getPath("userData")),
++  browserOnly: !moriProduct.cliEnabled,
++  attachBrowserBridge: (httpServer) => moriBridge?.attach(httpServer),
++  get manageClaudeHooksAutomatically() { return moriProduct.cliEnabled && manageClaudeHooksAutomatically; },
++  get autoStartWithClaude() { return false; },
+   get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
+   get doNotDisturb() { return doNotDisturb; },
+   shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
+@@ -3117,6 +3153,14 @@ const _serverCtx = {
+ };
+ const _server = require("./server")(_serverCtx);
+ const { startHttpServer, getHookServerPort } = _server;
++moriBrowserWindow = require("./mori-browser-window")({
++  BrowserWindow, ipcMain, clipboard, shell,
++  getBridge: () => moriBridge,
++  getPort: () => moriBoundPort,
++  getHudWindow: () => getSessionHudWindow(),
++  cliEnabled: moriProduct.cliEnabled,
++  getStartupError: () => moriStartupError,
++});
+ 
+ // ── LAN WebSocket bridge for PWA mobile clients (lazy-loaded) ──
+ let _lanWss = null;
+@@ -4561,6 +4605,8 @@ function showResumeInput(t) {
+ }
+ 
+ const _menuCtx = {
++  moriCliEnabled: moriProduct.cliEnabled,
++  openMoriBrowser: () => moriBrowserWindow.open(),
+   get win() { return win; },
+   get sessions() { return sessions; },
+   cancelRoam: () => _roam.cancelRoam(),
+@@ -4739,7 +4785,7 @@ const _menuCtx = {
+   getSettingsWindow,
+   getSystemVersion: () => process.getSystemVersion(),
+   discoverThemes: () => themeLoader.discoverThemes(),
+-  getActiveThemeId: () => themeRuntime.getActiveThemeId("clawd"),
++  getActiveThemeId: () => themeRuntime.getActiveThemeId("mori"),
+   getActiveThemeCapabilities: () => themeRuntime.getActiveThemeCapabilities(),
+   ensureUserThemesDir: () => themeLoader.ensureUserThemesDir(),
+   openSettingsWindow: (options) => settingsWindowRuntime.open(options),
+@@ -4990,7 +5036,7 @@ const _updaterCtx = {
+     try { _settingsController.applyUpdate(key, value); } catch {}
+   },
+ };
+-const _updater = require("./updater")(_updaterCtx);
++const _updater = require("./mori-manual-updater")(_updaterCtx);
+ const {
+   setupAutoUpdater,
+   checkForUpdates,
+@@ -5197,7 +5243,7 @@ const settingsIpcRuntime = registerSettingsIpc({
+     _tutorial.open();
+     return { status: "ok" };
+   },
+-  aboutHeroSvgPath: path.join(__dirname, "..", "assets", "svg", "clawd-about-hero.svg"),
++  aboutHeroSvgPath: path.join(__dirname, "..", "assets", "svg", "mori-about-hero.svg"),
+   getLanWsServer: () => _lanWss,
+ });
+ 
+@@ -5455,7 +5501,7 @@ function createWindow() {
+     updateBubble: _updateBubble,
+   });
+ 
+-  initFocusHelper();
++  if (moriProduct.cliEnabled) initFocusHelper();
+   startMainTick();
+   // Silently connect any remote SSH profile flagged "connect on launch" once
+   // the hook server is ACTUALLY listening and its real port is known.
+@@ -5467,7 +5513,10 @@ function createWindow() {
+   // Best-effort: failures fall back to the runtime's own reconnect/backoff and
+   // never block startup.
+   startHttpServer().then((port) => {
++    moriBoundPort = port;
++    moriBrowserWindow?.notify();
+     if (port == null) return;
++    if (!moriProduct.cliEnabled) return;
+     const restoredSessionIds = restoreSessionsFromRecoveryLeases(_state, {
+       isAgentEnabled: (agentId) => (
+         _runtimeAgentGate.isAgentEnabled(agentId)
+@@ -5478,7 +5527,7 @@ function createWindow() {
+       const recoveredSnapshot = _state.buildSessionSnapshot();
+       reconcilePowerSaveBlocker();
+       broadcastDashboardSessionSnapshot(recoveredSnapshot);
+-      broadcastSessionHudSnapshot(recoveredSnapshot);
++      broadcastSessionHudSnapshot(getMoriHudSnapshot(recoveredSnapshot));
+       // The Slack notifier is not on the broadcast above, so without this its
+       // first snapshot would be some later event — which its priming branch
+       // swallows, losing the first completion after a restart. Prime it with
+@@ -5835,15 +5884,11 @@ function installTerminalFocusExtension() {
+ // ── Single instance lock ──
+ app.on("open-url", (event, url) => {
+   event.preventDefault();
+-  codexPetMain.enqueueImportUrl(url);
++  if (moriProduct.cliEnabled) codexPetMain.enqueueImportUrl(url);
+ });
+ 
+ const gotTheLock = app.requestSingleInstanceLock();
+ if (!gotTheLock) {
+-  if (process.argv.includes(REGISTER_PROTOCOL_DEV_ARG)) {
+-    const protocolRegistered = codexPetMain.registerProtocolClient();
+-    console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
+-  }
+   // Another instance is already running — quit silently
+   app.quit();
+ } else {
+@@ -5858,8 +5903,18 @@ if (!gotTheLock) {
+     || _initialPrefsLoad.recovered === true
+     || _initialPrefsLoad.codexAutoStartAuthoritative === false
+   ) ? null : _initialPrefsLoad.snapshot;
++  try { moriProduct.assertCliRuntimeAvailable(); }
++  catch (error) { console.error(error.message); app.exit(1); return; }
+   _syncCodexAutoStartGate(startupGateSnapshot, "startup");
+   app.on("second-instance", (_event, commandLine) => {
++    if (commandLine.includes("--enable-cli") !== moriProduct.cliEnabled) {
++      void app.whenReady().then(() => dialog.showMessageBox({
++        type: "info", title: "Mori Desk", buttons: ["OK"],
++        message: "起動モードを切り替えるには、先に起動中の Mori Desk を終了してください。",
++        detail: moriProduct.cliEnabled ? "現在は CLI 連携モードです。" : "現在はブラウザ用モードです。CLI 連携には start-cli-windows.bat を使います。",
++      })).catch(() => {});
++      return;
++    }
+     if (petWindowRuntime.isPetEffectivelyHidden()) {
+       prepManualPetVisibility();
+       petWindowRuntime.setPetHidden(false);
+@@ -5880,7 +5935,7 @@ if (!gotTheLock) {
+     if (shouldOpenSettingsWindowFromArgv(commandLine)) {
+       settingsWindowRuntime.openWhenReady();
+     }
+-    codexPetMain.enqueueImportUrlsFromArgv(commandLine);
++    if (moriProduct.cliEnabled) codexPetMain.enqueueImportUrlsFromArgv(commandLine);
+     reapplyMacVisibility();
+   });
+ 
+@@ -5988,7 +6043,7 @@ if (!gotTheLock) {
+       installRuntimeIcon: installRuntimeDockIcon,
+     });
+ 
+-    const protocolRegistered = codexPetMain.registerProtocolClient();
++    const protocolRegistered = false; // Mori must never take over clawd://.
+     if (process.argv.includes(REGISTER_PROTOCOL_DEV_ARG)) {
+       console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
+       app.quit();
+@@ -6022,7 +6077,21 @@ if (!gotTheLock) {
+     try { syncDiscordPresence("startup"); }
+     catch (err) { console.warn("Clawd: discord presence startup failed:", err && err.message); }
+     queueFeishuApprovalSync("startup");
++    try {
++      const { createBrowserBridge } = require("./browser-bridge-server");
++      moriBridge = createBrowserBridge({
++        dataDir: path.join(app.getPath("userData"), "browser-bridge"),
++        safeStorage,
++        extensionId: moriProduct.EXTENSION_ID,
++        onChange: refreshMoriBrowserSnapshot,
++      });
++      if (moriBridge.ready) await moriBridge.ready;
++    } catch (error) {
++      moriStartupError = `ブラウザ連携を開始できません: ${error.message}`;
++      console.error(moriStartupError);
++    }
+     createWindow();
++    moriBrowserWindow.open();
+     try { recapRuntime.start(); }
+     catch (err) { console.warn("Clawd: local recap startup failed:", err && err.code ? err.code : "storage-error"); }
+     // Reconcile the local quota binding only after the app has visible UI.
+@@ -6097,11 +6166,11 @@ if (!gotTheLock) {
+     // existing users who update also see it once on their next launch, then the
+     // flag flips to true forever (any dismissal counts). See prefs.js SCHEMA.
+     try {
+-      if (!_settingsController.get("tutorialSeen")) _tutorial.open();
++      if (moriProduct.cliEnabled && !_settingsController.get("tutorialSeen")) _tutorial.open();
+     } catch (err) {
+       console.warn("Clawd: failed to open first-run tutorial:", err && err.message);
+     }
+-    codexPetMain.enqueueImportUrlsFromArgv(process.argv);
++    if (moriProduct.cliEnabled) codexPetMain.enqueueImportUrlsFromArgv(process.argv);
+     codexPetMain.flushPendingImportUrls().catch((err) => {
+       console.warn("Clawd: Codex Pet import queue failed:", err && err.message);
+     });
+@@ -6115,10 +6184,10 @@ if (!gotTheLock) {
+     // cost at click time. Whether we call .start() right now depends on the
+     // agent-gate snapshot — a user who disabled Codex at last shutdown
+     // shouldn't see its file watcher spin up on the next launch.
+-    agentRuntime.startCodexLogMonitor();
++    if (moriProduct.cliEnabled) agentRuntime.startCodexLogMonitor();
+ 
+     // Auto-install VS Code/Cursor terminal-focus extension
+-    try { installTerminalFocusExtension(); } catch (err) {
++    try { if (moriProduct.cliEnabled) installTerminalFocusExtension(); } catch (err) {
+       console.warn("Clawd: failed to auto-install terminal-focus extension:", err.message);
+     }
+ 
+@@ -6133,7 +6202,7 @@ if (!gotTheLock) {
+ 
+     // Deferred so any startup Codex hook sync has settled before we read the
+     // on-disk hook state; unref'd so it never blocks a fast quit.
+-    const codexHookNudgeTimer = setTimeout(maybeNudgeCodexHookHealth, 4000);
++    const codexHookNudgeTimer = moriProduct.cliEnabled ? setTimeout(maybeNudgeCodexHookHealth, 4000) : null;
+     if (codexHookNudgeTimer && typeof codexHookNudgeTimer.unref === "function") codexHookNudgeTimer.unref();
+   });
+ 
+@@ -6153,6 +6222,8 @@ if (!gotTheLock) {
+     }
+     if (quitCleanupStarted) return;
+     quitCleanupStarted = true;
++    moriBrowserWindow?.dispose();
++    moriBridge?.dispose();
+     quotaAlertsRuntime?.dispose();
+     quotaNotifications.dispose();
+     // Cancel any live official-theme download and drop this round's `.part`.
+diff --git a/src/menu.js b/src/menu.js
+index dd2cb05..a7027f4 100644
+--- a/src/menu.js
++++ b/src/menu.js
+@@ -275,6 +275,7 @@ module.exports = function initMenu(ctx) {
+     // Dashboard + the danger auto-approve toggle (danger last, as in the
+     // context menu).
+     const workGroup = [
++      { label: "ブラウザ連携・セッション", click: () => ctx.openMoriBrowser?.() },
+       {
+         label: t("openDashboard"),
+         click: () => {
+@@ -283,6 +284,7 @@ module.exports = function initMenu(ctx) {
+       },
+       buildPermissionAutomationMenuItem(),
+     ];
++    if (ctx.moriCliEnabled === false) workGroup.splice(1);
+ 
+     // OS-integration / placement group: bring-to-primary, mac dock/menu-bar,
+     // start-on-login.
+@@ -500,6 +502,7 @@ module.exports = function initMenu(ctx) {
+     ];
+ 
+     const workGroup = [
++      { label: "ブラウザ連携・セッション", click: () => ctx.openMoriBrowser?.() },
+       {
+         label: t("openDashboard"),
+         click: () => {
+@@ -532,6 +535,7 @@ module.exports = function initMenu(ctx) {
+       // near the top) makes it harder to hit by accident.
+       buildPermissionAutomationMenuItem(),
+     ];
++    if (ctx.moriCliEnabled === false) workGroup.splice(1);
+ 
+     // Display group: just the multi-display "send to display" entry. The mac
+     // dock / menu-bar visibility toggles deliberately do NOT live here — they
+diff --git a/src/prefs.js b/src/prefs.js
+index dbbe64e..2db0e48 100644
+--- a/src/prefs.js
++++ b/src/prefs.js
+@@ -152,7 +152,7 @@ const SCHEMA = {
+   // Local activity recap is enabled by default for both fresh installs and
+   // upgrades. It stores only bounded aggregate/ticket data under ~/.clawd;
+   // there is no network export and the user can disable or clear it later.
+-  recapEnabled: { type: "boolean", default: true },
++  recapEnabled: { type: "boolean", default: false },
+   // Default off (macOS): a fresh install runs as an accessory/agent app — pet +
+   // menu-bar icon, no Dock tile. Existing users keep their Dock — a persisted
+   // showDock is kept (save() bakes the full snapshot), and the v11->v12 migration
+@@ -227,7 +227,7 @@ const SCHEMA = {
+   kimiQuotaCollectionEnabled: { type: "boolean", default: false },
+   quotaMergeSources: { type: "boolean", default: false },
+   sessionHudCleanupDetached: { type: "boolean", default: true },
+-  sessionHudPinned: { type: "boolean", default: false },
++  sessionHudPinned: { type: "boolean", default: true },
+   // Stale-cleanup intervals (ms). Defaults match the historical constants in
+   // state-stale-cleanup.js so upgrading users see no behavioral change.
+   // sessionStaleMs = 0 means "never drop a session by idle age".
+@@ -317,7 +317,7 @@ const SCHEMA = {
+     default: UPDATE_DEFAULT_SECONDS,
+     validate: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_AUTO_CLOSE_SECONDS,
+   },
+-  soundMuted: { type: "boolean", default: false },
++  soundMuted: { type: "boolean", default: true },
+   soundVolume: {
+     type: "number",
+     default: 1,
+@@ -398,7 +398,7 @@ const SCHEMA = {
+     normalize: normalizeShortcuts,
+   },
+   // Theme
+-  theme: { type: "string", default: "clawd" },
++  theme: { type: "string", default: "mori" },
+   // Per-theme color filter choice, e.g. { clawd: "matcha", cloudling: "mono" }.
+   // Missing entries preserve the theme's native colors. The normalizer also
+   // accepts the short-lived pre-detail-view string shape and seeds supported
+@@ -438,9 +438,9 @@ const SCHEMA = {
+       // subagentPermissionsEnabled (#451): bubbles for PermissionRequests
+       // fired inside a Task subagent. Only claude-code carries the flag —
+       // normalizeAgents drops it for agents whose default entry lacks it.
+-      "claude-code": { integrationInstalled: true, enabled: true, permissionsEnabled: true, subagentPermissionsEnabled: true, notificationHookEnabled: true },
++      "claude-code": { integrationInstalled: false, enabled: false, permissionsEnabled: false, subagentPermissionsEnabled: false, notificationHookEnabled: true },
+       "deepseek-harness": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
+-      "codex": { integrationInstalled: true, enabled: true, permissionsEnabled: true, notificationHookEnabled: true, permissionMode: "auto", nativeNotificationSoundEnabled: false },
++      "codex": { integrationInstalled: false, enabled: false, permissionsEnabled: false, notificationHookEnabled: true, permissionMode: "auto", nativeNotificationSoundEnabled: false },
+       "copilot-cli": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
+       "cursor-agent": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
+       "gemini-cli": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
+diff --git a/src/preload-session-hud.js b/src/preload-session-hud.js
+index 2e0f3a8..9531dd9 100644
+--- a/src/preload-session-hud.js
++++ b/src/preload-session-hud.js
+@@ -20,6 +20,9 @@ ipcRenderer.on("session-hud:lang-change", (_event, payload) => {
+ contextBridge.exposeInMainWorld("sessionHudAPI", {
+   getI18n: () => ipcRenderer.invoke("session-hud:get-i18n"),
+   focusSession: (sessionId) => ipcRenderer.send("session-hud:focus-session", sessionId),
++  focusBrowser: (id, noticeSequence) => ipcRenderer.invoke("mori:focus", { id, noticeSequence }),
++  ackBrowser: (id, noticeSequence) => ipcRenderer.invoke("mori:ack", { id, noticeSequence }),
++  openBrowserPanel: () => ipcRenderer.invoke("mori:open-panel"),
+   openSessionFolder: (sessionId) => ipcRenderer.invoke("session-hud:open-session-folder", sessionId),
+   openDashboard: () => ipcRenderer.send("session-hud:open-dashboard"),
+   setPinned: (value) => ipcRenderer.send("session-hud:set-pinned", !!value),
+diff --git a/src/server.js b/src/server.js
+index 2aabd48..95ba664 100644
+--- a/src/server.js
++++ b/src/server.js
+@@ -963,6 +963,13 @@ function rejectUnsafeLocalHookRequest(req, res, route) {
+ }
+ 
+ function routeHttpRequest(req, res, remoteProfile = null) {
++    // Browser-only Mori must not be discovered as a native Clawd hook server.
++    // The authenticated browser connection is a separate WebSocket upgrade.
++    if (ctx.browserOnly === true) {
++      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Connection": "close" });
++      res.end("Mori Desk browser bridge requires its paired extension.");
++      return;
++    }
+     // Secure Remote SSH traffic must terminate at its profile-bound ingress,
+     // never at the compatibility-oriented local main server. Rejecting the
+     // nonce header here makes stale manual RemoteForward/proxy rules fail
+@@ -1027,6 +1034,8 @@ function startHttpServer() {
+   httpServer = createHttpServer((req, res) => {
+     routeHttpRequest(req, res, null);
+   });
++  // Local listener only. The existing CLI HTTP Origin checks stay unchanged.
++  if (typeof ctx.attachBrowserBridge === "function") ctx.attachBrowserBridge(httpServer);
+ 
+   const listenPorts = getPortCandidatesFn();
+   let listenIndex = 0;
+@@ -1104,7 +1113,7 @@ function startHttpServer() {
+       // and they operate on independent files for independent agents, so
+       // none of them need to block the HTTP server from accepting traffic.
+       setImmediateFn(() => {
+-        syncEnabledStartupIntegrations();
++        if (ctx.browserOnly !== true && runtimeWritten) syncEnabledStartupIntegrations();
+       });
+       settle(activeServerPort);
+     });
+diff --git a/src/session-focus.js b/src/session-focus.js
+index 4153d77..64b0c1d 100644
+--- a/src/session-focus.js
++++ b/src/session-focus.js
+@@ -103,6 +103,9 @@ function getSessionFocusTarget(entry, options = {}) {
+ // session still carries a sourcePid. Navigation callers continue to use the
+ // regular target above and can open the thread URL normally.
+ function getDirectSendFocusTarget(entry, options = {}) {
++  if (entry && entry.source === "browser") {
++    return { canFocus: false, type: "browser", url: null, reason: "browser_navigation_only" };
++  }
+   const isCodexDesktop = !!entry
+     && entry.agentId === "codex"
+     && isCodexDesktopOriginator(entry.codexOriginator || entry.originator);
+diff --git a/src/session-hud-renderer.js b/src/session-hud-renderer.js
+index e5bf008..7e793c0 100644
+--- a/src/session-hud-renderer.js
++++ b/src/session-hud-renderer.js
+@@ -127,6 +127,9 @@ function makeChipInfo(entry) {
+ }
+ 
+ function stateChipInfo(session) {
++  if (session && session.source === "browser") {
++    return { label: session.statusLabel || "状態を確認", cls: session.phase === "running" && session.observation === "fresh" ? "chip-working" : "chip-notification" };
++  }
+   if (snapshot.hudShowStateLabels === false) {
+     return session && session.startupRecovered
+       ? { label: t("sessionRecovered"), cls: "chip-recovered" }
+@@ -192,6 +195,11 @@ function updateUnread(sessions) {
+     if (!currentIds.has(id)) unreadSessions.delete(id);
+   }
+   for (const session of sessions) {
++    if (session.source === "browser") {
++      if (session.pendingNotice || session.requiresCompletionAck) unreadSessions.add(session.id);
++      else unreadSessions.delete(session.id);
++      continue;
++    }
+     const prev = prevBadges.get(session.id);
+     const curr = session.badge;
+     if (curr !== "done") {
+@@ -303,7 +311,7 @@ function createRowForSession(session, now) {
+   right.className = "right";
+   let hasRightContent = false;
+ 
+-  if (!feedbackText && session.badge === "done" && unreadSessions.has(session.id)) {
++  if (!feedbackText && (session.badge === "done" || session.source === "browser") && unreadSessions.has(session.id)) {
+     const bell = document.createElement("span");
+     bell.className = "completion-bell unread-bell";
+     bell.innerHTML = BELL_SVG;
+@@ -389,7 +397,16 @@ function createRowForSession(session, now) {
+   row.appendChild(left);
+   if (hasRightContent) row.appendChild(right);
+ 
+-  row.addEventListener("click", () => {
++  row.addEventListener("click", async () => {
++    if (session.source === "browser") {
++      if (!canFocus) { showSessionFeedback(session.id, "接続を確認してください。未確認の通知は保持されます。"); return; }
++      const sequence = session.pendingNotice?.noticeSequence ?? session.noticeSequence ?? null;
++      try {
++        const result = await window.sessionHudAPI.focusBrowser(session.id, sequence);
++        if (!result?.ok) showSessionFeedback(session.id, "タブへ戻れませんでした。接続や表示中の会話を確認してください。");
++      } catch { showSessionFeedback(session.id, "接続を確認してください。"); }
++      return;
++    }
+     unreadSessions.delete(session.id);
+     if (canFocus) {
+       render();
+@@ -429,7 +446,8 @@ function createFoldedRow(count) {
+   row.appendChild(left);
+ 
+   row.addEventListener("click", () => {
+-    window.sessionHudAPI.openDashboard();
++    if (snapshot.sessions.some(entry => entry.source === "browser")) window.sessionHudAPI.openBrowserPanel();
++    else window.sessionHudAPI.openDashboard();
+   });
+ 
+   return row;
+diff --git a/src/settings-actions-system.js b/src/settings-actions-system.js
+index abd0d0f..37d17c6 100644
+--- a/src/settings-actions-system.js
++++ b/src/settings-actions-system.js
+@@ -15,6 +15,9 @@ const autoStartWithClaude = {
+   lockKey: CLAUDE_HOOKS_LOCK_KEY,
+   validate: requireBoolean("autoStartWithClaude"),
+   effect(value, deps) {
++    if (value && deps?.allowCliColdStart === false) {
++      return { status: "error", code: "MORI_MANUAL_CLI_START", message: "Mori Desk 開発版では CLI モードを手動で起動してください。" };
++    }
+     if (deps && deps.snapshot && deps.snapshot.manageClaudeHooksAutomatically === false) {
+       return { status: "ok", noop: true };
+     }
+@@ -60,6 +63,9 @@ const autoStartWithCodex = {
+   lockKey: CODEX_AUTO_START_LOCK_KEY,
+   validate: requireBoolean("autoStartWithCodex"),
+   effect(_value, deps) {
++    if (_value && deps?.allowCliColdStart === false) {
++      return { status: "error", code: "MORI_MANUAL_CLI_START", message: "Mori Desk 開発版では CLI モードを手動で起動してください。" };
++    }
+     if (!deps || typeof deps.writeCodexAutoStartGate !== "function") {
+       return {
+         status: "error",
+diff --git a/src/settings-ipc.js b/src/settings-ipc.js
+index 7c31635..f2d737f 100644
+--- a/src/settings-ipc.js
++++ b/src/settings-ipc.js
+@@ -773,7 +773,7 @@ function registerSettingsIpc(options = {}) {
+   handle("settings:list-themes", () => {
+     try {
+       const activeTheme = getActiveTheme();
+-      const activeId = activeTheme ? activeTheme._id : "clawd";
++      const activeId = activeTheme ? activeTheme._id : "mori";
+       return themeLoader.listThemesWithMetadata().map((theme) => {
+         const active = theme.id === activeId;
+         const runtimeCapabilities = active
+@@ -1106,22 +1106,26 @@ function registerSettingsIpc(options = {}) {
+     } catch (err) {
+       console.warn("Clawd: failed to read about hero SVG:", err && err.message);
+     }
+-    let pendingUpdateVersion = "";
+-    let autoUpdateCheck = true;
+-    try {
+-      pendingUpdateVersion = String(settingsController.get("pendingUpdateVersion") || "");
+-      autoUpdateCheck = settingsController.get("autoUpdateCheck") !== false;
+-    } catch {}
++    const japanese = getLang() === "ja";
+     return {
+       version: app.getVersion(),
+-      repoUrl: "https://github.com/rullerzhou-afk/clawd-on-desk",
+-      license: "AGPL-3.0",
+-      copyright: "\u00a9 2026 Ruller_Lulu",
+-      authorName: "Ruller_Lulu / \u9e7f\u9e7f",
+-      authorUrl: "https://github.com/rullerzhou-afk",
++      repoUrl: "https://github.com/kaduiro/mori-desk",
++      upstreamRepoUrl: "https://github.com/rullerzhou-afk/clawd-on-desk",
++      license: "AGPL-3.0-only",
++      licenseUrl: "https://github.com/kaduiro/mori-desk/blob/main/LICENSE",
++      copyright: "\u00a9 2026 Ruller_Lulu; Mori Desk modifications \u00a9 2026 Mori Desk contributors",
++      authorName: "Mori Desk contributors",
++      authorUrl: "https://github.com/kaduiro/mori-desk",
++      legalNotice: japanese
++        ? "無保証で提供されます。AGPL-3.0-only の条件に従って再配布・改変できます。Mori Desk による変更日: 2026-10-19。"
++        : "Provided without warranty. You may redistribute and modify this program under AGPL-3.0-only. Modified by Mori Desk contributors on 2026-10-19.",
+       heroSvgContent,
+-      pendingUpdateVersion,
+-      autoUpdateCheck,
++      pendingUpdateVersion: "",
++      autoUpdateCheck: false,
++      autoUpdateSupported: false,
++      manualUpdateMessage: japanese
++        ? "この開発版は手動更新です。更新手順は Mori Desk のリポジトリを参照してください。"
++        : "This preview is updated manually. Follow the update instructions in the Mori Desk repository.",
+       updateCheckSnapshot: getUpdateCheckSnapshot(),
+     };
+   });
+diff --git a/src/settings-tab-about.js b/src/settings-tab-about.js
+index 6d14277..edd4232 100644
+--- a/src/settings-tab-about.js
++++ b/src/settings-tab-about.js
+@@ -138,7 +138,7 @@
+   // cache; the dynamic ones must be re-fetched on every render so the
+   // pending hint and the auto-update toggle reflect current state after
+   // the user flips the toggle or the scheduler discovers a new version.
+-  const STATIC_ABOUT_KEYS = ["repoUrl", "license", "copyright", "authorName", "authorUrl", "heroSvgContent"];
++  const STATIC_ABOUT_KEYS = ["repoUrl", "upstreamRepoUrl", "license", "licenseUrl", "copyright", "authorName", "authorUrl", "heroSvgContent", "legalNotice"];
+   function fetchAboutInfo() {
+     if (!window.settingsAPI || typeof window.settingsAPI.getAboutInfo !== "function") {
+       return Promise.resolve(runtime.about.infoCache || null);
+@@ -155,6 +155,8 @@
+       merged.version = info.version;
+       merged.pendingUpdateVersion = info.pendingUpdateVersion || "";
+       merged.autoUpdateCheck = info.autoUpdateCheck !== false;
++      merged.autoUpdateSupported = info.autoUpdateSupported === true;
++      merged.manualUpdateMessage = info.manualUpdateMessage || "";
+       merged.updateCheckSnapshot = normalizeUpdateCheckSnapshot(info.updateCheckSnapshot);
+       runtime.about.updateCheckSnapshot = merged.updateCheckSnapshot;
+       runtime.about.infoCache = merged;
+@@ -301,11 +303,11 @@
+ 
+     const crabWrap = document.createElement("div");
+     crabWrap.className = "about-crab-wrap";
+-    crabWrap.title = "Clawd";
++    crabWrap.title = "Mori";
+ 
+     const title = document.createElement("h2");
+     title.className = "about-title";
+-    title.textContent = "Clawd on Desk";
++    title.textContent = "Mori Desk";
+ 
+     const tagline = document.createElement("p");
+     tagline.className = "about-tagline";
+@@ -324,7 +326,7 @@
+     maintainersRow.className = "about-info-row";
+     const maintainersLabel = document.createElement("div");
+     maintainersLabel.className = "about-info-label";
+-    maintainersLabel.textContent = t("aboutMaintainersLabel");
++    maintainersLabel.textContent = t("aboutMaintainersLabel") + " · clawd-on-desk";
+     const maintainersValue = document.createElement("div");
+     maintainersValue.className = "about-info-value";
+     maintainersValue.style.display = "flex";
+@@ -349,7 +351,7 @@
+     contribRow.className = "about-info-row";
+     const contribLabel = document.createElement("div");
+     contribLabel.className = "about-info-label";
+-    contribLabel.textContent = t("aboutContributorsLabel") + " (" + i18n.CONTRIBUTORS.length + ")";
++    contribLabel.textContent = t("aboutContributorsLabel") + " · clawd-on-desk (" + i18n.CONTRIBUTORS.length + ")";
+     contribRow.appendChild(contribLabel);
+ 
+     const contribList = document.createElement("div");
+@@ -404,149 +406,159 @@
+       vv.className = "about-info-value";
+       vv.textContent = "v" + (safe.version || "?");
+       vvWrap.appendChild(vv);
+-      if (safe.pendingUpdateVersion) {
+-        const hint = document.createElement("span");
+-        hint.className = "about-update-hint";
+-        hint.textContent = "· " + t("aboutUpdateAvailableHint").replace(
+-          "{version}",
+-          formatVersionForMessage(safe.pendingUpdateVersion)
+-        );
+-        hint.style.cursor = "pointer";
+-        hint.addEventListener("click", () => {
+-          void runUpdateCheck();
+-        });
+-        vvWrap.appendChild(hint);
+-      }
+-      const updateBtn = document.createElement("button");
+-      updateBtn.className = "about-check-update-btn";
+-      const updateStatusHost = document.createElement("div");
+-      updateStatusHost.className = "about-update-status-host";
+-
+-      function applyUpdateCheckStatus(snapshot) {
+-        const normalized = normalizeUpdateCheckSnapshot(snapshot);
+-        runtime.about.updateCheckSnapshot = normalized;
+-        const busy = normalized.state === "checking" || normalized.state === "downloading";
+-        updateBtn.disabled = busy;
+-        updateBtn.classList.toggle("checking", normalized.state === "checking");
+-        updateBtn.textContent = normalized.state === "checking"
+-          ? t("aboutCheckingForUpdates")
+-          : t("aboutCheckForUpdates");
+-        helpers.disposeMountedDisposable(state.mountedControls.aboutUpdateErrorDisclosure);
+-        state.mountedControls.aboutUpdateErrorDisclosure = null;
+-        updateStatusHost.innerHTML = "";
+-        if (normalized.state === "error" && normalized.error) {
+-          updateStatusHost.appendChild(buildUpdateErrorCard(normalized.error, () => {
+-            const clear = window.settingsAPI && window.settingsAPI.clearUpdateError;
+-            Promise.resolve(typeof clear === "function" ? clear() : { state: "idle" })
+-              .then((next) => applyUpdateCheckStatus(next || { state: "idle" }))
+-              .catch(() => applyUpdateCheckStatus({ state: "idle" }));
+-          }));
+-        }
+-      }
+-
+-      async function runUpdateCheck() {
+-        if (!window.settingsAPI || typeof window.settingsAPI.checkForUpdates !== "function") return;
+-        applyUpdateCheckStatus({ state: "checking" });
+-        try {
+-          const result = await window.settingsAPI.checkForUpdates();
+-          applyUpdateCheckStatus(result);
+-        } catch (_) {
+-          applyUpdateCheckStatus(runtime.about.updateCheckSnapshot);
+-        }
+-      }
+-      updateBtn.addEventListener("click", () => { void runUpdateCheck(); });
+-      vvWrap.appendChild(updateBtn);
+       versionRow.appendChild(vl);
+       versionRow.appendChild(vvWrap);
+       infoSection.appendChild(versionRow);
+-      infoSection.appendChild(updateStatusHost);
+-      state.mountedControls.aboutUpdateStatus = {
+-        element: updateStatusHost,
+-        apply: applyUpdateCheckStatus,
+-      };
+-      applyUpdateCheckStatus(safe.updateCheckSnapshot || runtime.about.updateCheckSnapshot);
+-
+-      const autoUpdateRow = document.createElement("div");
+-      autoUpdateRow.className = "about-info-row";
+-      const autoUpdateLabelWrap = document.createElement("div");
+-      autoUpdateLabelWrap.className = "about-info-label";
+-      const autoUpdateLabel = document.createElement("div");
+-      autoUpdateLabel.id = "settings-about-auto-update-label";
+-      autoUpdateLabel.textContent = t("autoUpdateCheck");
+-      const autoUpdateDesc = document.createElement("div");
+-      autoUpdateDesc.id = "settings-about-auto-update-description";
+-      autoUpdateDesc.className = "about-info-description";
+-      autoUpdateDesc.textContent = t("autoUpdateCheckDescription");
+-      autoUpdateDesc.style.opacity = "0.7";
+-      autoUpdateDesc.style.fontSize = "12px";
+-      autoUpdateLabelWrap.appendChild(autoUpdateLabel);
+-      autoUpdateLabelWrap.appendChild(autoUpdateDesc);
+-      const autoUpdateValue = document.createElement("div");
+-      autoUpdateValue.className = "about-info-value";
+-      let committedAutoUpdate = safe.autoUpdateCheck !== false;
+-      let autoUpdatePending = false;
+-      const autoUpdateControl = helpers.buildSwitch({
+-        checked: committedAutoUpdate,
+-        ariaLabelledBy: autoUpdateLabel.id,
+-        ariaDescribedBy: autoUpdateDesc.id,
+-        className: "about-auto-update-switch",
+-      });
+-      const autoUpdateSwitch = autoUpdateControl.element;
++      state.mountedControls.aboutUpdateStatus = null;
++      state.mountedControls.aboutAutoUpdate = null;
++      if (safe.autoUpdateSupported !== true) {
++        const manualUpdate = document.createElement("p");
++        manualUpdate.className = "about-info-description";
++        manualUpdate.textContent = safe.manualUpdateMessage
++          || "This preview is updated manually. Follow the update instructions in the Mori Desk repository.";
++        infoSection.appendChild(manualUpdate);
++      } else {
++        if (safe.pendingUpdateVersion) {
++          const hint = document.createElement("span");
++          hint.className = "about-update-hint";
++          hint.textContent = "· " + t("aboutUpdateAvailableHint").replace(
++            "{version}",
++            formatVersionForMessage(safe.pendingUpdateVersion)
++          );
++          hint.style.cursor = "pointer";
++          hint.addEventListener("click", () => {
++            void runUpdateCheck();
++          });
++          vvWrap.appendChild(hint);
++        }
++        const updateBtn = document.createElement("button");
++        updateBtn.className = "about-check-update-btn";
++        const updateStatusHost = document.createElement("div");
++        updateStatusHost.className = "about-update-status-host";
++
++        function applyUpdateCheckStatus(snapshot) {
++          const normalized = normalizeUpdateCheckSnapshot(snapshot);
++          runtime.about.updateCheckSnapshot = normalized;
++          const busy = normalized.state === "checking" || normalized.state === "downloading";
++          updateBtn.disabled = busy;
++          updateBtn.classList.toggle("checking", normalized.state === "checking");
++          updateBtn.textContent = normalized.state === "checking"
++            ? t("aboutCheckingForUpdates")
++            : t("aboutCheckForUpdates");
++          helpers.disposeMountedDisposable(state.mountedControls.aboutUpdateErrorDisclosure);
++          state.mountedControls.aboutUpdateErrorDisclosure = null;
++          updateStatusHost.innerHTML = "";
++          if (normalized.state === "error" && normalized.error) {
++            updateStatusHost.appendChild(buildUpdateErrorCard(normalized.error, () => {
++              const clear = window.settingsAPI && window.settingsAPI.clearUpdateError;
++              Promise.resolve(typeof clear === "function" ? clear() : { state: "idle" })
++                .then((next) => applyUpdateCheckStatus(next || { state: "idle" }))
++                .catch(() => applyUpdateCheckStatus({ state: "idle" }));
++            }));
++          }
++        }
+ 
+-      function paintAutoUpdate(value, pending = autoUpdatePending) {
+-        autoUpdateControl.setState({ checked: value, pending });
+-      }
++        async function runUpdateCheck() {
++          if (!window.settingsAPI || typeof window.settingsAPI.checkForUpdates !== "function") return;
++          applyUpdateCheckStatus({ state: "checking" });
++          try {
++            const result = await window.settingsAPI.checkForUpdates();
++            applyUpdateCheckStatus(result);
++          } catch (_) {
++            applyUpdateCheckStatus(runtime.about.updateCheckSnapshot);
++          }
++        }
++        updateBtn.addEventListener("click", () => { void runUpdateCheck(); });
++        vvWrap.appendChild(updateBtn);
++        infoSection.appendChild(updateStatusHost);
++        state.mountedControls.aboutUpdateStatus = {
++          element: updateStatusHost,
++          apply: applyUpdateCheckStatus,
++        };
++        applyUpdateCheckStatus(safe.updateCheckSnapshot || runtime.about.updateCheckSnapshot);
++
++        const autoUpdateRow = document.createElement("div");
++        autoUpdateRow.className = "about-info-row";
++        const autoUpdateLabelWrap = document.createElement("div");
++        autoUpdateLabelWrap.className = "about-info-label";
++        const autoUpdateLabel = document.createElement("div");
++        autoUpdateLabel.id = "settings-about-auto-update-label";
++        autoUpdateLabel.textContent = t("autoUpdateCheck");
++        const autoUpdateDesc = document.createElement("div");
++        autoUpdateDesc.id = "settings-about-auto-update-description";
++        autoUpdateDesc.className = "about-info-description";
++        autoUpdateDesc.textContent = t("autoUpdateCheckDescription");
++        autoUpdateDesc.style.opacity = "0.7";
++        autoUpdateDesc.style.fontSize = "12px";
++        autoUpdateLabelWrap.appendChild(autoUpdateLabel);
++        autoUpdateLabelWrap.appendChild(autoUpdateDesc);
++        const autoUpdateValue = document.createElement("div");
++        autoUpdateValue.className = "about-info-value";
++        let committedAutoUpdate = safe.autoUpdateCheck !== false;
++        let autoUpdatePending = false;
++        const autoUpdateControl = helpers.buildSwitch({
++          checked: committedAutoUpdate,
++          ariaLabelledBy: autoUpdateLabel.id,
++          ariaDescribedBy: autoUpdateDesc.id,
++          className: "about-auto-update-switch",
++        });
++        const autoUpdateSwitch = autoUpdateControl.element;
+ 
+-      function syncAutoUpdateFromSnapshot() {
+-        const snapshotHasValue = state.snapshot
+-          && Object.prototype.hasOwnProperty.call(state.snapshot, "autoUpdateCheck");
+-        committedAutoUpdate = snapshotHasValue
+-          ? state.snapshot.autoUpdateCheck !== false
+-          : runtime.about.infoCache.autoUpdateCheck !== false;
+-        runtime.about.infoCache.autoUpdateCheck = committedAutoUpdate;
+-        autoUpdatePending = false;
+-        paintAutoUpdate(committedAutoUpdate, false);
+-      }
++        function paintAutoUpdate(value, pending = autoUpdatePending) {
++          autoUpdateControl.setState({ checked: value, pending });
++        }
++
++        function syncAutoUpdateFromSnapshot() {
++          const snapshotHasValue = state.snapshot
++            && Object.prototype.hasOwnProperty.call(state.snapshot, "autoUpdateCheck");
++          committedAutoUpdate = snapshotHasValue
++            ? state.snapshot.autoUpdateCheck !== false
++            : runtime.about.infoCache.autoUpdateCheck !== false;
++          runtime.about.infoCache.autoUpdateCheck = committedAutoUpdate;
++          autoUpdatePending = false;
++          paintAutoUpdate(committedAutoUpdate, false);
++        }
+ 
+-      function toggleAutoUpdate() {
+-        if (autoUpdatePending || !window.settingsAPI || typeof window.settingsAPI.update !== "function") return;
+-        const previous = committedAutoUpdate;
+-        const next = !committedAutoUpdate;
+-        committedAutoUpdate = next;
+-        autoUpdatePending = true;
+-        runtime.about.infoCache.autoUpdateCheck = next;
+-        paintAutoUpdate(next, true);
+-        Promise.resolve(window.settingsAPI.update("autoUpdateCheck", next))
+-          .then((result) => {
+-            if (!result || result.status !== "ok") {
++        function toggleAutoUpdate() {
++          if (autoUpdatePending || !window.settingsAPI || typeof window.settingsAPI.update !== "function") return;
++          const previous = committedAutoUpdate;
++          const next = !committedAutoUpdate;
++          committedAutoUpdate = next;
++          autoUpdatePending = true;
++          runtime.about.infoCache.autoUpdateCheck = next;
++          paintAutoUpdate(next, true);
++          Promise.resolve(window.settingsAPI.update("autoUpdateCheck", next))
++            .then((result) => {
++              if (!result || result.status !== "ok") {
++                committedAutoUpdate = previous;
++                runtime.about.infoCache.autoUpdateCheck = previous;
++                ops.showToast((result && result.message) || t("toastSaveFailed"), { error: true });
++              }
++            })
++            .catch((err) => {
+               committedAutoUpdate = previous;
+               runtime.about.infoCache.autoUpdateCheck = previous;
+-              ops.showToast((result && result.message) || t("toastSaveFailed"), { error: true });
+-            }
+-          })
+-          .catch((err) => {
+-            committedAutoUpdate = previous;
+-            runtime.about.infoCache.autoUpdateCheck = previous;
+-            const message = err && err.message ? err.message : "unknown error";
+-            ops.showToast(t("toastSaveFailed") + message, { error: true });
+-          })
+-          .finally(() => {
+-            autoUpdatePending = false;
+-            if (document.body.contains(autoUpdateSwitch)) paintAutoUpdate(committedAutoUpdate, false);
+-          });
+-      }
++              const message = err && err.message ? err.message : "unknown error";
++              ops.showToast(t("toastSaveFailed") + message, { error: true });
++            })
++            .finally(() => {
++              autoUpdatePending = false;
++              if (document.body.contains(autoUpdateSwitch)) paintAutoUpdate(committedAutoUpdate, false);
++            });
++        }
+ 
+-      autoUpdateControl.setOnToggle(toggleAutoUpdate);
+-      state.mountedControls.aboutAutoUpdate = {
+-        control: autoUpdateControl,
+-        element: autoUpdateSwitch,
+-        syncFromSnapshot: syncAutoUpdateFromSnapshot,
+-      };
+-      paintAutoUpdate(committedAutoUpdate, false);
+-      autoUpdateValue.appendChild(autoUpdateSwitch);
+-      autoUpdateRow.appendChild(autoUpdateLabelWrap);
+-      autoUpdateRow.appendChild(autoUpdateValue);
+-      infoSection.appendChild(autoUpdateRow);
++        autoUpdateControl.setOnToggle(toggleAutoUpdate);
++        state.mountedControls.aboutAutoUpdate = {
++          control: autoUpdateControl,
++          element: autoUpdateSwitch,
++          syncFromSnapshot: syncAutoUpdateFromSnapshot,
++        };
++        paintAutoUpdate(committedAutoUpdate, false);
++        autoUpdateValue.appendChild(autoUpdateSwitch);
++        autoUpdateRow.appendChild(autoUpdateLabelWrap);
++        autoUpdateRow.appendChild(autoUpdateValue);
++        infoSection.appendChild(autoUpdateRow);
++      }
+ 
+       if (safe.repoUrl) {
+         infoSection.appendChild(buildAboutLinkRow(
+@@ -555,6 +567,13 @@
+           safe.repoUrl.replace(/^https?:\/\//, "")
+         ));
+       }
++      if (safe.upstreamRepoUrl) {
++        infoSection.appendChild(buildAboutLinkRow(
++          t("aboutRepositoryLabel") + " · clawd-on-desk",
++          safe.upstreamRepoUrl,
++          safe.upstreamRepoUrl.replace(/^https?:\/\//, "")
++        ));
++      }
+ 
+       if (safe.license) {
+         const lRow = document.createElement("div");
+@@ -564,11 +583,29 @@
+         ll.textContent = t("aboutLicenseLabel");
+         const lv = document.createElement("div");
+         lv.className = "about-info-value";
+-        lv.textContent = safe.license + (safe.copyright ? " · " + safe.copyright : "");
++        if (safe.licenseUrl) {
++          const licenseLink = document.createElement("a");
++          licenseLink.href = "#";
++          licenseLink.textContent = safe.license;
++          licenseLink.addEventListener("click", (event) => {
++            event.preventDefault();
++            helpers.openExternalSafe(safe.licenseUrl);
++          });
++          lv.appendChild(licenseLink);
++          if (safe.copyright) lv.appendChild(document.createTextNode(" · " + safe.copyright));
++        } else {
++          lv.textContent = safe.license + (safe.copyright ? " · " + safe.copyright : "");
++        }
+         lRow.appendChild(ll);
+         lRow.appendChild(lv);
+         infoSection.appendChild(lRow);
+       }
++      if (safe.legalNotice) {
++        const notice = document.createElement("p");
++        notice.className = "about-info-description";
++        notice.textContent = safe.legalNotice;
++        infoSection.appendChild(notice);
++      }
+ 
+       if (safe.authorName) {
+         infoSection.appendChild(buildAboutLinkRow(
+diff --git a/src/settings-tab-agents.js b/src/settings-tab-agents.js
+index 36c5410..e4218d2 100644
+--- a/src/settings-tab-agents.js
++++ b/src/settings-tab-agents.js
+@@ -1022,7 +1022,8 @@
+       disabled: !manageHooksEnabled,
+     });
+     autoStartRow.classList.add("row-sub");
+-    return [manageRow, autoStartRow];
++    // Mori preview requires the explicit CLI launcher; no cold-launch toggle.
++    return [manageRow];
+   }
+ 
+   function buildAgentGroup(agent) {
+@@ -1378,7 +1379,7 @@
+         descKey: "rowStartWithCodexDesc",
+       });
+       codexAutoStartRow.classList.add("row-sub");
+-      rows.push(codexAutoStartRow);
++      // Mori preview requires the explicit CLI launcher; no cold-launch toggle.
+       rows.push(buildCodexPermissionModeRow(agent, computeAgentSubSwitchDisabled(agent.id, "permissionMode")));
+       rows.push(buildAgentSwitchRow({
+         agent,
+diff --git a/src/settings-window-icon.js b/src/settings-window-icon.js
+index 5b00f5f..5492692 100644
+--- a/src/settings-window-icon.js
++++ b/src/settings-window-icon.js
+@@ -2,8 +2,8 @@
+ 
+ const path = require("path");
+ 
+-const WINDOWS_APP_USER_MODEL_ID = "com.clawd.on-desk";
+-const SETTINGS_WINDOW_TITLE = "Clawd Settings";
++const WINDOWS_APP_USER_MODEL_ID = "com.kaduiro.moridesk";
++const SETTINGS_WINDOW_TITLE = "Mori Desk Settings";
+ const SETTINGS_WINDOW_LAUNCH_ARG = "--open-settings-window";
+ 
+ function quoteWindowsCommandArg(value) {
+diff --git a/src/state.js b/src/state.js
+index 6aa2ccf..2c0bf7a 100644
+--- a/src/state.js
++++ b/src/state.js
+@@ -3890,13 +3890,16 @@ function disposeKimiPermissionSession(sessionId) {
+ }
+ 
+ function resolveDisplayState() {
+-  return resolveDisplayStateFromSessions(sessions, {
++  const cliState = resolveDisplayStateFromSessions(sessions, {
+     statePriority: STATE_PRIORITY,
+     compacting: hasCodexCompactionVisual(),
+     permissionLocked: hasPermissionAnimationLock(),
+     updateVisualState,
+     updateVisualPriority,
+   });
++  return require("./mori-desktop-snapshot").mergeDisplayState(cliState,
++    typeof ctx.getBrowserDisplayState === "function" ? ctx.getBrowserDisplayState() : "idle",
++    { permissionLocked: hasPermissionAnimationLock(), dnd: !!ctx.doNotDisturb });
+ }
+ 
+ function setUpdateVisualState(kind) {
+diff --git a/src/theme-loader.js b/src/theme-loader.js
+index 178410d..94fd43f 100644
+--- a/src/theme-loader.js
++++ b/src/theme-loader.js
+@@ -177,8 +177,8 @@ function loadTheme(themeId, opts = {}) {
+     const msg = `Theme "${themeId}" not found`;
+     if (strict) throw new Error(msg);
+     console.error(`[theme-loader] ${msg}`);
+-    if (themeId !== "clawd") return loadTheme("clawd");
+-    throw new Error("Default theme 'clawd' not found");
++    if (themeId !== "mori") return loadTheme("mori");
++    throw new Error("Default theme 'mori' not found");
+   }
+ 
+   const errors = validateTheme(raw);
+@@ -186,7 +186,7 @@ function loadTheme(themeId, opts = {}) {
+     const msg = `Theme "${themeId}" validation errors: ${errors.join("; ")}`;
+     if (strict) throw new Error(msg);
+     console.error(`[theme-loader] ${msg}`);
+-    if (themeId !== "clawd") return loadTheme("clawd");
++    if (themeId !== "mori") return loadTheme("mori");
+   }
+ 
+   // Resolve variant + apply patch BEFORE mergeDefaults so that geometry
+diff --git a/src/theme-runtime.js b/src/theme-runtime.js
+index 68fc2b6..fa19893 100644
+--- a/src/theme-runtime.js
++++ b/src/theme-runtime.js
+@@ -110,7 +110,7 @@ function createThemeRuntime(options = {}) {
+     return activeThemeContext;
+   }
+ 
+-  function getActiveThemeId(fallback = "clawd") {
++  function getActiveThemeId(fallback = "mori") {
+     return activeTheme ? activeTheme._id : fallback;
+   }
+ 

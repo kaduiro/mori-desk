@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MORI Desk と接続</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header>
+      <span class="brand" aria-hidden="true">mori</span>
+      <div><p class="eyebrow">BROWSER BRIDGE · プレビュー</p><h1>回答を待つ時間に、別の仕事を。</h1></div>
+    </header>
+    <p class="intro">ChatGPT と Claude の生成状態を、デスクトップのキャラクターに届けます。</p>
+
+    <section class="status-card" aria-labelledby="status-heading">
+      <div class="status-heading"><h2 id="status-heading">接続状況</h2><span id="connection" class="pill">読み込み中</span></div>
+      <p id="connection-detail" role="status" aria-live="polite">拡張機能を確認しています。</p>
+      <div class="metrics">
+        <div><strong id="tracked">0</strong><span>監視中のタブ</span></div>
+        <div><strong id="running">0</strong><span>生成中</span></div>
+        <div><strong id="pending">0</strong><span>未送信の通知</span></div>
+      </div>
+      <p id="diagnostic" class="notice" hidden></p>
+      <div class="actions"><button id="retry" type="button">今すぐ再接続</button><button id="pause" type="button" class="secondary">監視を一時停止</button></div>
+    </section>
+
+    <section aria-labelledby="pair-heading">
+      <h2 id="pair-heading">この PC の MORI Desk と接続</h2>
+      <ol>
+        <li>MORI Desk を起動して、ブラウザの接続画面を開きます。</li>
+        <li>デスクトップに表示された接続コードをコピーします。</li>
+        <li>下に貼り付けて、<strong>接続する</strong>を押してください。</li>
+      </ol>
+      <form id="pair-form">
+        <label for="pair-code">接続コード <span>発行から 2 分間有効</span></label>
+        <input id="pair-code" type="password" maxlength="2048" autocomplete="off" spellcheck="false" placeholder="mori1:…" required>
+        <button id="pair-button" type="submit">接続する</button>
+      </form>
+      <p id="action-result" role="status" aria-live="polite"></p>
+      <p class="small">接続コードは送信後に入力欄から消えます。再起動後は、この Chrome プロファイルの接続を自動的に再開します。</p>
+    </section>
+
+    <section class="preview-note" aria-labelledby="preview-heading">
+      <h2 id="preview-heading">プレビュー版で確認できること</h2>
+      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> 拡張機能を追加した後、開いている AI のタブを一度再読み込みしてください。1 つのタブが 1 行として表示され、同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
+      <p>この版の DOM 判定は、実際の利用環境での確認が必要です。生成の停止を検出したときは <strong>「回答を確認」</strong> と表示します。正常終了の保証や、回答内容の評価は行いません。読み取れない画面、タブの破棄、スリープ中は状態が不明になります。</p>
+      <p class="small">音声・画像生成・Deep Research・カスタム GPT の専用画面・Projects の専用画面は検証対象に含みません。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
+    </section>
+
+    <section aria-labelledby="privacy-heading">
+      <h2 id="privacy-heading">この拡張機能が扱う情報</h2>
+      <p>AI の種類、会話の識別子、タブの識別子、生成状態、時刻だけを、この PC の MORI Desk に送ります。プロンプト・回答本文・ページのタイトル・Cookie・API キーは収集しません。</p>
+      <p>HUD の行をクリックしたときだけ、対象のタブとウィンドウを前面に出します。入力、送信、会話の削除、AI の操作許可は行いません。</p>
+      <details><summary>接続の詳細と解除</summary>
+        <p class="small">接続先は <code>127.0.0.1:23333–23337</code> の MORI Desk です。接続コードを使った相互認証を行います。外部サーバーへの通信や、拡張機能ストアからの自動更新設定は、このソース版にはありません。</p>
+        <p class="small">解除すると、この Chrome に保存された接続鍵と未送信の通知を削除します。デスクトップ側の登録も解除する場合は、MORI Desk の接続管理画面で操作してください。</p>
+        <button id="unpair" class="danger" type="button">この Chrome の接続を解除</button>
+      </details>
+    </section>
+    <footer><span id="version"></span><span id="extension-id"></span></footer>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
