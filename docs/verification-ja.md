@@ -1,6 +1,6 @@
 # 検証状況と社員配布までの工程
 
-対象: Mori Desk `0.1.1-preview.1` / 2026-10-20（日本時間）
+対象: Mori Desk `0.1.1-preview.1` / 拡張機能 `0.1.2` / 2026-10-20（日本時間）
 
 **現時点はソースを取得して実験できる開発プレビューです。Windows / Mac で確認済みの
 完成版、またはインストーラーの公開版ではありません。**
@@ -55,7 +55,7 @@ node --test --test-reporter=spec test/server-permission-ingress.test.js test/ser
 
 ## 未検証・初期対応の範囲外
 
-- Windows の Explorer からの手動起動、Mori 本体のネイティブ GUI、透過・最前面・DPI・複数画面。
+- Windows の Explorer からの手動起動、透過・最前面・DPI・複数画面の手動確認。
 - Windows ARM64 上での Node 自動導入の実行。ARM64 ZIP 自体の取得・ハッシュ検証は実施済み。
 - Windows 上での NSIS EXE 作成、インストール、更新、アンインストール。
 - macOS のビルド、Keychain、署名・公証、Spaces、全画面、Finder / Chrome 操作。
@@ -114,17 +114,17 @@ ChatGPT の `/g/…/c/…` 会話パス、拡張機能のタブ診断、セッ�
 | 新しい URL と画面遷移 | 同じ scope の新規会話だけを引き継ぎ、別 scope への移動直後の focus / ACK を拒否。合成 DOM と reducer で検証 |
 | タブ診断のプライバシー | 最大20タブの件数のみ。URL・scope名・タイトル・本文が診断結果や送信イベントへ混入しないことを検証 |
 | 接続案内の HUD | 実セッション数・未確認を増やさず、DND / 非表示 / ミニモード等の制約を維持。合成 renderer で確認 |
-| Windows での再構築・回帰・ネイティブ起動 | この記録の保存時点では GitHub の実行環境の割り当て待ち。成功した検証には数えない |
+| Windows での再構築・回帰・ネイティブ起動 | Windows Server 2022 で99件＋124件成功、失敗0・スキップ0。本体起動、保護された保存先の準備、接続待ちHUD、ブラウザ連携画面へのIPCも成功 |
 
 この節のローカル実行環境は Linux x64 / Node.js 24.19.0 / Electron 41.10.4 です。
 `.github/workflows/mori-regression.yml` には Windows 上での再構築・同じ回帰テストと、
 実際の Electron main / HUD / ブラウザ連携画面の起動検査を用意しています。
 Windows 起動検査は専用の一時データを使い、実際の Chrome や AI 会話には接続しません。
 
-Windows の実行状況: [Mori browser and HUD regression](https://github.com/kaduiro/mori-desk/actions/runs/39279947074)
-（対象コード commit `32df38c9f6e0a1edbd3f71002411bd61e0294eef`）。
-この記録の保存時点ではジョブは `queued` で、Windows 上の個別テストとネイティブ起動の
-結果は未確認です。上の 99 件・124 件はローカルの Linux 環境で完了した実測値です。
+Windows の成功した実行: [Mori browser and HUD regression](https://github.com/kaduiro/mori-desk/actions/runs/39281525397)
+（対象コード commit `38c34a6f630ca08579d96bd2ebaedf8c9be479dd`）。
+前の記録時には割り当て待ちでしたが、その後の実行ログで Windows 上の個別テストと
+ネイティブ起動の成功を確認しました。上の99件・124件は Linux と Windows の両方で完了しています。
 
 再現コマンド（リポジトリのルート、対応 Node が PATH にある環境）:
 
@@ -137,6 +137,27 @@ node scripts/smoke-windows-ui.js
 
 最後のコマンドだけ Windows 専用です。手動の Chrome 拡張読み込み、本番 DOM、OS の
 グローバルキー競合、DPI・複数モニター・全画面、macOS の検証は別に必要です。
+
+## 拡張更新後のエラー・再接続待機の修正（拡張機能0.1.2）
+
+Chrome のエラー画面で報告された `Extension context invalidated` に対し、ページ側の
+`sendMessage()` が Promise を返す前に例外を投げる場合を再現しました。古い監視処理が
+停止しない問題も修正し、DOM監視・タイマー・イベントリスナーを解除します。
+一時的な Service Worker の不在やメッセージポートの切断では監視を継続します。
+
+また、自動再接続の待機中に通常の観測処理が探索を繰り返す問題を再現しました。
+5候補への接続失敗後に20回の観測を行うテストでは、修正前は105回の接続試行が発生し、
+修正後は予定された再試行まで5回のままです。「今すぐ再接続」だけは待機を解除します。
+
+- 固定 upstream + patch + overlay から再構築成功。
+- Linux x64 / Node.js 24.19.0 で **108件成功・失敗0・スキップ0**。
+- 同期／非同期例外の停止、一時的な障害からの回復、待機・明示再試行、ポート変更後の
+  実ローカルサーバーとの相互認証、既存のscope／focus／ACKを検証。
+- 変更は拡張機能と文書です。デスクトップ本体のバージョンは `0.1.1-preview.1` です。
+
+接続拒否の記録があった時点の Windows プロセス・ポートの状態は、画像だけでは
+確定できません。実際のChromeでの更新・会話タブの再読み込み・本体起動後の再接続は、
+[Windows手順](windows-ja.md)で確認してください。古いエラー記録だけでは現在の接続状態を判定しません。
 
 ## Windows での受け入れ手順
 

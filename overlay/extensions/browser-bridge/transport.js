@@ -100,9 +100,15 @@
       try { await this.connectOne(code.port, code); }
       finally { code.secret = ''; this.pairing = false; if (!this.isReady()) this.scheduleReconnect(); }
     }
-    async ensureConnected() {
+    async ensureConnected({ immediate = false } = {}) {
       if (!this.enabled || this.pairing || this.isReady()) return;
       if (this.connecting) return this.connecting;
+      if (this.reconnectTimer) {
+        // DOM observations and reconnect alarms must share the scheduled
+        // backoff. Only the user's explicit retry may cancel that wait.
+        if (immediate !== true) return;
+        clearTimeout(this.reconnectTimer); this.reconnectTimer = null;
+      }
       const credential = this.getCredential();
       if (!credential) { this.onStatus({ state: 'unpaired', code: null }); return; }
       const generation = this.generation;

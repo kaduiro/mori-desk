@@ -111,3 +111,111 @@ test('real metadata terminal ACK and focus round-trip do not need any input or a
   assert.equal(f.bridge.getSnapshot()[0].requiresCompletionAck, false);
   assert.equal(f.wire.some(item => ['input', 'approve', 'permission'].includes(item.type)), false);
 });
+
+function offlineRetryFixture(t) {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.method(Math, 'random', () => 0);
+  const urls = [];
+  let credential = { clientId: 'extension-profile', instanceId: 'desktop-instance',
+    port: 23334, key: crypto.randomBytes(32).toString('base64url') };
+  class OfflineWebSocket {
+    constructor(url) {
+      urls.push(url);
+      queueMicrotask(() => this.onerror?.());
+    }
+    close() {}
+  }
+  const transport = new Transport({ clientId: 'extension-profile', browserRunId: 'browser-run',
+    getCredential: () => credential, saveCredential: async () => {},
+    cryptoApi: crypto.webcrypto, WebSocketClass: OfflineWebSocket });
+  t.after(() => { transport.enabled = false; transport.disconnect(); });
+  return { transport, urls, forgetCredential: () => { credential = null; } };
+}
+
+test('automatic reconnect calls from observations respect the pending exponential backoff', async t => {
+  const { transport, urls } = offlineRetryFixture(t);
+  await transport.ensureConnected();
+  assert.deepEqual(urls, [23334, 23333, 23335, 23336, 23337]
+    .map(port => `ws://127.0.0.1:${port}/browser/v1`));
+  const firstTimer = transport.reconnectTimer;
+  assert.ok(firstTimer);
+  for (let i = 0; i < 20; i++) await transport.ensureConnected();
+  assert.equal(urls.length, 5, 'fresh DOM observations must not start another port scan');
+  assert.equal(transport.reconnectTimer, firstTimer);
+  assert.equal(transport.attempt, 1);
+
+  t.mock.timers.tick(999);
+  await transport.ensureConnected();
+  assert.equal(urls.length, 5);
+  t.mock.timers.tick(1);
+  await transport.connecting;
+  assert.equal(urls.length, 10, 'the scheduled retry still runs at its deadline');
+  for (let i = 0; i < 20; i++) await transport.ensureConnected();
+  assert.equal(urls.length, 10);
+  t.mock.timers.tick(1999);
+  assert.equal(urls.length, 10);
+  t.mock.timers.tick(1);
+  await transport.connecting;
+  assert.equal(urls.length, 15, 'the next retry keeps its increased delay');
+  assert.equal(transport.attempt, 3);
+});
+
+test('explicit retry cancels the pending wait and coalesces concurrent connection attempts', async t => {
+  const { transport, urls } = offlineRetryFixture(t);
+  await transport.ensureConnected();
+  assert.equal(urls.length, 5);
+  await Promise.all([
+    transport.ensureConnected({ immediate: true }),
+    transport.ensureConnected({ immediate: true }),
+  ]);
+  assert.equal(urls.length, 10, 'one explicit action starts exactly one new port scan');
+  assert.equal(transport.attempt, 2, 'an unsuccessful manual retry does not reset backoff');
+  t.mock.timers.tick(1000);
+  await transport.connecting;
+  assert.equal(urls.length, 10, 'the cancelled earlier timer must not fire');
+  t.mock.timers.tick(1000);
+  await transport.connecting;
+  assert.equal(urls.length, 15, 'automatic recovery remains scheduled after the manual failure');
+});
+
+test('explicit retry does not bypass paused, pairing or unpaired states', async t => {
+  const { transport, urls, forgetCredential } = offlineRetryFixture(t);
+  transport.setEnabled(false);
+  await transport.ensureConnected({ immediate: true });
+  assert.equal(urls.length, 0);
+  transport.enabled = true; transport.pairing = true;
+  await transport.ensureConnected({ immediate: true });
+  assert.equal(urls.length, 0);
+  transport.pairing = false; forgetCredential();
+  await transport.ensureConnected({ immediate: true });
+  assert.equal(urls.length, 0);
+  assert.equal(transport.reconnectTimer, null);
+});
+
+test('resumption still finds a moved desktop port and authenticates its saved key', async t => {
+  const f = await fixture(t);
+  const first = f.make();
+  await first.pair(f.bridge.beginPairing(f.port).code);
+  first.enabled = false; first.disconnect();
+  const stalePort = PORTS.find(port => port !== f.port);
+  const saved = { ...f.getCredential(), port: stalePort };
+  const attempted = [];
+  class MovedDesktopWebSocket extends WebSocket {
+    constructor(url) {
+      const port = Number(new URL(url).port);
+      attempted.push(port);
+      // Keep the actual authentication exchange on our owned test server;
+      // other ports behave as offline without probing unrelated listeners.
+      if (port !== f.port) throw new Error('test_offline');
+      super(url, { origin: `chrome-extension://${EXTENSION_ID}` });
+    }
+  }
+  const resumed = f.make({ getCredential: () => saved, WebSocketClass: MovedDesktopWebSocket });
+  await resumed.ensureConnected();
+  assert.equal(resumed.isReady(), true);
+  assert.equal(attempted[0], stalePort);
+  assert.equal(attempted.at(-1), f.port);
+  assert.equal(new Set(attempted).size, attempted.length);
+  assert.equal(f.getCredential().port, f.port);
+  assert.equal(f.getCredential().key, saved.key);
+});

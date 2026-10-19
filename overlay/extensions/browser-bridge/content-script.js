@@ -10,11 +10,49 @@
   let sequence = 0;
   let timeout = null;
   let verificationTimeout = null;
+  let observationInterval = null;
   let lastSignature = null;
   let lastSentAt = 0;
   let stopped = false;
   let observerRoot = null;
   const observer = new MutationObserver(() => schedule());
+
+  function runtimeId() {
+    try { return globalThis.chrome?.runtime?.id || null; }
+    catch (_) { return null; }
+  }
+
+  function stopInvalidatedObserver() {
+    if (stopped) return;
+    stopped = true;
+    observer.disconnect(); observerRoot = null;
+    clearTimeout(timeout); timeout = null;
+    clearTimeout(verificationTimeout); verificationTimeout = null;
+    clearInterval(observationInterval); observationInterval = null;
+    document.removeEventListener('click', onStopClick, true);
+    document.removeEventListener('visibilitychange', observeNow);
+    removeEventListener('popstate', observeNow);
+    removeEventListener('pageshow', observeNow);
+    removeEventListener('pagehide', onPageHide);
+    // An invalidated extension API may also reject listener removal. The DOM
+    // observer and timers above are independent and have already been stopped.
+    try { chrome.runtime.onMessage.removeListener(onRuntimeMessage); } catch (_) {}
+    // Losing the extension context is not an AI completion. A page reload
+    // installs the new observer; the desktop keeps its existing stale rules.
+  }
+
+  function handleRuntimeFailure(error) {
+    if (!runtimeId() || /Extension context invalidated/i.test(error?.message || '')) {
+      stopInvalidatedObserver();
+    }
+    // A sleeping/restarting worker or a temporarily closed message port does
+    // not invalidate this page's observer. Its next sample can retry normally.
+  }
+
+  function sendObservation(message) {
+    try { Promise.resolve(chrome.runtime.sendMessage(message)).catch(handleRuntimeFailure); }
+    catch (error) { handleRuntimeFailure(error); }
+  }
 
   function adapterForRoute(value) {
     return value?.provider === 'chatgpt' ? MoriChatgptAdapter
@@ -40,6 +78,7 @@
 
   function observe(force) {
     if (stopped) return;
+    if (!runtimeId()) { stopInvalidatedObserver(); return; }
     const nextRoute = utils.routeForUrl(location.href);
     if (!utils.sameRoute(route, nextRoute)) {
       const assignedNewConversation = controller.isRunning()
@@ -68,46 +107,62 @@
       };
       // No conversation text, title, URL, input value, or DOM node crosses this
       // boundary. IDs and the route are verified by the worker from sender.
-      chrome.runtime.sendMessage(message).catch(() => {});
+      // sendMessage can throw synchronously after an extension reload, before
+      // a Promise exists. Catch both that case and asynchronous rejections.
+      sendObservation(message);
     }
+    if (stopped) return;
     if (controller.isRunning() && !observation.generating && verificationTimeout === null) {
       verificationTimeout = setTimeout(() => { verificationTimeout = null; observe(false); }, 900);
     }
     return { status: !route ? 'unsupported_route' : !observation.supported ? 'unknown' : state.status };
   }
 
-  document.addEventListener('click', event => {
+  function onStopClick(event) {
+    if (stopped) return;
     if (event.isTrusted && adapterForRoute(route)?.isStopTarget(event.target)) {
       controller.stopRequested(); schedule();
     }
-  }, true);
-  document.addEventListener('visibilitychange', () => observe(true));
-  addEventListener('popstate', () => observe(true));
-  addEventListener('pageshow', () => observe(true));
+  }
+  function observeNow() { observe(true); }
   // An unload is not a completion event. Browser tabs/navigation supply closure
   // information, and the desktop marks observations stale when we disappear.
-  addEventListener('pagehide', () => { observer.disconnect(); observerRoot = null; });
-  chrome.runtime.onMessage.addListener((message, sender, respond) => {
-    if (sender.id !== chrome.runtime.id) return;
-    if (message?.type === 'mori.observe.now') {
-      observe(true); respond({ ok: true });
-    } else if (message?.type === 'mori.health.check') {
-      const result = observe(true);
-      // Diagnostic replies contain categories only, never page content or
-      // route/document identifiers. The worker bounds and aggregates probes.
-      respond({ ok: true, v: 1, status: result?.status || 'unknown' });
-    } else if (message?.type === 'mori.focus.check') {
-      const current = utils.routeForUrl(location.href);
-      respond({
-        ok: document.visibilityState !== 'prerender' && !!current
-          && utils.sameRoute(route, current)
-          && message.pageInstanceId === pageInstanceId
-          && message.conversationRef === current.conversationRef,
-        pageInstanceId,
-        conversationRef: current?.conversationRef ?? null,
-      });
-    }
-  });
-  setInterval(() => observe(true), 10000);
-  observe(true);
+  function onPageHide() { observer.disconnect(); observerRoot = null; }
+  function onRuntimeMessage(message, sender, respond) {
+    if (stopped) return;
+    const id = runtimeId();
+    if (!id) { stopInvalidatedObserver(); return; }
+    if (sender.id !== id) return;
+    try {
+      if (message?.type === 'mori.observe.now') {
+        observe(true); if (!stopped) respond({ ok: true });
+      } else if (message?.type === 'mori.health.check') {
+        const result = observe(true);
+        // Diagnostic replies contain categories only, never page content or
+        // route/document identifiers. The worker bounds and aggregates probes.
+        if (!stopped) respond({ ok: true, v: 1, status: result?.status || 'unknown' });
+      } else if (message?.type === 'mori.focus.check') {
+        const current = utils.routeForUrl(location.href);
+        respond({
+          ok: document.visibilityState !== 'prerender' && !!current
+            && utils.sameRoute(route, current)
+            && message.pageInstanceId === pageInstanceId
+            && message.conversationRef === current.conversationRef,
+          pageInstanceId,
+          conversationRef: current?.conversationRef ?? null,
+        });
+      }
+    } catch (error) { handleRuntimeFailure(error); }
+  }
+  document.addEventListener('click', onStopClick, true);
+  document.addEventListener('visibilitychange', observeNow);
+  addEventListener('popstate', observeNow);
+  addEventListener('pageshow', observeNow);
+  addEventListener('pagehide', onPageHide);
+  try { chrome.runtime.onMessage.addListener(onRuntimeMessage); }
+  catch (error) { handleRuntimeFailure(error); }
+  if (!stopped) {
+    observationInterval = setInterval(observeNow, 10000);
+    observe(true);
+  }
 })();
