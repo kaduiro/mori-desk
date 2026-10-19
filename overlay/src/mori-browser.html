@@ -6,10 +6,12 @@
 <body><main>
 <header><div><span class="eyebrow">MORI DESK / PREVIEW</span><h1>AI の待ち時間を、ひと目で。</h1></div><span id="connection" class="badge">準備中</span></header>
 <p class="intro">生成中のタブを見守り、回答を確認するタイミングをキャラクターと一覧でお知らせします。</p>
+<aside class="connection-summary" aria-live="polite"><p id="connection-detail">接続状態を確認しています。</p><p id="server-detail"></p></aside>
 <section><h2>Chrome と接続</h2>
 <ol><li>Chrome の <code>chrome://extensions</code> を開き、デベロッパーモードをオンにします。</li>
 <li>「パッケージ化されていない拡張機能を読み込む」で、下のボタンから開くフォルダーを選びます。</li>
-<li>接続コードを作成・コピーし、Mori Desk Bridge 拡張機能の設定画面に貼り付けます。</li></ol>
+<li>接続コードを作成・コピーし、Chrome の「MORI Browser Bridge（プレビュー）」に貼り付けて「接続する」を押します。</li>
+<li>AI を使っているタブを再読み込みします。一覧が出ない場合は、拡張機能の「表示されない原因を確認」を押してください。</li></ol>
 <div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>

@@ -2,6 +2,7 @@
 
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "" }) {
@@ -30,8 +31,12 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
 
   function state() {
     const bridge = getBridge();
-    return { ok: !!bridge, port: getPort(), cliEnabled, bridge: bridge?.getStatus() || null,
-      sessions: bridge?.getSnapshot() || [], error: getStartupError(),
+    const bridgeStatus = bridge?.getStatus() || null;
+    const port = getPort();
+    const error = getStartupError();
+    return { ok: !!bridge, port, cliEnabled, bridge: bridgeStatus,
+      connection: getBrowserStatus({ bridge: bridgeStatus, port, error }),
+      sessions: bridge?.getSnapshot() || [], error,
       pairingExpiresAt: pairing?.expiresAt || null };
   }
 

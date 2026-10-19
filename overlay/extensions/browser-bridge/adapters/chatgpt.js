@@ -24,9 +24,14 @@
     const stop = utils.findVisible(doc, STOP);
     const composer = utils.findVisible(doc, COMPOSER);
     const assistant = utils.findVisible(doc, ASSISTANT);
+    // A scoped landing page is usable only when the normal text composer is
+    // present. A generic stop control elsewhere on a GPT/project page alone
+    // does not establish that this is a supported text conversation.
+    const scopedStart = route.conversationRef === null && route.path.startsWith('/g/');
+    const supported = scopedStart ? !!composer : !!(stop || composer);
     return {
-      supported: !!(stop || composer),
-      generating: !!stop,
+      supported,
+      generating: supported && !!stop,
       ready: !!composer,
       hasAssistant: !!assistant,
       error: !!utils.findVisible(doc, ERROR),

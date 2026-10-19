@@ -1,5 +1,5 @@
 diff --git a/package-lock.json b/package-lock.json
-index d177f08..44ef022 100644
+index d177f08..91dbb6f 100644
 --- a/package-lock.json
 +++ b/package-lock.json
 @@ -1,12 +1,12 @@
@@ -7,7 +7,7 @@ index d177f08..44ef022 100644
 -  "name": "clawd-on-desk",
 -  "version": "1.3.0",
 +  "name": "mori-desk",
-+  "version": "0.1.0-preview.1",
++  "version": "0.1.1-preview.1",
    "lockfileVersion": 3,
    "requires": true,
    "packages": {
@@ -15,12 +15,12 @@ index d177f08..44ef022 100644
 -      "name": "clawd-on-desk",
 -      "version": "1.3.0",
 +      "name": "mori-desk",
-+      "version": "0.1.0-preview.1",
++      "version": "0.1.1-preview.1",
        "hasInstallScript": true,
        "license": "AGPL-3.0-only",
        "dependencies": {
 diff --git a/package.json b/package.json
-index e7a7fc7..e0172aa 100644
+index e7a7fc7..1c2f835 100644
 --- a/package.json
 +++ b/package.json
 @@ -1,22 +1,22 @@
@@ -29,7 +29,7 @@ index e7a7fc7..e0172aa 100644
 -  "version": "1.3.0",
 -  "description": "A desktop pet that reacts to your Claude Code sessions in real-time.",
 +  "name": "mori-desk",
-+  "version": "0.1.0-preview.1",
++  "version": "0.1.1-preview.1",
 +  "description": "A desktop companion showing browser AI and CLI session progress.",
    "main": "src/main.js",
    "scripts": {
@@ -251,21 +251,28 @@ index 1eabd64..485f808 100644
          "Hidden=false",
          "NoDisplay=false",
 diff --git a/src/main.js b/src/main.js
-index 6f84bbc..394b4fc 100644
+index 6f84bbc..230e4cb 100644
 --- a/src/main.js
 +++ b/src/main.js
-@@ -1,4 +1,24 @@
+@@ -1,4 +1,39 @@
  const { app, BrowserWindow, Notification, screen, ipcMain, globalShortcut, nativeTheme, dialog, shell, nativeImage, powerSaveBlocker, powerMonitor, clipboard, safeStorage, net } = require("electron");
 +const moriProduct = require("./mori-product");
 +moriProduct.configureApp(app);
 +const { mergeHudSnapshot } = require("./mori-desktop-snapshot");
++const { getBrowserStatus } = require("./mori-browser-status");
 +let moriBridge = null;
 +let moriBrowserWindow = null;
 +let moriBoundPort = null;
 +let moriStartupError = "";
 +
 +function getMoriHudSnapshot(snapshot) {
-+  return mergeHudSnapshot(snapshot || _state.buildSessionSnapshot(), moriBridge?.getSnapshot() || []);
++  const merged = mergeHudSnapshot(snapshot || _state.buildSessionSnapshot(), moriBridge?.getSnapshot() || []);
++  if (!moriProduct.cliEnabled) {
++    const status = getBrowserStatus({ bridge: moriBridge?.getStatus() || null,
++      port: moriBoundPort, error: moriStartupError });
++    merged.moriBrowserStatus = { state: status.state, dnd: doNotDisturb };
++  }
++  return merged;
 +}
 +
 +function refreshMoriBrowserSnapshot() {
@@ -276,10 +283,18 @@ index 6f84bbc..394b4fc 100644
 +    _state.setState(next);
 +  }
 +}
++
++function setMoriDoNotDisturb(value) {
++  if (doNotDisturb === value) return;
++  doNotDisturb = value;
++  // DND does not change a CLI session snapshot. Publish the separate empty
++  // browser notice now so the HUD cannot keep a cached pre-DND hint visible.
++  if (!moriProduct.cliEnabled) broadcastSessionHudSnapshot(getMoriHudSnapshot());
++}
  const { maybeRunPackageKoffiSmoke } = require("./package-koffi-smoke");
  if (maybeRunPackageKoffiSmoke({ app, BrowserWindow })) {
    return;
-@@ -375,7 +395,10 @@ const _evaluateCodexAutoStartGate = createCodexAutoStartGateEvaluator({
+@@ -375,7 +410,10 @@ const _evaluateCodexAutoStartGate = createCodexAutoStartGateEvaluator({
  });
  
  function _persistCodexAutoStartGate(enabled) {
@@ -291,7 +306,7 @@ index 6f84bbc..394b4fc 100644
  }
  
  function _syncCodexAutoStartGate(snapshot, source) {
-@@ -393,12 +416,14 @@ function _syncCodexAutoStartGate(snapshot, source) {
+@@ -393,12 +431,14 @@ function _syncCodexAutoStartGate(snapshot, source) {
  // mutation must be serialized against the fs watcher, periodic health audit,
  // and other Settings actions (#657).
  function _installAutoStartHook() {
@@ -307,7 +322,7 @@ index 6f84bbc..394b4fc 100644
    return _server.uninstallClaudeHooks({ source: "settings", automatic: false });
  }
  
-@@ -523,14 +548,15 @@ const _settingsController = createSettingsController({
+@@ -523,14 +563,15 @@ const _settingsController = createSettingsController({
    prefsPath: PREFS_PATH,
    loadResult: _initialPrefsLoad,
    injectedDeps: {
@@ -326,7 +341,7 @@ index 6f84bbc..394b4fc 100644
        confirm: async () => {
          const parent = settingsWindowRuntime.getWindow();
          const options = {
-@@ -546,27 +572,32 @@ const _settingsController = createSettingsController({
+@@ -546,27 +587,32 @@ const _settingsController = createSettingsController({
        },
      }),
      uninstallClaudeHooksNow: _uninstallClaudeHooksNow,
@@ -366,7 +381,7 @@ index 6f84bbc..394b4fc 100644
        // Claude hooks + statusline unregister as one queue task, awaited here so
        // it settles (and any in-flight repair drains) before the generic cleaner
        // runs. hooks/cleanup-integrations.js records this precomputed result
-@@ -848,7 +879,7 @@ function safeConsoleError(...args) {
+@@ -848,7 +894,7 @@ function safeConsoleError(...args) {
  // ── Theme loader ──
  const themeLoader = require("./theme-loader");
  const createCodexPetMain = require("./codex-pet-main");
@@ -375,7 +390,24 @@ index 6f84bbc..394b4fc 100644
  themeLoader.init(__dirname, app.getPath("userData"));
  themeRuntime = createThemeRuntime({
    themeLoader,
-@@ -1029,12 +1060,12 @@ try {
+@@ -902,6 +948,7 @@ const settingsWindowRuntime = createSettingsWindowRuntime({
+   nativeTheme,
+   path,
+   discordDefaultAppIdPresent: !!discordPresenceSettings.DEFAULT_CLAWD_DISCORD_APP_ID,
++  moriCliEnabled: moriProduct.cliEnabled,
+   getPetWindowBounds: () => getPetWindowBounds(),
+   getNearestWorkArea: (cx, cy) => getNearestWorkArea(cx, cy),
+   getTextScale: (bounds) => effectiveTextScaleForKey(
+@@ -909,7 +956,7 @@ const settingsWindowRuntime = createSettingsWindowRuntime({
+   ),
+   getSavedBounds: () => _settingsController.get("settingsWindowBounds"),
+   onSaveBounds: (bounds) => _settingsController.applyUpdate("settingsWindowBounds", bounds),
+-  getTitle: () => translate("settingsWindowTitle"),
++  getTitle: () => translate("settingsWindowTitle").replace("Clawd", "Mori Desk"),
+   onBeforeCreate: () => bumpAnimationOverridePreviewPosterGeneration(),
+   // A replaced or crashed Settings page cannot send its preview-ending IPC.
+   onRendererReset: () => { void settingsSizePreviewSession.cleanup(); },
+@@ -1029,12 +1076,12 @@ try {
  // load path, not activateTheme (which requires ready windows) and not the
  // setThemeSelection command (which goes through activateTheme). The runtime
  // switch path via UI goes through setThemeSelection post-window-ready.
@@ -390,7 +422,7 @@ index 6f84bbc..394b4fc 100644
  if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedThemeId)) {
    const orphanThemeId = _requestedThemeId;
    const nextVariantMap = { ...(_settingsController.get("themeVariant") || {}) };
-@@ -1042,7 +1073,7 @@ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedT
+@@ -1042,7 +1089,7 @@ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedT
    delete nextVariantMap[orphanThemeId];
    delete nextOverrides[orphanThemeId];
  
@@ -399,7 +431,7 @@ index 6f84bbc..394b4fc 100644
    _requestedVariantId = nextVariantMap[_requestedThemeId] || "default";
    _requestedThemeOverrides = nextOverrides[_requestedThemeId] || null;
    const result = _settingsController.hydrate({
-@@ -2075,7 +2106,7 @@ const _runtimeAgentGate = createRuntimeAgentGate({
+@@ -2075,7 +2122,7 @@ const _runtimeAgentGate = createRuntimeAgentGate({
    // Both unreadable prefs and a writable recovered-defaults snapshot are
    // non-authoritative for this process. The latter may repair the primary file,
    // but only a clean load after restart can re-open agent paths.
@@ -408,7 +440,7 @@ index 6f84bbc..394b4fc 100644
  });
  const _permCtx = {
    get win() { return win; },
-@@ -2353,6 +2384,7 @@ function deliverRendererThemeConfig() {
+@@ -2353,6 +2400,7 @@ function deliverRendererThemeConfig() {
  }
  
  const recapRuntime = createRecapRuntime({
@@ -416,7 +448,7 @@ index 6f84bbc..394b4fc 100644
    // A default-filled snapshot is not user authority when prefs were unreadable,
    // recovered, or written by a future app version. Start paused in that case;
    // a later explicit, controller-accepted toggle may still call setEnabled().
-@@ -2368,7 +2400,7 @@ const _stateCtx = {
+@@ -2368,13 +2416,13 @@ const _stateCtx = {
    get win() { return win; },
    get hitWin() { return hitWin; },
    // Last-known account quota survives app restarts (state-account-quota.js).
@@ -425,7 +457,14 @@ index 6f84bbc..394b4fc 100644
    recapSink: recapRuntime,
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get kimiQuotaCollectionEnabled() { return kimiQuotaCollectionEnabled; },
-@@ -2422,7 +2454,7 @@ const _stateCtx = {
+   get quotaMergeSources() { return quotaMergeSources; },
+   get doNotDisturb() { return doNotDisturb; },
+-  set doNotDisturb(v) { doNotDisturb = v; },
++  set doNotDisturb(v) { setMoriDoNotDisturb(v); },
+   get miniMode() { return _mini.getMiniMode(); },
+   get miniTransitioning() { return _mini.getMiniTransitioning(); },
+   get mouseOverPet() { return mouseOverPet; },
+@@ -2422,7 +2470,7 @@ const _stateCtx = {
      quotaAlertsRuntime?.observeQuota();
      reconcilePowerSaveBlocker();
      broadcastDashboardSessionSnapshot(snapshot);
@@ -434,7 +473,7 @@ index 6f84bbc..394b4fc 100644
      repositionFloatingBubbles();
      // R1a: best-effort completion notifications. Must never throw or block the
      // broadcast — the companion computes synchronously and fires sends async.
-@@ -2451,6 +2483,7 @@ const _stateCtx = {
+@@ -2451,6 +2499,7 @@ const _stateCtx = {
      }
      if (_lanWss) { try { _lanWss.onSnapshot(); } catch {} }
    },
@@ -442,7 +481,20 @@ index 6f84bbc..394b4fc 100644
    // Phase 3b: 读 prefs.themeOverrides 判断某个 oneshot state 是否被用户禁用。
    // state.js gate 调这个做 early-return。不做白名单校验——settings-actions
    // 负责写入合法性，这里只读。
-@@ -2903,7 +2936,7 @@ function getTutorialDoneHeroSvg() {
+@@ -2810,10 +2859,8 @@ const _dashboard = require("./dashboard")({
+   onSaveBounds: (bounds) => _settingsController.applyUpdate("dashboardWindowBounds", bounds),
+   iconPath: settingsWindowRuntime.getIconPath(),
+ });
+-showDashboard = _dashboard.showDashboard;
+-// The keyboard mode is a temporary state of the real Dashboard page, so it is
+-// owned by the Dashboard rather than by a second window/renderer.
+-showQuickSelect = () => _dashboard.quick.show();
++// Session navigation is wired after the browser panel owner is created.
++// The CLI Dashboard keeps its own snapshot and numeric quick-mode lifecycle.
+ broadcastDashboardSessionSnapshot = (snapshot) => {
+   _dashboard.broadcastSessionSnapshot(snapshot);
+ };
+@@ -2903,7 +2950,7 @@ function getTutorialDoneHeroSvg() {
    if (_tutorialDoneHeroSvgCache != null) return _tutorialDoneHeroSvgCache;
    try {
      _tutorialDoneHeroSvgCache = fs.readFileSync(
@@ -451,7 +503,7 @@ index 6f84bbc..394b4fc 100644
        "utf8"
      );
    } catch (err) {
-@@ -2966,7 +2999,7 @@ const _sessionHud = require("./session-hud")({
+@@ -2966,7 +3013,7 @@ const _sessionHud = require("./session-hud")({
    get lowPowerIdleMode() { return lowPowerIdleMode; },
    getMiniMode: () => _mini.getMiniMode(),
    getMiniTransitioning: () => _mini.getMiniTransitioning(),
@@ -460,7 +512,7 @@ index 6f84bbc..394b4fc 100644
    getI18n: () => getDashboardI18nPayload(),
    getPetWindowBounds,
    getHitRectScreen,
-@@ -3007,8 +3040,11 @@ agentRuntime = createAgentRuntimeMain({
+@@ -3007,8 +3054,11 @@ agentRuntime = createAgentRuntimeMain({
  
  // ── HTTP server — delegated to src/server.js ──
  const _serverCtx = {
@@ -474,7 +526,7 @@ index 6f84bbc..394b4fc 100644
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3153,14 @@ const _serverCtx = {
+@@ -3117,6 +3167,22 @@ const _serverCtx = {
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
@@ -486,10 +538,18 @@ index 6f84bbc..394b4fc 100644
 +  cliEnabled: moriProduct.cliEnabled,
 +  getStartupError: () => moriStartupError,
 +});
++const moriSessionNavigation = require("./mori-session-navigation")({
++  cliEnabled: moriProduct.cliEnabled,
++  openBrowser: () => moriBrowserWindow.open(),
++  openCliDashboard: (options) => _dashboard.showDashboard(options),
++  openCliQuickSelect: () => _dashboard.quick.show(),
++});
++showDashboard = moriSessionNavigation.showDashboard;
++showQuickSelect = moriSessionNavigation.showQuickSelect;
  
  // ── LAN WebSocket bridge for PWA mobile clients (lazy-loaded) ──
  let _lanWss = null;
-@@ -4561,6 +4605,8 @@ function showResumeInput(t) {
+@@ -4561,6 +4627,8 @@ function showResumeInput(t) {
  }
  
  const _menuCtx = {
@@ -498,7 +558,7 @@ index 6f84bbc..394b4fc 100644
    get win() { return win; },
    get sessions() { return sessions; },
    cancelRoam: () => _roam.cancelRoam(),
-@@ -4739,7 +4785,7 @@ const _menuCtx = {
+@@ -4739,7 +4807,7 @@ const _menuCtx = {
    getSettingsWindow,
    getSystemVersion: () => process.getSystemVersion(),
    discoverThemes: () => themeLoader.discoverThemes(),
@@ -507,7 +567,7 @@ index 6f84bbc..394b4fc 100644
    getActiveThemeCapabilities: () => themeRuntime.getActiveThemeCapabilities(),
    ensureUserThemesDir: () => themeLoader.ensureUserThemesDir(),
    openSettingsWindow: (options) => settingsWindowRuntime.open(options),
-@@ -4990,7 +5036,7 @@ const _updaterCtx = {
+@@ -4990,7 +5058,7 @@ const _updaterCtx = {
      try { _settingsController.applyUpdate(key, value); } catch {}
    },
  };
@@ -516,7 +576,7 @@ index 6f84bbc..394b4fc 100644
  const {
    setupAutoUpdater,
    checkForUpdates,
-@@ -5197,7 +5243,7 @@ const settingsIpcRuntime = registerSettingsIpc({
+@@ -5197,7 +5265,7 @@ const settingsIpcRuntime = registerSettingsIpc({
      _tutorial.open();
      return { status: "ok" };
    },
@@ -525,7 +585,7 @@ index 6f84bbc..394b4fc 100644
    getLanWsServer: () => _lanWss,
  });
  
-@@ -5455,7 +5501,7 @@ function createWindow() {
+@@ -5455,7 +5523,7 @@ function createWindow() {
      updateBubble: _updateBubble,
    });
  
@@ -534,18 +594,22 @@ index 6f84bbc..394b4fc 100644
    startMainTick();
    // Silently connect any remote SSH profile flagged "connect on launch" once
    // the hook server is ACTUALLY listening and its real port is known.
-@@ -5467,7 +5513,10 @@ function createWindow() {
+@@ -5467,7 +5535,14 @@ function createWindow() {
    // Best-effort: failures fall back to the runtime's own reconnect/backoff and
    // never block startup.
    startHttpServer().then((port) => {
 +    moriBoundPort = port;
-+    moriBrowserWindow?.notify();
++    if (port == null && !moriStartupError) {
++      moriStartupError = "ブラウザ連携のローカルサーバーを開始できませんでした。端末のエラーを確認してください。";
++      console.error(moriStartupError);
++    }
++    refreshMoriBrowserSnapshot();
      if (port == null) return;
 +    if (!moriProduct.cliEnabled) return;
      const restoredSessionIds = restoreSessionsFromRecoveryLeases(_state, {
        isAgentEnabled: (agentId) => (
          _runtimeAgentGate.isAgentEnabled(agentId)
-@@ -5478,7 +5527,7 @@ function createWindow() {
+@@ -5478,7 +5553,7 @@ function createWindow() {
        const recoveredSnapshot = _state.buildSessionSnapshot();
        reconcilePowerSaveBlocker();
        broadcastDashboardSessionSnapshot(recoveredSnapshot);
@@ -554,7 +618,16 @@ index 6f84bbc..394b4fc 100644
        // The Slack notifier is not on the broadcast above, so without this its
        // first snapshot would be some later event — which its priming branch
        // swallows, losing the first completion after a restart. Prime it with
-@@ -5835,15 +5884,11 @@ function installTerminalFocusExtension() {
+@@ -5638,7 +5713,7 @@ const _miniCtx = {
+   get win() { return win; },
+   get currentSize() { return currentSize; },
+   get doNotDisturb() { return doNotDisturb; },
+-  set doNotDisturb(v) { doNotDisturb = v; },
++  set doNotDisturb(v) { setMoriDoNotDisturb(v); },
+   get currentState() { return _state.getCurrentState(); },
+   get mouseOverPet() { return mouseOverPet; },
+   get dragLocked() { return petWindowRuntime.isDragLocked(); },
+@@ -5835,15 +5910,11 @@ function installTerminalFocusExtension() {
  // ── Single instance lock ──
  app.on("open-url", (event, url) => {
    event.preventDefault();
@@ -571,7 +644,7 @@ index 6f84bbc..394b4fc 100644
    // Another instance is already running — quit silently
    app.quit();
  } else {
-@@ -5858,8 +5903,18 @@ if (!gotTheLock) {
+@@ -5858,8 +5929,18 @@ if (!gotTheLock) {
      || _initialPrefsLoad.recovered === true
      || _initialPrefsLoad.codexAutoStartAuthoritative === false
    ) ? null : _initialPrefsLoad.snapshot;
@@ -590,7 +663,7 @@ index 6f84bbc..394b4fc 100644
      if (petWindowRuntime.isPetEffectivelyHidden()) {
        prepManualPetVisibility();
        petWindowRuntime.setPetHidden(false);
-@@ -5880,7 +5935,7 @@ if (!gotTheLock) {
+@@ -5880,7 +5961,7 @@ if (!gotTheLock) {
      if (shouldOpenSettingsWindowFromArgv(commandLine)) {
        settingsWindowRuntime.openWhenReady();
      }
@@ -599,7 +672,7 @@ index 6f84bbc..394b4fc 100644
      reapplyMacVisibility();
    });
  
-@@ -5988,7 +6043,7 @@ if (!gotTheLock) {
+@@ -5988,7 +6069,7 @@ if (!gotTheLock) {
        installRuntimeIcon: installRuntimeDockIcon,
      });
  
@@ -608,7 +681,7 @@ index 6f84bbc..394b4fc 100644
      if (process.argv.includes(REGISTER_PROTOCOL_DEV_ARG)) {
        console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
        app.quit();
-@@ -6022,7 +6077,21 @@ if (!gotTheLock) {
+@@ -6022,7 +6103,21 @@ if (!gotTheLock) {
      try { syncDiscordPresence("startup"); }
      catch (err) { console.warn("Clawd: discord presence startup failed:", err && err.message); }
      queueFeishuApprovalSync("startup");
@@ -630,7 +703,7 @@ index 6f84bbc..394b4fc 100644
      try { recapRuntime.start(); }
      catch (err) { console.warn("Clawd: local recap startup failed:", err && err.code ? err.code : "storage-error"); }
      // Reconcile the local quota binding only after the app has visible UI.
-@@ -6097,11 +6166,11 @@ if (!gotTheLock) {
+@@ -6097,11 +6192,11 @@ if (!gotTheLock) {
      // existing users who update also see it once on their next launch, then the
      // flag flips to true forever (any dismissal counts). See prefs.js SCHEMA.
      try {
@@ -644,7 +717,7 @@ index 6f84bbc..394b4fc 100644
      codexPetMain.flushPendingImportUrls().catch((err) => {
        console.warn("Clawd: Codex Pet import queue failed:", err && err.message);
      });
-@@ -6115,10 +6184,10 @@ if (!gotTheLock) {
+@@ -6115,10 +6210,10 @@ if (!gotTheLock) {
      // cost at click time. Whether we call .start() right now depends on the
      // agent-gate snapshot — a user who disabled Codex at last shutdown
      // shouldn't see its file watcher spin up on the next launch.
@@ -657,7 +730,7 @@ index 6f84bbc..394b4fc 100644
        console.warn("Clawd: failed to auto-install terminal-focus extension:", err.message);
      }
  
-@@ -6133,7 +6202,7 @@ if (!gotTheLock) {
+@@ -6133,7 +6228,7 @@ if (!gotTheLock) {
  
      // Deferred so any startup Codex hook sync has settled before we read the
      // on-disk hook state; unref'd so it never blocks a fast quit.
@@ -666,7 +739,7 @@ index 6f84bbc..394b4fc 100644
      if (codexHookNudgeTimer && typeof codexHookNudgeTimer.unref === "function") codexHookNudgeTimer.unref();
    });
  
-@@ -6153,6 +6222,8 @@ if (!gotTheLock) {
+@@ -6153,6 +6248,8 @@ if (!gotTheLock) {
      }
      if (quitCleanupStarted) return;
      quitCleanupStarted = true;
@@ -777,6 +850,28 @@ index 2e0f3a8..9531dd9 100644
    openSessionFolder: (sessionId) => ipcRenderer.invoke("session-hud:open-session-folder", sessionId),
    openDashboard: () => ipcRenderer.send("session-hud:open-dashboard"),
    setPinned: (value) => ipcRenderer.send("session-hud:set-pinned", !!value),
+diff --git a/src/preload-settings.js b/src/preload-settings.js
+index db1b879..d7a3e96 100644
+--- a/src/preload-settings.js
++++ b/src/preload-settings.js
+@@ -40,6 +40,9 @@ const discordDefaultAppIdArg = process.argv.find((a) => a.startsWith(DISCORD_DEF
+ const discordDefaultAppIdPresent =
+   !!discordDefaultAppIdArg && discordDefaultAppIdArg.slice(DISCORD_DEFAULT_APP_ID_FLAG.length) === "1";
+ 
++// Product mode is supplied by main, not inferred from a saved CLI preference.
++const moriCliEnabled = process.argv.includes("--mori-cli-enabled=1");
++
+ const listeners = new Set();
+ const shortcutFailureListeners = new Set();
+ const shortcutRecordKeyListeners = new Set();
+@@ -129,6 +132,7 @@ contextBridge.exposeInMainWorld("settingsAPI", {
+   // Capability flag: true when a default Discord App ID is hardcoded (maintainer-
+   // shipped), so the presence enable switch can be ready without a user-saved App ID.
+   discordDefaultAppIdPresent,
++  moriCliEnabled,
+   getSnapshot: () => ipcRenderer.invoke("settings:get-snapshot"),
+   queryRecap: (period) => ipcRenderer.invoke("settings:recap-query", period),
+   clearRecap: () => ipcRenderer.invoke("settings:recap-clear"),
 diff --git a/src/server.js b/src/server.js
 index 2aabd48..95ba664 100644
 --- a/src/server.js
@@ -828,10 +923,18 @@ index 4153d77..64b0c1d 100644
      && entry.agentId === "codex"
      && isCodexDesktopOriginator(entry.codexOriginator || entry.originator);
 diff --git a/src/session-hud-renderer.js b/src/session-hud-renderer.js
-index e5bf008..7e793c0 100644
+index e5bf008..6390324 100644
 --- a/src/session-hud-renderer.js
 +++ b/src/session-hud-renderer.js
-@@ -127,6 +127,9 @@ function makeChipInfo(entry) {
+@@ -1,6 +1,7 @@
+ "use strict";
+ 
+ const { canOfferLocalFolder, focusUnavailableReasonKey } = globalThis.ClawdSessionFocusUnavailable;
++const { getMoriHudStatus } = globalThis.MoriHudStatus;
+ 
+ const HUD_MAX_EXPANDED_ROWS = 3;
+ const HUD_MAX_EXPANDED_ROWS_LABELS = 5;
+@@ -127,6 +128,9 @@ function makeChipInfo(entry) {
  }
  
  function stateChipInfo(session) {
@@ -841,7 +944,7 @@ index e5bf008..7e793c0 100644
    if (snapshot.hudShowStateLabels === false) {
      return session && session.startupRecovered
        ? { label: t("sessionRecovered"), cls: "chip-recovered" }
-@@ -192,6 +195,11 @@ function updateUnread(sessions) {
+@@ -192,6 +196,11 @@ function updateUnread(sessions) {
      if (!currentIds.has(id)) unreadSessions.delete(id);
    }
    for (const session of sessions) {
@@ -853,7 +956,7 @@ index e5bf008..7e793c0 100644
      const prev = prevBadges.get(session.id);
      const curr = session.badge;
      if (curr !== "done") {
-@@ -303,7 +311,7 @@ function createRowForSession(session, now) {
+@@ -303,7 +312,7 @@ function createRowForSession(session, now) {
    right.className = "right";
    let hasRightContent = false;
  
@@ -862,7 +965,7 @@ index e5bf008..7e793c0 100644
      const bell = document.createElement("span");
      bell.className = "completion-bell unread-bell";
      bell.innerHTML = BELL_SVG;
-@@ -389,7 +397,16 @@ function createRowForSession(session, now) {
+@@ -389,7 +398,16 @@ function createRowForSession(session, now) {
    row.appendChild(left);
    if (hasRightContent) row.appendChild(right);
  
@@ -880,7 +983,7 @@ index e5bf008..7e793c0 100644
      unreadSessions.delete(session.id);
      if (canFocus) {
        render();
-@@ -429,7 +446,8 @@ function createFoldedRow(count) {
+@@ -429,12 +447,41 @@ function createFoldedRow(count) {
    row.appendChild(left);
  
    row.addEventListener("click", () => {
@@ -890,6 +993,197 @@ index e5bf008..7e793c0 100644
    });
  
    return row;
+ }
+ 
++function createBrowserStatusNotice(status) {
++  const button = document.createElement("button");
++  button.type = "button";
++  button.className = "row row-browser-status";
++  button.title = status.detail;
++  button.setAttribute("aria-label", `${status.label}。ブラウザ連携画面を開く`);
++
++  const left = document.createElement("span");
++  left.className = "left";
++  const dot = document.createElement("span");
++  dot.className = "dot dot-idle";
++  dot.setAttribute("aria-hidden", "true");
++  left.appendChild(dot);
++  const title = document.createElement("span");
++  title.className = "title";
++  title.textContent = status.label;
++  left.appendChild(title);
++  button.appendChild(left);
++  button.addEventListener("click", async () => {
++    try { await window.sessionHudAPI.openBrowserPanel(); }
++    catch {
++      title.textContent = "接続画面を開けませんでした";
++      button.title = "Mori Desk を再起動し、キャラクターの右クリックからブラウザ連携画面を開いてください。";
++    }
++  });
++  return button;
++}
++
+ function createPinButton(pinned) {
+   const btn = document.createElement("button");
+   btn.type = "button";
+@@ -464,9 +511,16 @@ function render() {
+   updateUnread(sessions);
+   hudEl.replaceChildren();
+   hudEl.classList.add("has-pin");
+-  // The HUD shows sessions only; account quota now lives in the pet-attached
+-  // quota ring window (quota-ring.html).
+-  if (!sessions.length) return;
++  // Empty connection help is a separate button; never add it to session
++  // identity, completion/unread state, totals, or the folded-session count.
++  if (!sessions.length) {
++    const status = getMoriHudStatus(snapshot);
++    if (status) {
++      hudEl.appendChild(createBrowserStatusNotice(status));
++      hudEl.appendChild(createPinButton(snapshot.hudPinned === true));
++    }
++    return;
++  }
+ 
+   const now = Date.now();
+   const { expanded, folded } = splitHudLayout(sessions);
+diff --git a/src/session-hud.html b/src/session-hud.html
+index de11acd..cee12da 100644
+--- a/src/session-hud.html
++++ b/src/session-hud.html
+@@ -117,6 +117,15 @@ body { padding: 2px 3px 8px; }
+   background: rgba(0, 0, 0, 0.06);
+ }
+ 
++.row-browser-status {
++  width: 100%;
++  border: none;
++  background: transparent;
++  color: var(--text);
++  font: inherit;
++  text-align: left;
++}
++
+ @media (prefers-color-scheme: dark) {
+   .row:hover {
+     background: rgba(255, 255, 255, 0.08);
+@@ -339,6 +348,7 @@ body { padding: 2px 3px 8px; }
+ <body>
+   <div id="hud" class="hud"></div>
+   <script src="./session-focus-unavailable.js"></script>
++  <script src="./mori-hud-status.js"></script>
+   <script src="./session-hud-renderer.js"></script>
+ </body>
+ </html>
+diff --git a/src/session-hud.js b/src/session-hud.js
+index df2bb5b..24cdc65 100644
+--- a/src/session-hud.js
++++ b/src/session-hud.js
+@@ -5,6 +5,7 @@ const path = require("path");
+ const { keepOutOfTaskbar } = require("./taskbar");
+ const { clampTextScale, scaleHeight, applyZoomToWindow } = require("./text-scale");
+ const ringGeom = require("./quota-ring-geometry");
++const { getMoriHudStatus } = require("./mori-hud-status");
+ 
+ const isLinux = process.platform === "linux";
+ const isMac = process.platform === "darwin";
+@@ -61,6 +62,10 @@ function snapshotHasVisibleSessions(snapshot) {
+   return sessions.some(isHudSession);
+ }
+ 
++function snapshotHasHudContent(snapshot) {
++  return snapshotHasVisibleSessions(snapshot) || !!getMoriHudStatus(snapshot);
++}
++
+ function evaluateBaseEligible({
+   snapshot,
+   sessionHudEnabled,
+@@ -78,7 +83,7 @@ function evaluateBaseEligible({
+   // one being eligible reveals the floating UI on a pet click — so the ring can
+   // still be checked ("a remote's quota before starting work") even with the
+   // Session HUD turned off.
+-  const hudEligible = sessionHudEnabled !== false && snapshotHasVisibleSessions(snapshot);
++  const hudEligible = sessionHudEnabled !== false && snapshotHasHudContent(snapshot);
+   const ringEligible = countQuotaCoins(snapshot, showQuota, hiddenQuotaProviders) > 0;
+   return hudEligible || ringEligible;
+ }
+@@ -193,6 +198,11 @@ function computeHudHeight(rowCount) {
+   return rowCount * HUD_ROW_HEIGHT + HUD_BORDER_Y;
+ }
+ 
++function computeHudContentHeight(snapshot, options = {}) {
++  const layout = computeHudLayout(snapshot, options);
++  return computeHudHeight(layout.rowCount || (getMoriHudStatus(snapshot) ? 1 : 0));
++}
++
+ function computeHudReservedOffset(cardHeight) {
+   const h = Number.isFinite(cardHeight) && cardHeight > 0 ? cardHeight : HUD_ROW_HEIGHT;
+   return HUD_PET_GAP + h + HUD_WINDOW_SHELL.bottom + BUBBLE_GAP;
+@@ -311,7 +321,7 @@ module.exports = function initSessionHud(ctx) {
+   const hiddenDestroyTimers = { hud: null, ring: null };
+   // Pet-attached quota ring — a sibling floating window (quota-ring.html) that
+   // shares this module's reveal / pin / grace / hot-zone lifecycle. The HUD now
+-  // shows sessions only; the ring shows account quota beside the pet.
++  // shows sessions or Mori's empty connection notice; the ring shows quota.
+   let ringWindow = null;
+   let ringDidFinishLoad = false;
+   let ringSide = "left";
+@@ -412,11 +422,10 @@ module.exports = function initSessionHud(ctx) {
+     // unscaled expectation makes the auto-hide hot zone smaller than the
+     // real window, so the cursor "leaves" while still visually over it.
+     const hudEnabled = ctx.sessionHudEnabled !== false;
+-    const hasSessions = snapshotHasVisibleSessions(snapshot);
++    const hasContent = snapshotHasHudContent(snapshot);
+     let contentBounds = null;
+-    if (hudEnabled && hasSessions) {
+-      const layout = computeHudLayout(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+-      const height = computeHudHeight(layout.rowCount);
++    if (hudEnabled && hasContent) {
++      const height = computeHudContentHeight(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+       const computed = computeSessionHudBounds({ hitRect, anchorRect, workArea, width, height, scale, widthScale });
+       contentBounds = computed && computed.contentBounds;
+     }
+@@ -862,8 +871,7 @@ module.exports = function initSessionHud(ctx) {
+     const workArea = typeof ctx.getNearestWorkArea === "function"
+       ? ctx.getNearestWorkArea(cx, cy)
+       : { x: 0, y: 0, width: 1280, height: 800 };
+-    const layout = computeHudLayout(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+-    const height = computeHudHeight(layout.rowCount);
++    const height = computeHudContentHeight(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+     const width = getHudWidth(
+       ctx.sessionHudShowElapsed !== false,
+       ctx.sessionHudShowStateLabels !== false,
+@@ -921,11 +929,11 @@ module.exports = function initSessionHud(ctx) {
+     // and the bounds math — separate reads could disagree mid-display-crossing.
+     const scale = getTextScale();
+ 
+-    // ── Session HUD (sessions only; gated by its own master, independent of
++    // ── Session HUD (sessions or empty notice; gated by its own master, independent of
+     // the quota ring) ──
+     const hudEnabled = ctx.sessionHudEnabled !== false;
+-    const hasSessions = snapshotHasVisibleSessions(snapshot);
+-    const hudComputed = show && hudEnabled && hasSessions ? computeBounds(snapshot, scale) : null;
++    const hasContent = snapshotHasHudContent(snapshot);
++    const hudComputed = show && hudEnabled && hasContent ? computeBounds(snapshot, scale) : null;
+     if (!hudComputed) {
+       hideSessionHud();
+     } else {
+@@ -956,7 +964,7 @@ module.exports = function initSessionHud(ctx) {
+     const scale = getTextScale();
+     const hudComputed = shouldShow(snapshot)
+       && ctx.sessionHudEnabled !== false
+-      && snapshotHasVisibleSessions(snapshot)
++      && snapshotHasHudContent(snapshot)
+       ? computeBounds(snapshot, scale)
+       : null;
+     syncQuotaRing(snapshot, scale, hudComputed ? hudComputed.contentBounds : null, {
+@@ -1020,6 +1028,7 @@ module.exports.__test = {
+   computeHudLayout,
+   getHudMaxExpandedRows,
+   computeHudHeight,
++  computeHudContentHeight,
+   countQuotaCoins,
+   computeHudReservedOffset,
+   isHudSession,
 diff --git a/src/settings-actions-system.js b/src/settings-actions-system.js
 index abd0d0f..37d17c6 100644
 --- a/src/settings-actions-system.js
@@ -914,6 +1208,171 @@ index abd0d0f..37d17c6 100644
      if (!deps || typeof deps.writeCodexAutoStartGate !== "function") {
        return {
          status: "error",
+diff --git a/src/settings-i18n.js b/src/settings-i18n.js
+index 9ef9cad..6a13ac4 100644
+--- a/src/settings-i18n.js
++++ b/src/settings-i18n.js
+@@ -13,7 +13,7 @@
+       sessionsSubtitle: "The session HUD and quota rings under the pet, plus the session dashboard.",
+       permissionsTitle: "Permissions & approval",
+       permissionsSubtitle: "How permission requests are handled here first, then where else you can approve them.",
+-      settingsWindowTitle: "Clawd Settings",
++      settingsWindowTitle: "Mori Desk Settings",
+       settingsTutorialReplayLink: "Show getting started guide",
+       settingsTutorialReplayFailed: "Couldn't open the guide",
+       sidebarGeneral: "General",
+@@ -581,7 +581,12 @@
+       shortcutErrorReserved: "This combination is reserved. Try another key.",
+       shortcutErrorInvalid: "That key combination is not supported.",
+       shortcutErrorNeedsModifier: "Shortcut must include at least one modifier key.",
+-      shortcutErrorRegistrationFailed: "Saved, but currently not active due to system conflict. Rebind or try again later.",
++      shortcutErrorRegistrationFailed: "This shortcut is unavailable. Change the keys or clear its binding.",
++      shortcutErrorRegistrationDetails: "Shortcut unavailable: {shortcuts}. Open Settings → Shortcuts to change the keys or clear the binding.",
++      shortcutLabelOpenBrowserSessions: "Open browser sessions",
++      rowMoriBrowserSessions: "Browser connection and sessions",
++      rowMoriBrowserSessionsDesc: "Open the Chrome connection status and the list of ChatGPT / Claude browser sessions.",
++      actionOpenMoriBrowserSessions: "Open browser sessions",
+       shortcutLabelTogglePet: "Toggle pet visibility",
+       shortcutLabelQuickSelectSession: "Quick-select a session",
+       shortcutLabelPermissionAllow: "Permission: Allow",
+@@ -1239,7 +1244,7 @@
+       sessionsSubtitle: "桌宠下方的会话 HUD、额度环，以及会话面板。",
+       permissionsTitle: "权限与审批",
+       permissionsSubtitle: "权限请求先怎么处理，再决定要不要发到手机上批。",
+-      settingsWindowTitle: "Clawd 设置",
++      settingsWindowTitle: "Mori Desk 设置",
+       settingsTutorialReplayLink: "重新打开新手指南",
+       settingsTutorialReplayFailed: "无法打开新手指南",
+       sidebarGeneral: "通用",
+@@ -1797,7 +1802,12 @@
+       shortcutErrorReserved: "该组合键属于保留快捷键，请换一个。",
+       shortcutErrorInvalid: "暂不支持这个组合键。",
+       shortcutErrorNeedsModifier: "快捷键至少要包含一个修饰键。",
+-      shortcutErrorRegistrationFailed: "已保存，但当前因系统冲突未生效。请重新绑定或稍后再试。",
++      shortcutErrorRegistrationFailed: "此快捷键当前无法使用。请更换按键组合或取消绑定。",
++      shortcutErrorRegistrationDetails: "快捷键无法使用：{shortcuts}。请前往设置 → 快捷键更换组合或取消绑定。",
++      shortcutLabelOpenBrowserSessions: "打开浏览器会话",
++      rowMoriBrowserSessions: "浏览器连接与会话",
++      rowMoriBrowserSessionsDesc: "查看 Chrome 扩展连接状态及 ChatGPT / Claude 浏览器会话。",
++      actionOpenMoriBrowserSessions: "打开浏览器会话",
+       shortcutLabelTogglePet: "显示/隐藏桌宠",
+       shortcutLabelQuickSelectSession: "快速选择会话",
+       shortcutLabelPermissionAllow: "权限：允许",
+@@ -2453,7 +2463,7 @@
+       sessionsSubtitle: "桌寵下方的工作階段 HUD、額度環，以及工作階段面板。",
+       permissionsTitle: "權限與核准",
+       permissionsSubtitle: "權限請求先在這台電腦怎麼處理，再決定要不要傳到手機上核准。",
+-      settingsWindowTitle: "Clawd 設定",
++      settingsWindowTitle: "Mori Desk 設定",
+       settingsTutorialReplayLink: "重新開啟新手指南",
+       settingsTutorialReplayFailed: "無法開啟新手指南",
+       sidebarGeneral: "一般",
+@@ -3015,7 +3025,12 @@
+       shortcutErrorReserved: "這是保留快速鍵，請改用其他組合鍵。",
+       shortcutErrorInvalid: "暫時還不支援這個組合鍵。",
+       shortcutErrorNeedsModifier: "快速鍵必須包含至少一個輔助鍵。",
+-      shortcutErrorRegistrationFailed: "已儲存，但系統衝突所以目前未生效。重新綁定或晚點再試。",
++      shortcutErrorRegistrationFailed: "目前無法使用此快速鍵。請變更按鍵組合或取消綁定。",
++      shortcutErrorRegistrationDetails: "無法使用快速鍵：{shortcuts}。請到設定 → 快速鍵變更按鍵或取消綁定。",
++      shortcutLabelOpenBrowserSessions: "開啟瀏覽器工作階段",
++      rowMoriBrowserSessions: "瀏覽器連線與工作階段",
++      rowMoriBrowserSessionsDesc: "查看 Chrome 擴充功能連線狀態及 ChatGPT / Claude 瀏覽器工作階段。",
++      actionOpenMoriBrowserSessions: "開啟瀏覽器工作階段",
+       shortcutLabelTogglePet: "顯示/隱藏桌寵",
+       shortcutLabelQuickSelectSession: "快速選擇工作階段",
+       shortcutLabelPermissionAllow: "權限：允許",
+@@ -3671,7 +3686,7 @@
+       sessionsSubtitle: "펫 아래의 세션 HUD와 할당량 링, 그리고 세션 대시보드.",
+       permissionsTitle: "권한 및 승인",
+       permissionsSubtitle: "권한 요청을 이 기기에서 먼저 처리한 뒤, 휴대폰에서 승인할지 결정합니다.",
+-      settingsWindowTitle: "Clawd 설정",
++      settingsWindowTitle: "Mori Desk 설정",
+       settingsTutorialReplayLink: "시작 가이드 다시 보기",
+       settingsTutorialReplayFailed: "가이드를 열 수 없습니다",
+       sidebarGeneral: "일반",
+@@ -4233,7 +4248,12 @@
+       shortcutErrorReserved: "예약된 단축키 조합입니다. 다른 키를 사용해 주세요.",
+       shortcutErrorInvalid: "지원하지 않는 키 조합입니다.",
+       shortcutErrorNeedsModifier: "단축키에는 하나 이상의 보조 키가 필요합니다.",
+-      shortcutErrorRegistrationFailed: "저장되었지만 현재는 시스템 충돌로 활성화되지 않았습니다. 다시 바인딩하거나 나중에 다시 시도해 주세요.",
++      shortcutErrorRegistrationFailed: "이 단축키를 사용할 수 없습니다. 키 조합을 바꾸거나 연결을 해제하세요.",
++      shortcutErrorRegistrationDetails: "단축키를 사용할 수 없습니다: {shortcuts}. 설정 → 단축키에서 키 조합을 바꾸거나 연결을 해제하세요.",
++      shortcutLabelOpenBrowserSessions: "브라우저 세션 열기",
++      rowMoriBrowserSessions: "브라우저 연결 및 세션",
++      rowMoriBrowserSessionsDesc: "Chrome 확장 프로그램의 연결 상태와 ChatGPT / Claude 브라우저 세션을 확인합니다.",
++      actionOpenMoriBrowserSessions: "브라우저 세션 열기",
+       shortcutLabelTogglePet: "펫 표시 전환",
+       shortcutLabelQuickSelectSession: "세션 빠른 선택",
+       shortcutLabelPermissionAllow: "권한: 허용",
+@@ -4889,7 +4909,7 @@
+       sessionsSubtitle: "ペットの下にあるセッション HUD とクォータリング、セッションダッシュボード。",
+       permissionsTitle: "権限と承認",
+       permissionsSubtitle: "権限リクエストをまずこのマシンでどう処理するか、そのうえでスマートフォンで承認するかを決めます。",
+-      settingsWindowTitle: "Clawd 設定",
++      settingsWindowTitle: "Mori Desk 設定",
+       settingsTutorialReplayLink: "はじめにガイドを開く",
+       settingsTutorialReplayFailed: "ガイドを開けませんでした",
+       sidebarGeneral: "一般",
+@@ -5451,7 +5471,12 @@
+       shortcutErrorReserved: "このキーの組み合わせは予約済みです。別のキーを試してください。",
+       shortcutErrorInvalid: "このキーの組み合わせはサポートされていません。",
+       shortcutErrorNeedsModifier: "ショートカットには修飾キーを少なくとも 1 つ含める必要があります。",
+-      shortcutErrorRegistrationFailed: "保存しましたが、システム競合により現在は無効です。再バインドするか後で再試行してください。",
++      shortcutErrorRegistrationFailed: "このショートカットを使用できません。別のキーに変更するか、割り当てを解除してください。",
++      shortcutErrorRegistrationDetails: "ショートカットを使用できません: {shortcuts}。「設定 → ショートカット」でキーを変更するか、割り当てを解除してください。",
++      shortcutLabelOpenBrowserSessions: "ブラウザのセッションを開く",
++      rowMoriBrowserSessions: "ブラウザ連携・セッション",
++      rowMoriBrowserSessionsDesc: "Chrome 拡張機能との接続状況と、ChatGPT / Claude のブラウザセッションを確認します。",
++      actionOpenMoriBrowserSessions: "ブラウザ連携を開く",
+       shortcutLabelTogglePet: "ペット表示の切替",
+       shortcutLabelQuickSelectSession: "セッションをクイック選択",
+       shortcutLabelPermissionAllow: "権限: 許可",
+@@ -6109,7 +6134,7 @@
+       sessionsSubtitle: "O HUD de sessões e os anéis de cota sob o pet, além do painel de sessões.",
+       permissionsTitle: "Permissões e aprovação",
+       permissionsSubtitle: "Como os pedidos de permissão são tratados aqui primeiro e depois onde mais você pode aprová-los.",
+-      settingsWindowTitle: "Configurações do Clawd",
++      settingsWindowTitle: "Configurações do Mori Desk",
+       settingsTutorialReplayLink: "Mostrar o guia de primeiros passos",
+       settingsTutorialReplayFailed: "Não foi possível abrir o guia",
+       sidebarGeneral: "Geral",
+@@ -6667,7 +6692,12 @@
+       shortcutErrorReserved: "Esta combinação é reservada. Tente outra tecla.",
+       shortcutErrorInvalid: "Essa combinação de teclas não é suportada.",
+       shortcutErrorNeedsModifier: "O atalho precisa incluir pelo menos uma tecla modificadora.",
+-      shortcutErrorRegistrationFailed: "Salvo, mas inativo no momento por conflito com o sistema. Refaça o atalho ou tente de novo mais tarde.",
++      shortcutErrorRegistrationFailed: "Este atalho não está disponível. Troque as teclas ou remova a atribuição.",
++      shortcutErrorRegistrationDetails: "Atalho indisponível: {shortcuts}. Abra Configurações → Atalhos para trocar as teclas ou remover a atribuição.",
++      shortcutLabelOpenBrowserSessions: "Abrir sessões do navegador",
++      rowMoriBrowserSessions: "Conexão e sessões do navegador",
++      rowMoriBrowserSessionsDesc: "Veja a conexão da extensão do Chrome e as sessões do ChatGPT / Claude no navegador.",
++      actionOpenMoriBrowserSessions: "Abrir sessões do navegador",
+       shortcutLabelTogglePet: "Mostrar/ocultar o pet",
+       shortcutLabelQuickSelectSession: "Seleção rápida de sessão",
+       shortcutLabelPermissionAllow: "Permissão: permitir",
+@@ -7325,7 +7355,7 @@
+       sessionsSubtitle: "El HUD de sesiones y los anillos de cuota bajo la mascota, más el panel de sesiones.",
+       permissionsTitle: "Permisos y aprobación",
+       permissionsSubtitle: "Cómo se gestionan aquí primero las solicitudes de permiso y luego dónde más puedes aprobarlas.",
+-      settingsWindowTitle: "Ajustes de Clawd",
++      settingsWindowTitle: "Ajustes de Mori Desk",
+       settingsTutorialReplayLink: "Mostrar la guía de inicio",
+       settingsTutorialReplayFailed: "No se pudo abrir la guía",
+       sidebarGeneral: "General",
+@@ -7883,7 +7913,12 @@
+       shortcutErrorReserved: "Esta combinación está reservada. Prueba otra tecla.",
+       shortcutErrorInvalid: "Esa combinación de teclas no es compatible.",
+       shortcutErrorNeedsModifier: "El atajo debe incluir al menos una tecla modificadora.",
+-      shortcutErrorRegistrationFailed: "Guardado, pero ahora inactivo por un conflicto del sistema. Vuelve a vincularlo o inténtalo más tarde.",
++      shortcutErrorRegistrationFailed: "Este atajo no está disponible. Cambia las teclas o quita la asignación.",
++      shortcutErrorRegistrationDetails: "Atajo no disponible: {shortcuts}. Abre Configuración → Atajos para cambiar las teclas o quitar la asignación.",
++      shortcutLabelOpenBrowserSessions: "Abrir sesiones del navegador",
++      rowMoriBrowserSessions: "Conexión y sesiones del navegador",
++      rowMoriBrowserSessionsDesc: "Consulta la conexión de la extensión de Chrome y las sesiones de ChatGPT / Claude en el navegador.",
++      actionOpenMoriBrowserSessions: "Abrir sesiones del navegador",
+       shortcutLabelTogglePet: "Alternar visibilidad de la mascota",
+       shortcutLabelQuickSelectSession: "Selección rápida de sesión",
+       shortcutLabelPermissionAllow: "Permiso: Permitir",
 diff --git a/src/settings-ipc.js b/src/settings-ipc.js
 index 7c31635..f2d737f 100644
 --- a/src/settings-ipc.js
@@ -1383,6 +1842,103 @@ index 36c5410..e4218d2 100644
        rows.push(buildCodexPermissionModeRow(agent, computeAgentSubSwitchDisabled(agent.id, "permissionMode")));
        rows.push(buildAgentSwitchRow({
          agent,
+diff --git a/src/settings-tab-sessions.js b/src/settings-tab-sessions.js
+index 5fb97f3..ccf0353 100644
+--- a/src/settings-tab-sessions.js
++++ b/src/settings-tab-sessions.js
+@@ -57,15 +57,16 @@
+     text.className = "row-text";
+     const label = document.createElement("span");
+     label.className = "row-label";
+-    label.textContent = t("rowSessionDashboard");
++    const browserOnly = window.settingsAPI?.moriCliEnabled === false;
++    label.textContent = t(browserOnly ? "rowMoriBrowserSessions" : "rowSessionDashboard");
+     const desc = document.createElement("span");
+     desc.className = "row-desc";
+-    desc.textContent = t("rowSessionDashboardDesc");
++    desc.textContent = t(browserOnly ? "rowMoriBrowserSessionsDesc" : "rowSessionDashboardDesc");
+     text.append(label, desc);
+     const control = document.createElement("div");
+     control.className = "row-control";
+     const btn = helpers.buildButton({
+-      labelKey: "actionOpenDashboard",
++      labelKey: browserOnly ? "actionOpenMoriBrowserSessions" : "actionOpenDashboard",
+       tone: "accent",
+     });
+     btn.addEventListener("click", () => {
+diff --git a/src/settings-tab-shortcuts.js b/src/settings-tab-shortcuts.js
+index c128db9..630baf5 100644
+--- a/src/settings-tab-shortcuts.js
++++ b/src/settings-tab-shortcuts.js
+@@ -14,8 +14,7 @@
+   }
+ 
+   function getShortcutActionLabel(actionId) {
+-    const meta = i18n.SHORTCUT_ACTIONS[actionId];
+-    return meta ? t(meta.labelKey) : actionId;
++    return readers.getShortcutActionLabel(actionId);
+   }
+ 
+   function runShortcutAction(action, payload) {
+diff --git a/src/settings-ui-core.js b/src/settings-ui-core.js
+index 1c885c6..c1ca082 100644
+--- a/src/settings-ui-core.js
++++ b/src/settings-ui-core.js
+@@ -268,6 +268,14 @@
+     return shortcuts[actionId] ?? null;
+   }
+ 
++  function getShortcutActionLabel(actionId) {
++    if (actionId === "quickSelectSession" && window.settingsAPI?.moriCliEnabled === false) {
++      return t("shortcutLabelOpenBrowserSessions");
++    }
++    const meta = SHORTCUT_ACTIONS[actionId];
++    return meta ? t(meta.labelKey) : actionId;
++  }
++
+   function getLang() {
+     return (state.snapshot && state.snapshot.lang) || "en";
+   }
+@@ -2223,6 +2231,9 @@
+     state.snapshot = snapshotValue || {};
+     requestRender({ sidebar: true, content: true, modal: true });
+     restoreActiveTabScrollPosition();
++    // The failure IPC can resolve first. Wait for the saved language and
++    // bindings before naming the affected shortcuts in a startup notice.
++    applyShortcutFailures(runtime.shortcutFailures);
+   }
+ 
+   function applyAgentMetadata(list) {
+@@ -2593,9 +2604,19 @@
+ 
+   function applyShortcutFailures(failures) {
+     runtime.shortcutFailures = failures || {};
+-    if (!runtime.shortcutFailureToastShown && Object.keys(runtime.shortcutFailures).length > 0) {
++    // Registration is independent of whichever Settings page was opened.
++    // Never describe a startup failure as a successful save or a dashboard error.
++    const affected = SUPPORTED_SHORTCUT_ACTION_IDS.filter((actionId) =>
++      runtime.shortcutFailures[actionId] && getShortcutValue(actionId));
++    if (state.snapshot && !runtime.shortcutFailureToastShown && affected.length > 0) {
+       runtime.shortcutFailureToastShown = true;
+-      showToast(t("shortcutErrorRegistrationFailed"), { error: true });
++      const shortcuts = affected.map((actionId) => {
++        const keys = formatAcceleratorLabel(getShortcutValue(actionId), { isMac: IS_MAC });
++        return `${getShortcutActionLabel(actionId)} (${keys})`;
++      }).join("; ");
++      showToast(t("shortcutErrorRegistrationDetails").replace("{shortcuts}", shortcuts), {
++        error: true, ttl: 8000,
++      });
+     }
+     if (state.activeTab === "shortcuts") requestRender({ content: true });
+   }
+@@ -2832,6 +2853,7 @@
+     readCustomAgentDetectionResults,
+     readCustomApplications,
+     getShortcutValue,
++    getShortcutActionLabel,
+     getLang,
+     readThemeOverrideMap,
+     hasAnyThemeOverride,
 diff --git a/src/settings-window-icon.js b/src/settings-window-icon.js
 index 5b00f5f..5492692 100644
 --- a/src/settings-window-icon.js
@@ -1398,6 +1954,40 @@ index 5b00f5f..5492692 100644
  const SETTINGS_WINDOW_LAUNCH_ARG = "--open-settings-window";
  
  function quoteWindowsCommandArg(value) {
+diff --git a/src/settings-window.js b/src/settings-window.js
+index 2df8223..f74b193 100644
+--- a/src/settings-window.js
++++ b/src/settings-window.js
+@@ -89,6 +89,7 @@ function createSettingsWindowRuntime(options = {}) {
+   const settingsHtmlPath = options.settingsHtmlPath || path.join(__dirname, "settings.html");
+   const preloadPath = options.preloadPath || path.join(__dirname, "preload-settings.js");
+   const discordDefaultAppIdPresent = !!options.discordDefaultAppIdPresent;
++  const moriCliEnabled = options.moriCliEnabled !== false;
+   const scheduleLater = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
+   const clearScheduled = typeof options.clearTimeout === "function" ? options.clearTimeout : clearTimeout;
+ 
+@@ -472,6 +473,7 @@ function createSettingsWindowRuntime(options = {}) {
+         // Sandboxed preloads can't require app modules; pass build-time flags by value.
+         additionalArguments: [
+           `--discord-default-app-id-present=${discordDefaultAppIdPresent ? "1" : "0"}`,
++          `--mori-cli-enabled=${moriCliEnabled ? "1" : "0"}`,
+         ],
+       },
+     };
+diff --git a/src/shortcut-actions.js b/src/shortcut-actions.js
+index ccc70e8..491db2c 100644
+--- a/src/shortcut-actions.js
++++ b/src/shortcut-actions.js
+@@ -12,7 +12,8 @@
+   const SHORTCUT_ACTIONS = Object.freeze({
+     togglePet: Object.freeze({
+       persistent: true,
+-      defaultAccelerator: "CommandOrControl+Shift+Alt+C",
++      // Mori uses its own default; explicitly saved bindings stay unchanged.
++      defaultAccelerator: "CommandOrControl+Shift+Alt+M",
+       labelKey: "shortcutLabelTogglePet",
+     }),
+     quickSelectSession: Object.freeze({
 diff --git a/src/state.js b/src/state.js
 index 6aa2ccf..2c0bf7a 100644
 --- a/src/state.js
@@ -1456,4 +2046,69 @@ index 68fc2b6..fa19893 100644
 +  function getActiveThemeId(fallback = "mori") {
      return activeTheme ? activeTheme._id : fallback;
    }
+ 
+diff --git a/test/settings-window.test.js b/test/settings-window.test.js
+index 0369586..4419395 100644
+--- a/test/settings-window.test.js
++++ b/test/settings-window.test.js
+@@ -289,7 +289,7 @@ test("settings window runtime creates the Settings BrowserWindow with taskbar id
+   const win = FakeBrowserWindow.instances[0];
+ 
+   assert.strictEqual(runtime.getWindow(), win);
+-  assert.strictEqual(win.options.title, "Clawd Settings");
++  assert.strictEqual(win.options.title, "Mori Desk Settings");
+   assert.strictEqual(win.options.x, 240);
+   assert.strictEqual(win.options.y, 70);
+   assert.strictEqual(win.options.width, 800);
+@@ -302,6 +302,7 @@ test("settings window runtime creates the Settings BrowserWindow with taskbar id
+   assert.strictEqual(win.options.webPreferences.contextIsolation, true);
+   assert.deepStrictEqual(win.options.webPreferences.additionalArguments, [
+     "--discord-default-app-id-present=0",
++    "--mori-cli-enabled=1",
+   ]);
+   assert.match(win.options.icon, /assets[\\/]icons[\\/]256x256\.png$/);
+   assert.strictEqual(win.menuBarVisible, false);
+@@ -384,14 +385,14 @@ test("settings window injects the Discord default-App-ID flag into the sandboxed
+   present.runtime.open();
+   assert.deepStrictEqual(
+     FakeBrowserWindow.instances[0].options.webPreferences.additionalArguments,
+-    ["--discord-default-app-id-present=1"],
++    ["--discord-default-app-id-present=1", "--mori-cli-enabled=1"],
+   );
+ 
+   const absent = createRuntime({ runtime: { discordDefaultAppIdPresent: false } });
+   absent.runtime.open();
+   assert.deepStrictEqual(
+     FakeBrowserWindow.instances[0].options.webPreferences.additionalArguments,
+-    ["--discord-default-app-id-present=0"],
++    ["--discord-default-app-id-present=0", "--mori-cli-enabled=1"],
+   );
+ });
+ 
+diff --git a/test/shortcut-actions.test.js b/test/shortcut-actions.test.js
+index 84d09b2..4734a67 100644
+--- a/test/shortcut-actions.test.js
++++ b/test/shortcut-actions.test.js
+@@ -39,7 +39,7 @@ describe("shortcut-actions metadata", () => {
+     const b = getDefaultShortcuts();
+     assert.notStrictEqual(a, b);
+     assert.deepStrictEqual(a, {
+-      togglePet: "CommandOrControl+Shift+Alt+C",
++      togglePet: "CommandOrControl+Shift+Alt+M",
+       quickSelectSession: null,
+       permissionAllow: "CommandOrControl+Shift+Y",
+       permissionDeny: "CommandOrControl+Shift+N",
+@@ -313,11 +313,11 @@ describe("normalizeShortcuts", () => {
+   it("preserves an explicit Control token when it is equivalent to the default off macOS", () => {
+     assert.strictEqual(
+       normalizeShortcuts(
+-        { togglePet: "Control+Shift+Alt+C" },
++        { togglePet: "Control+Shift+Alt+M" },
+         getDefaultShortcuts(),
+         { isMac: false }
+       ).togglePet,
+-      "Control+Shift+Alt+C"
++      "Control+Shift+Alt+M"
+     );
+   });
  

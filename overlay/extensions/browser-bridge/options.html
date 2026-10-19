@@ -24,6 +24,8 @@
       </div>
       <p id="diagnostic" class="notice" hidden></p>
       <div class="actions"><button id="retry" type="button">今すぐ再接続</button><button id="pause" type="button" class="secondary">監視を一時停止</button></div>
+      <div class="actions"><button id="check-tabs" type="button" class="secondary">表示されない原因を確認</button></div>
+      <div id="tab-health" class="notice" role="status" aria-live="polite" hidden></div>
     </section>
 
     <section aria-labelledby="pair-heading">
@@ -44,9 +46,9 @@
 
     <section class="preview-note" aria-labelledby="preview-heading">
       <h2 id="preview-heading">プレビュー版で確認できること</h2>
-      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> 拡張機能を追加した後、開いている AI のタブを一度再読み込みしてください。1 つのタブが 1 行として表示され、同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
+      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も、通常の入力欄と生成の停止ボタンを読み取れる画面で扱います。拡張機能の追加・再読み込み後は、開いている AI のタブも一度再読み込みしてください。生成中の状態を一度観測すると、1 つのタブが HUD の 1 行として表示されます。過去の会話を開いただけでは行は作りません。同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
       <p>この版の DOM 判定は、実際の利用環境での確認が必要です。生成の停止を検出したときは <strong>「回答を確認」</strong> と表示します。正常終了の保証や、回答内容の評価は行いません。読み取れない画面、タブの破棄、スリープ中は状態が不明になります。</p>
-      <p class="small">音声・画像生成・Deep Research・カスタム GPT の専用画面・Projects の専用画面は検証対象に含みません。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
+      <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。プロジェクト名・GPT 名を収集せず、会話 ID だけを扱います。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
     </section>
 
     <section aria-labelledby="privacy-heading">

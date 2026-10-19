@@ -77,8 +77,10 @@
         || record.conversationRef !== route.conversationRef;
       const assignment = record.provider === route.provider && record.conversationRef === null
         && route.conversationRef !== null && record.phase === 'running'
-        && record.documentId === context.documentId;
-      if (changedConversation && !assignment) {
+        && record.documentId === context.documentId && record.pageInstanceId === observation.pageInstanceId;
+      const changedEmptyScope = record.conversationRef === null && route.conversationRef === null
+        && record.documentId === context.documentId && record.pageInstanceId !== observation.pageInstanceId;
+      if ((changedConversation && !assignment) || changedEmptyScope) {
         closeRecord(state, record, events, uuid, now); record = null;
       } else if (assignment) {
         record.conversationRef = route.conversationRef;

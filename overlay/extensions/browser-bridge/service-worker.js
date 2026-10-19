@@ -271,9 +271,46 @@ function statusSnapshot() {
   };
 }
 
+async function tabHealth() {
+  // This is an explicit options-page diagnostic, not continuous tab history.
+  // Query only origins already granted by the manifest. Probe at most the
+  // coordinator limit and return aggregate counts, never URLs/titles/IDs.
+  const candidates = await within(chrome.tabs.query({ url: utils.URL_PATTERNS }));
+  const tabs = candidates.filter(tab => Number.isSafeInteger(tab.id) && tab.id >= 0
+    && !!utils.providerForUrl(tab.url));
+  const sampled = tabs.slice(0, coordinator.MAX_TABS);
+  const results = await Promise.all(sampled.map(async tab => {
+    const route = utils.routeForUrl(tab.url);
+    if (!route) return 'unsupportedRoute';
+    if (tab.status === 'loading') return 'unknown';
+    let response;
+    try {
+      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' }, { frameId: 0 }));
+    } catch (_) { return 'needsReload'; }
+    if (!response || response.ok !== true || response.v !== 1
+      || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) return 'needsReload';
+    // A navigation during the diagnostic must not make an old page appear
+    // healthy. No current URL is retained once this local comparison ends.
+    try {
+      const current = await within(chrome.tabs.get(tab.id));
+      if (current.status === 'loading' || !utils.sameRoute(route, utils.routeForUrl(current.url))) return 'unknown';
+    } catch (_) { return 'unknown'; }
+    return response.status === 'unsupported_route' ? 'unsupportedRoute' : response.status;
+  }));
+  const counts = { needsReload: 0, unsupportedRoute: 0, unknown: 0, idle: 0, running: 0, settled: 0 };
+  for (const result of results) counts[result]++;
+  return {
+    ok: true, checkedAt: Date.now(), paired: !!credential, enabled: settings.enabled,
+    connectionState: connectionStatus.state,
+    totalTabs: tabs.length, checkedTabs: sampled.length, remainingTabs: tabs.length - sampled.length,
+    counts,
+  };
+}
+
 async function optionsMessage(message) {
   if (message.type === 'mori.options.status') return statusSnapshot();
   if (fatalError) return { ok: false, reason: fatalError };
+  if (message.type === 'mori.options.health') return tabHealth();
   if (message.type === 'mori.options.pair') {
     const code = MoriTransport.parsePairingCode(message.code);
     if (credential && credential.instanceId !== code.instanceId) return { ok: false, reason: 'unpair_first' };

@@ -37,6 +37,26 @@
     $('action-result').textContent = text;
     $('action-result').dataset.error = String(error);
   }
+  function showTabHealth(result) {
+    const container = $('tab-health');
+    container.hidden = false; container.replaceChildren();
+    const line = text => { const paragraph = document.createElement('p'); paragraph.textContent = text; container.append(paragraph); };
+    if (!result?.ok || !result.counts) { line(friendly(result?.reason)); return; }
+    if (!result.paired) line('先に、この画面の接続コード欄で MORI Desk と接続してください。');
+    else if (!result.enabled) line('監視を停止しています。「監視を再開」を押してください。');
+    else if (result.connectionState !== 'connected') line('MORI Desk との接続がまだ完了していません。アプリを起動し、「今すぐ再接続」を押してください。');
+    const counts = result.counts;
+    line(`対象タブ ${result.totalTabs} 件中 ${result.checkedTabs} 件を確認しました。生成中 ${counts.running} 件・生成停止を観測 ${counts.settled} 件・待機中 ${counts.idle} 件。`);
+    if (!result.totalTabs) line('この Chrome プロファイルで chatgpt.com または claude.ai を開き、拡張機能のサイトへのアクセスが許可されているか確認してください。デスクトップ版 AI アプリや、別の Chrome プロファイルは対象になりません。');
+    if (counts.needsReload) line(`${counts.needsReload} 件でページの監視プログラムから応答がありません。開いている AI タブを F5 で再読み込みし、拡張機能のサイトへのアクセスを確認してください。回答生成中なら、終了してから再読み込みしてください。`);
+    if (counts.unsupportedRoute) line(`${counts.unsupportedRoute} 件は対象外のページです。ChatGPT / Claude の会話画面を開いてください。プロジェクトの管理画面や GPT の編集画面は監視しません。`);
+    if (counts.unknown) line(`${counts.unknown} 件で現在の生成状態を読み取れません。ページの読み込みを待ち、通常のテキスト会話で確認してください。画面変更に追従できない場合も、回答完了とは判定しません。`);
+    if (counts.idle) line('待機中のタブは監視プログラムが動いています。HUD に初めて行を出すには、この接続後に質問を送信し、生成中の状態を観測する必要があります。');
+    if (counts.settled) line('生成停止を観測したタブでは、回答やエラーの有無を確認してください。停止したことだけでは正常終了とは断定しません。');
+    if (counts.running && result.paired && result.enabled && result.connectionState === 'connected') line('ブラウザでは生成中の状態を読み取れています。MORI Desk の「ブラウザ連携・セッション」で行を確認し、キャラクター下に表示されなければ HUD の表示設定も確認してください。');
+    if (result.remainingTabs) line(`負荷を抑えるため、残り ${result.remainingTabs} 件は今回確認していません。不要な AI タブを閉じて、もう一度確認してください。`);
+    line('この診断は件数だけを表示し、ページの URL・タイトル・会話本文を保存しません。');
+  }
   async function refresh() {
     try {
       snapshot = await send('status');
@@ -58,6 +78,7 @@
       $('retry').disabled = busy || !snapshot.paired || !snapshot.enabled || !snapshot.ok;
       $('unpair').disabled = busy || !snapshot.paired || !snapshot.ok;
       $('pair-button').disabled = busy || !snapshot.ok;
+      $('check-tabs').disabled = busy || !snapshot.ok;
       $('diagnostic').hidden = !snapshot.diagnostic;
       $('diagnostic').textContent = snapshot.diagnostic ? friendly(snapshot.diagnostic) : '';
       $('version').textContent = `MORI Browser Bridge ${snapshot.version} · ローカル接続`;
@@ -83,6 +104,9 @@
     void action(() => send('pair', { code }), '接続しました。AI のタブを一度再読み込みしてから試してください。');
   });
   $('retry').addEventListener('click', () => void action(() => send('retry'), '接続状態を確認しました。'));
+  $('check-tabs').addEventListener('click', () => void action(async () => {
+    const result = await send('health'); showTabHealth(result); return result;
+  }, '表示されない原因の確認が終わりました。上の診断結果を確認してください。'));
   $('pause').addEventListener('click', () => {
     const enabled = !snapshot?.enabled;
     void action(() => send('enabled', { enabled }), enabled ? '監視を再開しました。' : '監視を一時停止しました。');

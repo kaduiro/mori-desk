@@ -4,6 +4,10 @@ const { parseDocument } = require('htmlparser2');
 const chatgpt = require('../extensions/browser-bridge/adapters/chatgpt');
 const claude = require('../extensions/browser-bridge/adapters/claude');
 const { createController } = require('../extensions/browser-bridge/observation-controller');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const crypto = require('node:crypto');
 
 // Synthetic HTML fixtures only. This tiny selector/visibility harness covers
 // the simple selector vocabulary used by these adapters; it is not evidence
@@ -76,4 +80,86 @@ test('hidden controls, changed markup, and unsupported paths return unknown rath
   assert.equal(chatgpt.observe(hidden, 'https://chatgpt.com/c/test').supported, false);
   assert.equal(chatgpt.observe(changed, 'https://chatgpt.com/c/test').supported, false);
   assert.equal(claude.observe(changed, 'https://claude.ai/project/test').supported, false);
+});
+
+test('synthetic scoped ChatGPT text conversations use the same controls; an empty scope requires its text composer', () => {
+  const text = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true"></div>'
+    + '<button data-testid="stop-button"></button></main>');
+  assert.equal(chatgpt.observe(text, 'https://chatgpt.com/g/g-p-project/c/conversation-1').generating, true);
+  assert.equal(chatgpt.observe(text, 'https://chatgpt.com/g/g-custom').generating, true);
+  const stopOnly = fixtureDocument('<main><button data-testid="stop-button"></button></main>');
+  assert.equal(chatgpt.observe(stopOnly, 'https://chatgpt.com/g/g-custom').supported, false);
+  assert.equal(chatgpt.observe(stopOnly, 'https://chatgpt.com/g/g-custom').generating, false);
+  const otherLayout = fixtureDocument('<main><div contenteditable="true" role="textbox"></div></main>');
+  assert.equal(chatgpt.observe(otherLayout, 'https://chatgpt.com/g/g-custom').supported, false);
+});
+
+test('content observer rotates its opaque identity between empty scopes, retains assignment, and reports health without page data', () => {
+  const messages = [];
+  const listeners = [];
+  const root = {};
+  let fixture = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true">PRIVATE_PROMPT</div>'
+    + '<button data-testid="stop-button"></button></main>');
+  const location = { href: 'https://chatgpt.com/g/g-PRIVATE_SCOPE_A' };
+  const document = {
+    body: root, visibilityState: 'visible', addEventListener() {},
+    querySelector: selector => selector === 'main' ? root : null,
+    querySelectorAll: selector => fixture.querySelectorAll(selector),
+  };
+  const context = vm.createContext({
+    crypto: crypto.webcrypto, URL, location, document, addEventListener() {},
+    setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1,
+    MutationObserver: class { disconnect() {} observe() {} },
+    chrome: { runtime: { id: 'test-extension', onMessage: { addListener: callback => listeners.push(callback) },
+      sendMessage: message => { messages.push(structuredClone(message)); return Promise.resolve({ ok: true }); } } },
+  });
+  const base = path.join(__dirname, '../extensions/browser-bridge');
+  for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
+    'observation-controller.js', 'content-script.js']) {
+    vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
+  }
+  const dispatch = message => {
+    let response;
+    listeners[0](message, { id: 'test-extension' }, value => { response = structuredClone(value); });
+    return response;
+  };
+  const a = messages.at(-1);
+  assert.equal(a.status, 'running');
+  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'running' });
+  location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B';
+  // The focus check arrives before MutationObserver / the scheduled sample.
+  // Both empty scopes have null conversation IDs, so compare the local route.
+  assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: a.pageInstanceId, conversationRef: null }).ok, false);
+  dispatch({ type: 'mori.observe.now' });
+  const b = messages.at(-1);
+  assert.notEqual(b.pageInstanceId, a.pageInstanceId);
+  assert.notEqual(b.generationToken, a.generationToken);
+  assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: a.pageInstanceId, conversationRef: null }).ok, false);
+  location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/opaque-conversation';
+  dispatch({ type: 'mori.observe.now' });
+  const assigned = messages.at(-1);
+  assert.equal(assigned.pageInstanceId, b.pageInstanceId);
+  assert.equal(assigned.generationToken, b.generationToken);
+  assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: b.pageInstanceId,
+    conversationRef: '/c/opaque-conversation' }).ok, true);
+  fixture = fixtureDocument('<main><div data-new-layout="true">PRIVATE_REPLY</div></main>');
+  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'unknown' });
+  location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B/edit';
+  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'unsupported_route' });
+  fixture = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true"></div>'
+    + '<button data-testid="stop-button"></button></main>');
+  location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_C';
+  dispatch({ type: 'mori.observe.now' });
+  const c = messages.at(-1);
+  assert.equal(c.status, 'running');
+  fixture = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true"></div>'
+    + '<article data-message-author-role="assistant">PRIVATE_OLD_REPLY</article></main>');
+  location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_D/c/old-conversation';
+  dispatch({ type: 'mori.observe.now' });
+  const oldConversation = messages.at(-1);
+  assert.notEqual(oldConversation.pageInstanceId, c.pageInstanceId);
+  assert.equal(oldConversation.generationToken, null);
+  assert.equal(oldConversation.status, 'idle');
+  assert.equal(oldConversation.outcome, null);
+  assert.doesNotMatch(JSON.stringify(messages), /PRIVATE_|https:|\/g\//);
 });
