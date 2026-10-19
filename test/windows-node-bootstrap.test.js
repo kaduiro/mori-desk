@@ -106,6 +106,13 @@ function probes(root) {
   return fs.readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
 }
 
+function canonicalPath(file) {
+  // Windows can return the same file as RUNNER~1 or runneradmin depending on
+  // whether it came from TEMP, where.exe, or the module loader. Require the
+  // same existing filesystem target, not the same spelling of that target.
+  return fs.realpathSync.native(file).toLowerCase();
+}
+
 function assertRuntimePreserved(root) {
   assert.equal(fs.readFileSync(path.join(root, ".runtime", "sentinel.txt"), "utf8"), SENTINEL);
   assert.deepEqual(fs.readdirSync(path.join(root, ".runtime")), ["sentinel.txt"]);
@@ -163,9 +170,9 @@ test("Windows Node bootstrap and launcher boundaries", {
     const start = runBat(root, "start-windows.bat", env);
     assert.equal(start.status, 0, start.output);
     const [probe] = probes(root);
-    assert.equal(probe.execPath.toLowerCase(), path.join(nodeDir, "node.exe").toLowerCase());
-    assert.equal(path.resolve(probe.pathFirst).toLowerCase(), nodeDir.toLowerCase());
-    assert.equal(probe.npm.toLowerCase(), path.join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js").toLowerCase());
+    assert.equal(canonicalPath(probe.execPath), canonicalPath(path.join(nodeDir, "node.exe")));
+    assert.equal(canonicalPath(probe.pathFirst), canonicalPath(nodeDir));
+    assert.equal(canonicalPath(probe.npm), canonicalPath(path.join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js")));
     assert.deepEqual(probe.args, ["start"]);
     assertRuntimePreserved(root);
   });
@@ -179,10 +186,10 @@ test("Windows Node bootstrap and launcher boundaries", {
       assert.equal(fs.existsSync(path.join(root, ".tools")), false);
       const start = runBat(root, "start-windows.bat", fixtureEnv(root, [nodeDir]));
       assert.equal(start.status, 0, start.output);
-      assert.equal(probes(root)[0].execPath.toLowerCase(), path.join(nodeDir, "node.exe").toLowerCase());
+      assert.equal(canonicalPath(probes(root)[0].execPath), canonicalPath(path.join(nodeDir, "node.exe")));
       const quotedPath = runBat(root, "start-windows.bat", fixtureEnv(root, [`"${nodeDir}"`]));
       assert.equal(quotedPath.status, 0, quotedPath.output);
-      assert.equal(probes(root)[1].execPath.toLowerCase(), path.join(nodeDir, "node.exe").toLowerCase());
+      assert.equal(canonicalPath(probes(root)[1].execPath), canonicalPath(path.join(nodeDir, "node.exe")));
       assertRuntimePreserved(root);
     });
 
