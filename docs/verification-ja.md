@@ -114,11 +114,17 @@ ChatGPT の `/g/…/c/…` 会話パス、拡張機能のタブ診断、セッ�
 | 新しい URL と画面遷移 | 同じ scope の新規会話だけを引き継ぎ、別 scope への移動直後の focus / ACK を拒否。合成 DOM と reducer で検証 |
 | タブ診断のプライバシー | 最大20タブの件数のみ。URL・scope名・タイトル・本文が診断結果や送信イベントへ混入しないことを検証 |
 | 接続案内の HUD | 実セッション数・未確認を増やさず、DND / 非表示 / ミニモード等の制約を維持。合成 renderer で確認 |
+| Windows での再構築・回帰・ネイティブ起動 | この記録の保存時点では GitHub の実行環境の割り当て待ち。成功した検証には数えない |
 
 この節のローカル実行環境は Linux x64 / Node.js 24.19.0 / Electron 41.10.4 です。
 `.github/workflows/mori-regression.yml` には Windows 上での再構築・同じ回帰テストと、
 実際の Electron main / HUD / ブラウザ連携画面の起動検査を用意しています。
 Windows 起動検査は専用の一時データを使い、実際の Chrome や AI 会話には接続しません。
+
+Windows の実行状況: [Mori browser and HUD regression](https://github.com/kaduiro/mori-desk/actions/runs/39279947074)
+（対象コード commit `32df38c9f6e0a1edbd3f71002411bd61e0294eef`）。
+この記録の保存時点ではジョブは `queued` で、Windows 上の個別テストとネイティブ起動の
+結果は未確認です。上の 99 件・124 件はローカルの Linux 環境で完了した実測値です。
 
 再現コマンド（リポジトリのルート、対応 Node が PATH にある環境）:
 
