@@ -1,0 +1,41 @@
+name: Windows Node bootstrap
+
+on:
+  push:
+    paths:
+      - '*-windows.bat'
+      - 'scripts/windows-node.bat'
+      - 'scripts/check-windows-node.js'
+      - 'test/check-windows-node.test.js'
+      - 'test/windows-node-bootstrap.test.js'
+      - '.github/workflows/windows-node-bootstrap.yml'
+      - '.gitattributes'
+  pull_request:
+    paths:
+      - '*-windows.bat'
+      - 'scripts/windows-node.bat'
+      - 'scripts/check-windows-node.js'
+      - 'test/check-windows-node.test.js'
+      - 'test/windows-node-bootstrap.test.js'
+      - '.github/workflows/windows-node-bootstrap.yml'
+      - '.gitattributes'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Check out source
+        # actions/checkout v7.0.1, verified against its official release.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Test Windows bootstrap without installing Node globally
+        run: node --test --test-reporter=spec test/check-windows-node.test.js test/windows-node-bootstrap.test.js

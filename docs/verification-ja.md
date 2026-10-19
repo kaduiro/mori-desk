@@ -33,6 +33,8 @@ safeStorage を注入しており、Windows DPAPI / macOS Keychain の確認に�
 
 ### 再現コマンド
 
+以下は Node/npm が PATH にある開発環境でのコマンドです。
+BAT が準備した専用 Node の利用者は、通常のセットアップ・起動に各 BAT を使ってください。
 Windows ではリポジトリのルートで:
 
 ```powershell

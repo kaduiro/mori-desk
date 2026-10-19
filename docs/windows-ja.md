@@ -16,22 +16,28 @@ PowerShell または BAT を使ってください。
 
 最初に次を各公式インストーラーから入れてください。
 
-- [Node.js](https://nodejs.org/en/download)：**24.18.0 以降の 24.x LTS**。
-  `.nvmrc` の開発基準は 24.18.0 です。npm もインストールします。
 - [Git for Windows](https://git-scm.com/install/windows)
 - [Google Chrome](https://www.google.com/chrome/)
 
-インストール後は PowerShell を開き直して確認します。
+**Node.js は初回 BAT が必要に応じて自動で準備します。** 手動インストールは必須ではありません。
+既存の安定版 Node.js **24.18.0 以降の 24.x** と隣接する npm があれば使い、なければ
+公式の Node.js **24.22.0** の ZIP をダウンロードし、固定 SHA-256 と照合してから
+プロジェクト内の `.tools/node-v24.22.0-win-x64`（ARM64 PC は `win-arm64`）へ配置します。
+既存の別バージョンの Node.js は削除しません。
+
+Git のインストール後は PowerShell を開き直して確認できます。
 
 ```powershell
-node --version
-npm.cmd --version
 git --version
 ```
 
-BAT は Node / Git を自動インストールしません。管理者権限や PowerShell の
-実行ポリシー変更も要求しません。会社の PC では社内のソフトウェア配布手順を
-使ってください。
+専用 Node の準備では、管理者権限、PC 全体の PATH 変更、PowerShell の実行ポリシー変更は
+行いません。BAT 内の PowerShell コマンドは公式ファイルの取得・ハッシュ検証・展開に使います。
+Git / Chrome の自動インストールは含みません。会社の PC では社内の配布手順を使ってください。
+
+Node.js を PC 全体で使う場合は [公式インストーラー](https://nodejs.org/en/download/archive/v24.22.0)
+を使う方法もあります。専用 Node だけを準備した状態では、普通の PowerShell で
+`node --version` や `npm.cmd` が見つからなくても、Mori Desk の BAT は専用 Node を使用できます。
 
 ## 2. Mori Desk を入手する
 
@@ -42,11 +48,20 @@ cd mori-desk
 
 GitHub の Code → Download ZIP から入手して展開する方法でも構いません。
 この場合も、固定 upstream を取得するセットアップ処理には Git が必要です。
+ZIP は右クリック → **「すべて展開」**し、`setup-windows.bat` と `overlay` が並ぶ
+フォルダーを開いてください。ZIP の中から BAT を直接実行しないでください。
+
+### Node.js だけを先に準備する
+
+`install-node-windows.bat` をダブルクリックします。Git は不要です。
+成功すると使用する Node.js と npm を表示します。その後、同じフォルダーの
+`setup-windows.bat` で Mori Desk 本体をセットアップしてください。
 
 ## 3. 初回は setup-windows.bat
 
-`setup-windows.bat` をダブルクリックします。成功すると、そのままブラウザ用
-モードの Mori Desk を起動します。コマンドで同じ作業を行う場合は：
+`setup-windows.bat` をダブルクリックします。Node がなければ先に自動で準備し、
+成功すると、そのままブラウザ用モードの Mori Desk を起動します。
+Node/npm を PC 全体の PATH へ導入済みの開発環境で、コマンドで同じ作業を行う場合は：
 
 ```powershell
 npm.cmd run setup
@@ -73,12 +88,19 @@ npm.cmd start
 Chrome で `chrome://extensions` を開き、開発者モードを有効にして
 「パッケージ化されていない拡張機能を読み込む」を選びます。
 
-選ぶ場所は、セットアップで生成した `.runtime/extensions/browser-bridge` です。
-そのフォルダーの `manifest.json` が存在することを確認してください。
+選ぶ場所は、`setup-windows.bat` と同じ場所から **`overlay` → `extensions` → `browser-bridge`**
+と進んだフォルダーです。`manifest.json` が直接入っていることを通常のエクスプローラーで
+確認し、Chrome では `browser-bridge` フォルダー自体を選んでください。
+Chrome のフォルダー選択画面ではファイル名が表示されない場合があります。
 
-読み込み後、Mori Desk のブラウザ接続画面で発行するペアリング情報を、
-拡張機能の設定画面に登録します。実際のボタン名と接続方法はリポジトリの
-README のブラウザ接続手順を参照してください。
+起動中の Mori Desk のキャラクターを右クリックし、**「ブラウザ連携・セッション」**を開きます。
+**「接続コードを作成」→「コードをコピー」**を押し、Chrome 側の
+**「MORI Browser Bridge（プレビュー）」**の設定画面へ貼り付けて **「接続する」**を押します。
+設定画面は初回追加時、または Chrome の拡張機能アイコンを押すと開きます。コードは 2 分で失効します。
+
+「拡張機能のフォルダー」は Mori Desk のブラウザ連携画面にあるボタンです。
+そのボタンからは、セットアップ成功後のコピー `.runtime/extensions/browser-bridge` を開きます。
+最初からある `overlay` 側を読み込む手順なら、このボタンを使う必要はありません。
 
 既に開いていた ChatGPT / Claude のタブは、拡張機能の初回読み込み後に
 再読み込みしてください。最初は通常のテキスト会話で試します。
@@ -90,7 +112,8 @@ README のブラウザ接続手順を参照してください。
 
 ## 5. 2 回目からの起動
 
-`start-windows.bat` をダブルクリックするか、次を実行します。
+`start-windows.bat` をダブルクリックします。Node/npm を PC の PATH に導入済みなら、
+次のコマンドでも起動できます。
 
 ```powershell
 npm.cmd start
@@ -98,9 +121,12 @@ npm.cmd start
 
 通常の起動では upstream の再取得、パッチの再適用、`npm ci` は行いません。
 検証済みの `.runtime` をそのまま起動します。
+専用 Node があれば各 BAT が毎回その場所を選ぶため、PC を再起動しても手動の PATH 設定は不要です。
+通常の起動では Node のダウンロードもしません。Node が不足する場合は
+`install-node-windows.bat` または `setup-windows.bat` で準備し直します。
 
 Mori のソースを更新したときは、Mori Desk を終了してから
-`npm.cmd run setup` を再実行してください。拡張機能に変更があれば
+`setup-windows.bat` を再実行してください。拡張機能に変更があれば
 `chrome://extensions` で再読み込みし、対象の AI タブも再読み込みします。
 
 ## 6. CLI も使う実験
@@ -151,6 +177,8 @@ Mac 用の `.app` / `.dmg` は Mac の CI runner で作れます。署名・公�
 
 ## 8. 自動テストと実機チェック
 
+以下は Node/npm が PC の PATH にある開発環境向けです。
+
 ```powershell
 npm.cmd run verify:electron
 npm.cmd test
@@ -172,9 +200,23 @@ Windows でも shell glob に頼らず、実在するファイルを列挙して
 
 ### Node のバージョンが合わない
 
-Node 24.18.0 以降の 24.x を入れ、端末を開き直します。
-`where.exe node` で複数の Node が見つかる場合は、利用したいものが PATH で
-先に来るよう開発環境を整えてください。
+`install-node-windows.bat` を実行してください。対応しない既存 Node を削除せず、
+Mori 専用の Node を準備できます。以降は Mori の BAT から起動します。
+PC 全体の Node を使う開発者は、Node 24.18.0 以降の 24.x と npm を導入し、
+端末を開き直してください。
+
+### Node のダウンロードやハッシュ検証に失敗した
+
+公式 `https://nodejs.org/dist/` への接続と、黒い画面のエラーを確認してください。
+ダウンロードした ZIP の SHA-256 が固定値と違う場合、展開・実行を止めます。
+通信が直った後に同じ BAT を再実行してください。証明書検証や社内ポリシーを無効化する
+必要はありません。Node の準備が失敗しても既存 `.runtime` は変更しません。
+
+### .tools に不完全な同名 Node フォルダーがある
+
+不完全なフォルダーを自動上書きする処理はありません。エラーに表示された場所を確認し、
+必要なファイルを保管してから別名へ移し、`install-node-windows.bat` を再実行してください。
+出所や内容が不明なフォルダーを削除する必要はありません。
 
 ### npm.ps1 の実行ポリシーエラー
 

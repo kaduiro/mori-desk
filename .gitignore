@@ -2,6 +2,7 @@
 .runtime-stage-*/
 .runtime-backup-*/
 .upstream/
+.tools/
 .mori-setup-lock/
 node_modules/
 dist/

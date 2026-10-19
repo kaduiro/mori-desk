@@ -13,8 +13,11 @@ ChatGPT / Claude の本番画面、署名済みインストーラーは未検証
 
 ## Windows ですぐ試す
 
-準備するものは **Node.js 24.18.0 以降の 24.x、Git for Windows、Chrome** です。
-BAT はこれらを自動インストールしません。
+準備するものは **Git for Windows と Chrome** です。
+**Node.js は `setup-windows.bat` が必要に応じて自動で準備します。**
+既に対応する Node.js 24.18.0 以降の 24.x と npm があれば再利用し、なければ
+Node.js 公式の **24.22.0** をプロジェクト内の `.tools/` に配置します。
+管理者権限と PC 全体の PATH 変更は不要です。Git と Chrome は別途導入してください。
 
 ```powershell
 git clone https://github.com/kaduiro/mori-desk.git
@@ -24,6 +27,11 @@ cd mori-desk
 
 フォルダー内の `setup-windows.bat` をダブルクリックしても実行できます。
 初回は固定した上流ソースと依存関係を取得します。成功すると Mori Desk が起動します。
+ZIP で取得する場合は **Code → Download ZIP → すべて展開** の後、
+`setup-windows.bat` と `overlay` が並ぶフォルダーで実行してください。
+
+**Node.js だけを先に準備する場合は `install-node-windows.bat`** をダブルクリックします。
+こちらは Git がなくても実行できます。準備後の Mori Desk は `setup-windows.bat` で起動します。
 
 2 回目からは **`start-windows.bat`** を起動してください。
 通常起動でソースの再取得や依存関係の再インストールは行いません。
@@ -32,16 +40,20 @@ cd mori-desk
 
 ## Chrome を接続する
 
-1. Mori Desk の「ブラウザ連携」画面で **「拡張機能のフォルダー」**を押します。
+1. `setup-windows.bat` と同じ場所から **`overlay` → `extensions` → `browser-bridge`**
+   を開きます。`manifest.json` が直接入っているフォルダーが拡張機能です。
 2. Chrome の `chrome://extensions` を開き、「デベロッパーモード」をオンにします。
 3. 「パッケージ化されていない拡張機能を読み込む」で、手順 1 の
-   **`.runtime/extensions/browser-bridge`** フォルダーを選びます。
-4. Mori Desk の **「接続コードを作成」→「コピー」**を押します。
+   **`browser-bridge` フォルダー自体**を選びます。
+4. 起動中の Mori Desk のキャラクターを右クリックし、**「ブラウザ連携・セッション」**を開きます。
+   その画面で **「接続コードを作成」→「コードをコピー」**を押します。
 5. 拡張機能の設定画面に貼り付け、**「接続する」**を押します。コードは 2 分で失効します。
    設定画面は初回読み込み時、または拡張機能のアイコンを押すと開きます。
 6. 既に開いていた ChatGPT / Claude のページを再読み込みし、普通のテキスト会話で試します。
 
 API キーは不要です。アプリ、拡張機能、AI のタブは同じ PC で使います。
+「拡張機能のフォルダー」は Mori Desk のブラウザ連携画面にあるボタンです。
+そのボタンからは、セットアップ後のコピー `.runtime/extensions/browser-bridge` を開けます。
 OS の保護された鍵保存を使えない場合、アプリは接続を受け付けず理由を表示します。
 
 Chrome の組織ポリシーやローカルネットワーク関連の権限が接続を制限する場合は、
@@ -117,6 +129,7 @@ Windows でセットアップ後に **`build-windows.bat`** を起動します�
 | `overlay/themes/mori/` | オリジナルキャラクターのテーマ |
 | `overlay/scripts/generate-mori-assets.js` | 画像・アイコンを生成する編集可能なソース |
 | `scripts/` | 固定ソースの取得、組み立て、起動、ビルド補助 |
+| `.tools/` | BAT が必要時に用意する専用の Node.js と npm。Git 管理外 |
 | `.runtime/` | セットアップで生成される実行環境。Git 管理外 |
 
 コードは clawd-on-desk の派生版です。上流の画像類を含めず、固定したコードに
@@ -128,17 +141,24 @@ Mori のキャラクター素材は独自のコードから生成します。
 
 ## 開発用コマンド
 
+以下は Node.js と npm を PC の PATH から使用できる開発環境向けです。
+BAT が用意した専用 Node は Windows 全体の PATH には登録しません。
+通常の利用では、初回 `setup-windows.bat`、以降 `start-windows.bat` を使ってください。
+
 ```powershell
 npm.cmd run setup
 npm.cmd start
 npm.cmd run start:cli
 npm.cmd test
+npm.cmd run test:windows-node
 npm.cmd run verify:electron
 npm.cmd run build:win:x64
 ```
 
 `npm test` はこの派生版の browser / Mori テストを実行します。
 上流の全テストが通ったことを意味しません。
+`test:windows-node` は Node の準備処理専用です。BAT の統合テストは Windows で実行し、
+一時フォルダーへ公式 ZIP を取得します。Mori 本体の起動や AI サービスとの接続は検証しません。
 
 ## データと保守
 
