@@ -57,7 +57,9 @@ test('URL normalization rejects unrelated origins and strips query, fragment, an
   assert.deepEqual(utils.routeForUrl('https://claude.ai/new'), { provider: 'claude', path: '/new', conversationRef: null });
   for (const url of ['https://evil.test/c/abc', 'https://chatgpt.com.evil.test/c/abc', 'http://chatgpt.com/c/abc',
     'https://user:pass@chatgpt.com/c/abc', 'https://chatgpt.com:8443/c/abc',
-    'https://chatgpt.com/g/g-custom/c/abc', 'https://claude.ai/project/private', 'https://chatgpt.com/c/a/b']) {
+    'https://chatgpt.com/g/g-custom/edit', 'https://chatgpt.com/g/g-custom/c/a/b',
+    'https://chatgpt.com/g/g-custom%2Fother/c/abc', 'https://chatgpt.com/g/g-custom/c/a%2Fb',
+    'https://chatgpt.com/g/not-a-gpt/c/abc', 'https://claude.ai/project/private', 'https://chatgpt.com/c/a/b']) {
     assert.equal(utils.routeForUrl(url), null, url);
   }
   const sanitized = utils.safeObservation({ type: 'mori.observation', v: 1, pageInstanceId: 'doc',
@@ -66,6 +68,67 @@ test('URL normalization rejects unrelated origins and strips query, fragment, an
   assert.ok(sanitized);
   assert.ok(!JSON.stringify(sanitized).includes('PRIVATE'));
   assert.equal(utils.safeObservation({ ...sanitized, type: 'mori.observation', v: 1, outcome: 'completed' }), null);
+});
+
+test('scoped ChatGPT conversations keep only the canonical conversation ID in session storage and events', () => {
+  const url = 'https://chatgpt.com/g/g-p-0123-PRIVATE_PROJECT_NAME/c/conversation-1?secret=PRIVATE_QUERY#PRIVATE_FRAGMENT';
+  const route = utils.routeForUrl(url);
+  assert.deepEqual(route, { provider: 'chatgpt', path: '/c/conversation-1', conversationRef: '/c/conversation-1' });
+  assert.equal(utils.sameRoute(route, utils.routeForUrl('https://chatgpt.com/c/conversation-1')), true);
+  const f = fixture();
+  const started = f.ingest({}, { route });
+  assert.equal(started.events.length, 1);
+  assert.equal(started.events[0].phase, 'running');
+  assert.equal(started.events[0].conversationRef, '/c/conversation-1');
+  assert.doesNotMatch(JSON.stringify({ state: f.state, events: started.events }), /PRIVATE_|\/g\//);
+  for (const url of ['https://chatgpt.com.evil.test/g/g-custom/c/id',
+    'http://chatgpt.com/g/g-custom/c/id', 'https://chatgpt.com:8443/g/g-custom/c/id',
+    'https://user:pass@chatgpt.com/g/g-custom/c/id', `https://chatgpt.com/g/g-${'a'.repeat(161)}/c/id`]) {
+    assert.equal(utils.routeForUrl(url), null, url);
+  }
+});
+
+test('switching empty GPT/project scopes fences the old row without a completion or stored scope name', () => {
+  const f = fixture();
+  const a = f.ingest({}, { route: utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_A') }).events[0];
+  const changed = f.ingest({ pageInstanceId: 'scope-b', generationToken: 'generation-b' },
+    { route: utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_B') });
+  assert.deepEqual(changed.events.map(event => event.kind), ['closed', 'observation']);
+  assert.equal(changed.events[0].outcome, null);
+  const b = changed.events[1];
+  assert.notEqual(b.sessionId, a.sessionId);
+  assert.equal(b.phase, 'running');
+  assert.equal(coordinator.focusMatches(f.state, { requestId: 'old-focus', browserRunId: a.browserRunId,
+    sessionId: a.sessionId, tabId: a.tabId, pageInstanceId: a.pageInstanceId,
+    routeRevision: a.routeRevision, conversationRef: null, noticeSequence: null }), false);
+  const assigned = f.ingest({ pageInstanceId: 'scope-b', generationToken: 'generation-b' },
+    { route: utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/conversation-b') }).events[0];
+  assert.equal(assigned.sessionId, b.sessionId);
+  assert.equal(assigned.turnId, b.turnId);
+  assert.equal(assigned.conversationRef, '/c/conversation-b');
+  assert.doesNotMatch(JSON.stringify({ state: f.state, events: [...changed.events, assigned] }), /PRIVATE_SCOPE|\/g\//);
+});
+
+test('cross-scope navigation to an existing conversation cannot inherit an unfinished null-ID turn', () => {
+  const a = utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_A');
+  assert.equal(utils.canAssignConversation(a, 'https://chatgpt.com/g/g-PRIVATE_SCOPE_A/c/new-id'), true);
+  assert.equal(utils.canAssignConversation(a, 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/old-id'), false);
+  assert.equal(utils.canAssignConversation(a, 'https://chatgpt.com/c/old-id'), false);
+  const root = utils.routeForUrl('https://chatgpt.com/');
+  assert.equal(utils.canAssignConversation(root, 'https://chatgpt.com/c/new-id'), true);
+  assert.equal(utils.canAssignConversation(root, 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/old-id'), false);
+  const f = fixture();
+  const old = f.ingest({}, { route: a }).events[0];
+  const changed = f.ingest({ pageInstanceId: 'new-scope-page', status: 'idle', generationToken: null },
+    { route: utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/old-id') });
+  assert.deepEqual(changed.events.map(event => event.kind), ['closed']);
+  assert.equal(changed.events[0].outcome, null);
+  assert.equal(changed.events[0].sessionId, old.sessionId);
+  const target = f.state.sessions[f.state.tabs[7]];
+  assert.notEqual(target.sessionId, old.sessionId);
+  assert.equal(target.phase, 'idle');
+  assert.equal(target.announced, false);
+  assert.equal(target.turnId, null);
 });
 
 test('browser Web Crypto and Node backend use the same directional port-bound HMAC', async () => {

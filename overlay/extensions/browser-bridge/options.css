@@ -30,6 +30,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .danger { background: white; color: #8e3b31; border-color: #d9b7b1; }
 .danger:hover { background: #fff4ef; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.actions + .actions { margin-top: 12px; }
 ol { padding-left: 24px; margin: 12px 0 22px; }
 li { margin: 5px 0; }
 form { display: grid; grid-template-columns: 1fr auto; gap: 10px; }

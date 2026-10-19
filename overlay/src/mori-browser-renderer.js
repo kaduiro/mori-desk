@@ -33,9 +33,12 @@ async function refresh() {
     const value = await window.mori.status();
     const rows = value.sessions || [];
     const connected = value.bridge?.connectedClients || [];
-    const pairingAvailable = value.bridge?.pairingAvailable === true;
-    $("pair").disabled = !pairingAvailable || !value.port;
-    $("connection").textContent = connected.length ? `${connected.length} ブラウザ接続中` : !pairingAvailable ? "接続を確認" : value.port ? "接続受付中" : "接続準備中";
+    const connection = value.connection || {};
+    $("pair").disabled = !connection.canPair;
+    $("connection").textContent = connection.label || "接続準備中";
+    $("connection").dataset.state = connection.state || "starting";
+    $("connection-detail").textContent = connection.detail || "";
+    $("server-detail").textContent = value.port ? `この PC の接続先: 127.0.0.1:${value.port} · 拡張機能 0.1.1 で状態確認を利用できます。` : "";
     $("mode").textContent = value.cliEnabled ? "CLI 連携モード：有効。CLI セッションはキャラクター下の HUD に一緒に表示されます。" : "ブラウザ用モード。CLI の自動セットアップは無効です。";
     if (value.error || value.bridge?.error) {
       const errors = { secure_storage_unavailable: "OS の保護された鍵の保存先を利用できないため、ペアリングは停止しています。Windows / Mac で確認してください。",
@@ -54,6 +57,7 @@ async function refresh() {
     }
     $("count").textContent = `${rows.length} 件`;
     $("empty").hidden = rows.length > 0;
+    $("empty").textContent = connection.emptyText || "生成状態を待っています。";
     $("sessions").replaceChildren();
     for (const row of rows) {
       const card = document.createElement("article"); card.className = "session";

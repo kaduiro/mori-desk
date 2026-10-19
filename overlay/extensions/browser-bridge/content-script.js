@@ -4,7 +4,7 @@
   if (globalThis.__moriBrowserObserverInstalled) return;
   globalThis.__moriBrowserObserverInstalled = true;
   const utils = MoriProviderUtils;
-  const pageInstanceId = crypto.randomUUID();
+  let pageInstanceId = crypto.randomUUID();
   const controller = MoriObservationController.createController();
   let route = utils.routeForUrl(location.href);
   let sequence = 0;
@@ -42,10 +42,15 @@
     if (stopped) return;
     const nextRoute = utils.routeForUrl(location.href);
     if (!utils.sameRoute(route, nextRoute)) {
-      const assignedNewConversation = route && nextRoute
-        && route.provider === nextRoute.provider && route.conversationRef === null
-        && nextRoute.conversationRef !== null && controller.isRunning();
-      if (!assignedNewConversation) controller.reset();
+      const assignedNewConversation = controller.isRunning()
+        && utils.canAssignConversation(route, location.href);
+      if (!assignedNewConversation) {
+        controller.reset();
+        // A new empty GPT/project scope can share a document and a null
+        // conversation ID. Rotate the opaque observation identity so a focus
+        // request captured for the previous scope cannot acknowledge it.
+        pageInstanceId = crypto.randomUUID();
+      }
       route = nextRoute;
       lastSignature = null;
     }
@@ -68,6 +73,7 @@
     if (controller.isRunning() && !observation.generating && verificationTimeout === null) {
       verificationTimeout = setTimeout(() => { verificationTimeout = null; observe(false); }, 900);
     }
+    return { status: !route ? 'unsupported_route' : !observation.supported ? 'unknown' : state.status };
   }
 
   document.addEventListener('click', event => {
@@ -85,10 +91,16 @@
     if (sender.id !== chrome.runtime.id) return;
     if (message?.type === 'mori.observe.now') {
       observe(true); respond({ ok: true });
+    } else if (message?.type === 'mori.health.check') {
+      const result = observe(true);
+      // Diagnostic replies contain categories only, never page content or
+      // route/document identifiers. The worker bounds and aggregates probes.
+      respond({ ok: true, v: 1, status: result?.status || 'unknown' });
     } else if (message?.type === 'mori.focus.check') {
       const current = utils.routeForUrl(location.href);
       respond({
         ok: document.visibilityState !== 'prerender' && !!current
+          && utils.sameRoute(route, current)
           && message.pageInstanceId === pageInstanceId
           && message.conversationRef === current.conversationRef,
         pageInstanceId,

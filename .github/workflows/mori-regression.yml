@@ -1,0 +1,51 @@
+name: Mori browser and HUD regression
+
+on:
+  push:
+    paths:
+      - 'overlay/**'
+      - 'patches/**'
+      - 'scripts/**'
+      - 'upstream.lock.json'
+      - 'package.json'
+      - '.github/workflows/mori-regression.yml'
+  pull_request:
+    paths:
+      - 'overlay/**'
+      - 'patches/**'
+      - 'scripts/**'
+      - 'upstream.lock.json'
+      - 'package.json'
+      - '.github/workflows/mori-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Check out source
+        # Same reviewed official checkout action as the Windows bootstrap job.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Reconstruct Mori and run actual regression cases
+        run: |
+          call scripts\windows-node.bat install
+          if errorlevel 1 exit /b 1
+          set "PATH=%MORI_NODE_DIR%;%PATH:"=%"
+          set "npm_execpath=%MORI_NODE_DIR%node_modules\npm\bin\npm-cli.js"
+          "%MORI_NODE_EXE%" scripts\setup.js
+          if errorlevel 1 exit /b 1
+          "%MORI_NODE_EXE%" scripts\run.js test
+          if errorlevel 1 exit /b 1
+          "%MORI_NODE_EXE%" --test --test-reporter=spec .runtime/test/session-hud.test.js .runtime/test/settings-window.test.js .runtime/test/shortcut-actions.test.js .runtime/test/shortcut-runtime.test.js
+          if errorlevel 1 exit /b 1
+          "%MORI_NODE_EXE%" scripts\smoke-windows-ui.js
+          if errorlevel 1 exit /b 1

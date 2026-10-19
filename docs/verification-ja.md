@@ -1,11 +1,11 @@
 # 検証状況と社員配布までの工程
 
-対象: Mori Desk `0.1.0-preview.1` / 2026-10-19
+対象: Mori Desk `0.1.1-preview.1` / 2026-10-20（日本時間）
 
 **現時点はソースを取得して実験できる開発プレビューです。Windows / Mac で確認済みの
 完成版、またはインストーラーの公開版ではありません。**
 
-## 実施済み
+## 初版で実施済み（0.1.0-preview.1）
 
 | 項目 | 結果 | 何が確認できるか |
 |---|---|---|
@@ -62,7 +62,8 @@ node --test --test-reporter=spec test/server-permission-ingress.test.js test/ser
 - Chrome 本体への拡張読み込み、CSP の適用、localhost / loopback の許可、会社の管理ポリシー。
 - 実際の ChatGPT / Claude、利用者のアカウント・UI 言語・A/B テストごとの DOM。
 - 実ブラウザのスリープ、復帰、タブ破棄、ブラウザ再起動後の回復。
-- 音声、画像・動画、Deep Research、カスタム GPT / Projects の専用パス。
+- 音声、画像・動画、Deep Research。カスタム GPT / Projects の通常会話パスは
+  拡張機能 0.1.1 で受理するが、実サービスの固有 UI・機能は未検証。
 - upstream アプリからの設定・hook の自動移行、両アプリの CLI 同時管理。
 - 長期運用向けの保存履歴整理。初期版は上限到達を明示し、暗黙に未確認を削除しない。
 - 継承した任意の外部通知、PWA、リモート操作など、ブラウザ HUD 以外の全機能。
@@ -98,6 +99,44 @@ node --test --test-reporter=spec test/check-windows-node.test.js test/windows-no
 ```
 
 Windows 以外では BAT の統合テストを明示的にスキップします。
+
+## セッション未表示・ショートカット通知の修正（0.1.1-preview.1）
+
+ユーザー報告を受け、ショートカット失敗を設定保存の失敗と誤解させる通知、日本語設定の
+到着前に英語で通知する競合、ブラウザ用モードから CLI ダッシュボードを開く経路を修正しました。
+ChatGPT の `/g/…/c/…` 会話パス、拡張機能のタブ診断、セッションがない HUD の接続案内も追加しました。
+
+| 項目 | 結果 |
+|---|---|
+| Linux で固定 source + patch + overlay を再構築 | 成功。最終入力と実行環境の対象81ファイルがバイト単位で一致 |
+| Browser / Mori の個別回帰テスト | **99 件成功・失敗0・スキップ0** |
+| 変更に関係する既存 HUD・設定ウィンドウ・ショートカットのテスト | **124 件成功・失敗0・スキップ0** |
+| 新しい URL と画面遷移 | 同じ scope の新規会話だけを引き継ぎ、別 scope への移動直後の focus / ACK を拒否。合成 DOM と reducer で検証 |
+| タブ診断のプライバシー | 最大20タブの件数のみ。URL・scope名・タイトル・本文が診断結果や送信イベントへ混入しないことを検証 |
+| 接続案内の HUD | 実セッション数・未確認を増やさず、DND / 非表示 / ミニモード等の制約を維持。合成 renderer で確認 |
+| Windows での再構築・回帰・ネイティブ起動 | この記録の保存時点では GitHub の実行環境の割り当て待ち。成功した検証には数えない |
+
+この節のローカル実行環境は Linux x64 / Node.js 24.19.0 / Electron 41.10.4 です。
+`.github/workflows/mori-regression.yml` には Windows 上での再構築・同じ回帰テストと、
+実際の Electron main / HUD / ブラウザ連携画面の起動検査を用意しています。
+Windows 起動検査は専用の一時データを使い、実際の Chrome や AI 会話には接続しません。
+
+Windows の実行状況: [Mori browser and HUD regression](https://github.com/kaduiro/mori-desk/actions/runs/39279947074)
+（対象コード commit `32df38c9f6e0a1edbd3f71002411bd61e0294eef`）。
+この記録の保存時点ではジョブは `queued` で、Windows 上の個別テストとネイティブ起動の
+結果は未確認です。上の 99 件・124 件はローカルの Linux 環境で完了した実測値です。
+
+再現コマンド（リポジトリのルート、対応 Node が PATH にある環境）:
+
+```powershell
+npm.cmd run setup
+npm.cmd test
+node --test --test-reporter=spec .runtime/test/session-hud.test.js .runtime/test/settings-window.test.js .runtime/test/shortcut-actions.test.js .runtime/test/shortcut-runtime.test.js
+node scripts/smoke-windows-ui.js
+```
+
+最後のコマンドだけ Windows 専用です。手動の Chrome 拡張読み込み、本番 DOM、OS の
+グローバルキー競合、DPI・複数モニター・全画面、macOS の検証は別に必要です。
 
 ## Windows での受け入れ手順
 

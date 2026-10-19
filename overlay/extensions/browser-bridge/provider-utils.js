@@ -7,18 +7,42 @@
   'use strict';
   const ID = /^[A-Za-z0-9_-]{1,128}$/;
   const CONVERSATION_ID = /^[A-Za-z0-9-]{1,128}$/;
+  const CHATGPT_SCOPE = /^g-[A-Za-z0-9_-]{1,160}$/;
   const URL_PATTERNS = ['https://chatgpt.com/*', 'https://claude.ai/*'];
 
-  function routeForUrl(value) {
+  function providerUrl(value) {
     let url;
     try { url = new URL(value); } catch (_) { return null; }
     if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
     const provider = url.hostname === 'chatgpt.com' ? 'chatgpt'
       : url.hostname === 'claude.ai' ? 'claude' : null;
     if (!provider) return null;
+    return { url, provider };
+  }
+
+  function providerForUrl(value) { return providerUrl(value)?.provider || null; }
+
+  function routeForUrl(value) {
+    const parsed = providerUrl(value);
+    if (!parsed) return null;
+    const { url, provider } = parsed;
     const rootPaths = provider === 'chatgpt' ? ['/', ''] : ['/', '/new', ''];
     if (rootPaths.includes(url.pathname)) {
       return { provider, path: url.pathname || '/', conversationRef: null };
+    }
+    if (provider === 'chatgpt' && url.pathname.startsWith('/g/')) {
+      const segments = url.pathname.split('/');
+      if (!CHATGPT_SCOPE.test(segments[2] || '')) return null;
+      if (segments.length === 3) {
+        // This local-only path distinguishes empty GPT/project pages during
+        // SPA navigation. It must never be stored or sent to the desktop.
+        return { provider, path: url.pathname, conversationRef: null };
+      }
+      if (segments.length !== 5 || segments[3] !== 'c' || !CONVERSATION_ID.test(segments[4])) return null;
+      // Project/GPT scope segments may contain names. Only the opaque
+      // conversation identifier crosses the observation/desktop boundary.
+      const conversationRef = '/c/' + segments[4];
+      return { provider, path: conversationRef, conversationRef };
     }
     const prefix = provider === 'chatgpt' ? '/c/' : '/chat/';
     if (!url.pathname.startsWith(prefix)) return null;
@@ -29,6 +53,19 @@
 
   function sameRoute(a, b) {
     return !!a && !!b && a.provider === b.provider && a.path === b.path;
+  }
+
+  function canAssignConversation(from, nextUrl) {
+    const next = routeForUrl(nextUrl);
+    if (!from || !next || from.provider !== next.provider
+      || from.conversationRef !== null || next.conversationRef === null) return false;
+    if (from.provider !== 'chatgpt') return true;
+    const currentPath = providerUrl(nextUrl).url.pathname;
+    // Preserve a newly assigned conversation only within the same local
+    // scope. Selecting an existing conversation in another project/GPT is a
+    // navigation, even when the previous conversation still had no ID.
+    return from.path.startsWith('/g/')
+      ? currentPath.startsWith(from.path + '/c/') : currentPath.startsWith('/c/');
   }
 
   function isVisible(element) {
@@ -69,5 +106,6 @@
     };
   }
 
-  return { ID, URL_PATTERNS, routeForUrl, sameRoute, isVisible, findVisible, safeObservation };
+  return { ID, URL_PATTERNS, providerForUrl, routeForUrl, sameRoute, canAssignConversation,
+    isVisible, findVisible, safeObservation };
 });
