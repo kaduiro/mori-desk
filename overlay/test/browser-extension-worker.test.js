@@ -32,7 +32,8 @@ async function workerFixture() {
     isReady() { return this.ready; }
     disconnect() { this.ready = false; this.onStatus({ state: 'disconnected', code: 'test_offline' }); }
     setEnabled(enabled) { this.enabled = enabled; if (enabled) void this.ensureConnected(); else this.disconnect(); }
-    async ensureConnected() {
+    async ensureConnected(options) {
+      log.push({ type: 'ensure-connect', immediate: options?.immediate === true });
       if (this.ready || !this.enabled || !this.canConnect || !this.getCredential()) return;
       this.ready = true; this.onStatus({ state: 'connected', port: 23333 });
       void this.onReady();
@@ -140,7 +141,12 @@ test('worker writes the offline terminal before sending, replays it before the n
   assert.equal(saved[0].keys.includes('moriOutbox'), true);
   assert.equal(saved[1].keys.includes('moriSessions'), true);
   const sentBefore = f.transport.events.length;
-  f.transport.canConnect = true; await f.transport.ensureConnected(); await f.drain();
+  f.transport.canConnect = true;
+  const retried = await f.dispatch({ type: 'mori.options.retry' },
+    { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+  assert.equal(retried.ok, true);
+  assert.equal(f.log.filter(item => item.type === 'ensure-connect').at(-1).immediate, true);
+  await f.drain();
   const replay = f.transport.events.slice(sentBefore);
   assert.equal(replay[0].kind, 'terminal');
   assert.equal(replay[0].replay, true);
@@ -150,6 +156,21 @@ test('worker writes the offline terminal before sending, replays it before the n
   await f.observe({ generationToken: 'generation-2' });
   assert.equal(f.transport.events.at(-1).replay, false);
   assert.equal(f.transport.events.at(-1).observation, 'fresh');
+});
+
+test('observations and reconnect alarms do not request an immediate retry; page scripts cannot force it', async () => {
+  const f = await workerFixture();
+  f.transport.canConnect = false; f.transport.disconnect();
+  const before = f.log.filter(item => item.type === 'ensure-connect').length;
+  assert.equal((await f.observe()).ok, true);
+  for (const listener of f.chrome.alarms.onAlarm.listeners) listener({ name: 'mori-reconnect' });
+  await f.drain();
+  const automatic = f.log.filter(item => item.type === 'ensure-connect').slice(before);
+  assert.equal(automatic.length, 2);
+  assert.equal(automatic.every(item => item.immediate === false), true);
+  assert.equal((await f.dispatch({ type: 'mori.options.retry' },
+    { id: EXTENSION_ID, frameId: 0, url: 'https://chatgpt.com/c/test' })).unhandled, true);
+  assert.equal(f.log.filter(item => item.type === 'ensure-connect').length, before + 2);
 });
 
 test('worker revalidates after focusing; navigation during the window API cannot acknowledge a notice', async () => {

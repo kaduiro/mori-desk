@@ -320,7 +320,7 @@ async function optionsMessage(message) {
     return { ok: true };
   }
   if (message.type === 'mori.options.retry') {
-    await transport.ensureConnected();
+    await transport.ensureConnected({ immediate: true });
     await requestFreshObservations(); void flush();
     return { ok: true };
   }

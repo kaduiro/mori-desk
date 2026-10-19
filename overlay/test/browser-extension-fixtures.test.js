@@ -163,3 +163,134 @@ test('content observer rotates its opaque identity between empty scopes, retains
   assert.equal(oldConversation.outcome, null);
   assert.doesNotMatch(JSON.stringify(messages), /PRIVATE_|https:|\/g\//);
 });
+
+function contentLifecycleFixture(initialLayout = 'unknown') {
+  const timeouts = new Map();
+  const intervals = new Map();
+  const documentListeners = new Map();
+  const windowListeners = new Map();
+  const runtimeListeners = new Set();
+  const messages = [];
+  let nextTimer = 0;
+  let failure = null;
+  let activeObserver = false;
+  let mutationCallback;
+  let layout = initialLayout;
+  const root = {};
+  const visibleElement = { getAttribute: () => null, getClientRects: () => [{}] };
+  const listen = (map, type, callback) => {
+    if (!map.has(type)) map.set(type, new Set());
+    map.get(type).add(callback);
+  };
+  const unlisten = (map, type, callback) => map.get(type)?.delete(callback);
+  const document = {
+    body: root, visibilityState: 'visible',
+    querySelector: selector => selector === 'main' ? root : null,
+    querySelectorAll: selector => {
+      if (layout !== 'unknown' && selector === '#prompt-textarea') return [visibleElement];
+      if (layout === 'running' && selector === 'button[data-testid="stop-button"]') return [visibleElement];
+      if (layout === 'settling' && selector === '[data-message-author-role="assistant"]') return [visibleElement];
+      return [];
+    },
+    addEventListener: (type, callback) => listen(documentListeners, type, callback),
+    removeEventListener: (type, callback) => unlisten(documentListeners, type, callback),
+  };
+  const runtime = {
+    id: 'test-extension',
+    onMessage: { addListener: callback => runtimeListeners.add(callback), removeListener: callback => runtimeListeners.delete(callback) },
+    sendMessage(message) {
+      messages.push(structuredClone(message));
+      if (failure?.kind === 'sync') throw new Error(failure.message);
+      if (failure?.kind === 'async') return Promise.reject(new Error(failure.message));
+      return Promise.resolve({ ok: true });
+    },
+  };
+  const context = vm.createContext({
+    crypto: crypto.webcrypto, URL, location: { href: 'https://chatgpt.com/c/test' }, document,
+    addEventListener: (type, callback) => listen(windowListeners, type, callback),
+    removeEventListener: (type, callback) => unlisten(windowListeners, type, callback),
+    setTimeout: callback => { const id = ++nextTimer; timeouts.set(id, callback); return id; },
+    clearTimeout: id => timeouts.delete(id),
+    setInterval: callback => { const id = ++nextTimer; intervals.set(id, callback); return id; },
+    clearInterval: id => intervals.delete(id),
+    MutationObserver: class {
+      constructor(callback) { mutationCallback = callback; }
+      disconnect() { activeObserver = false; }
+      observe() { activeObserver = true; }
+    },
+    chrome: { runtime },
+  });
+  const base = path.join(__dirname, '../extensions/browser-bridge');
+  for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
+    'observation-controller.js', 'content-script.js']) {
+    vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
+  }
+  return {
+    messages, timeouts, intervals, runtime,
+    fail: value => { failure = value; },
+    showLayout: value => { layout = value; },
+    mutate: () => mutationCallback(),
+    get activeObserver() { return activeObserver; },
+    get listenerCount() { return [...documentListeners.values(), ...windowListeners.values()]
+      .reduce((total, callbacks) => total + callbacks.size, runtimeListeners.size); },
+  };
+}
+
+for (const kind of ['sync', 'async']) {
+  test(`invalidated content runtime stops observation after a ${kind} API failure without uncaught errors or repeated sends`, async () => {
+    const f = contentLifecycleFixture('running');
+    const poll = f.intervals.values().next().value;
+    assert.equal(f.messages.length, 1);
+    assert.equal(f.activeObserver, true);
+    assert.ok(f.listenerCount > 0);
+    f.showLayout('settling');
+    poll();
+    assert.equal(f.timeouts.size, 1); // completion verification is pending
+    f.mutate();
+    assert.equal(f.timeouts.size, 2); // mutation debounce is also pending
+    f.fail({ kind, message: 'Extension context invalidated.' });
+    assert.doesNotThrow(() => poll());
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.activeObserver, false);
+    assert.equal(f.timeouts.size, 0);
+    assert.equal(f.intervals.size, 0);
+    assert.equal(f.listenerCount, 0);
+    const lastCount = f.messages.length;
+    assert.doesNotThrow(() => poll());
+    f.mutate();
+    assert.equal(f.messages.length, lastCount);
+    assert.equal(f.timeouts.size, 0);
+    assert.equal(f.messages.some(message => message.status === 'settled'), false);
+  });
+}
+
+test('temporary content message failures preserve the observer and recover on the next poll', async () => {
+  const f = contentLifecycleFixture();
+  const poll = f.intervals.values().next().value;
+  for (const kind of ['sync', 'async']) {
+    f.fail({ kind, message: 'Could not establish connection. Receiving end does not exist.' });
+    assert.doesNotThrow(() => poll());
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.activeObserver, true);
+    assert.equal(f.intervals.size, 1);
+    assert.ok(f.listenerCount > 0);
+  }
+  const beforeRecovery = f.messages.length;
+  f.fail(null);
+  assert.doesNotThrow(() => poll());
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.messages.length, beforeRecovery + 1);
+  assert.equal(f.activeObserver, true);
+});
+
+test('a missing extension runtime ID stops the observer before another API call', () => {
+  const f = contentLifecycleFixture();
+  const poll = f.intervals.values().next().value;
+  const before = f.messages.length;
+  delete f.runtime.id;
+  assert.doesNotThrow(() => poll());
+  assert.equal(f.messages.length, before);
+  assert.equal(f.activeObserver, false);
+  assert.equal(f.intervals.size, 0);
+  assert.equal(f.listenerCount, 0);
+});
