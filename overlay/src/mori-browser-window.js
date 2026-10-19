@@ -233,7 +233,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     }
     if (window && !window.isDestroyed()) { window.show(); window.focus(); notify(); return { ok: true }; }
     window = new BrowserWindow({ width: 790, height: 690, minWidth: 620, minHeight: 480,
-      title: "Mori Desk · ブラウザ連携", autoHideMenuBar: true, backgroundColor: "#f5f6ee",
+      title: "Mori Desk · ブラウザ連携", autoHideMenuBar: true, backgroundColor: "#18181b",
       webPreferences: { preload: path.join(__dirname, "preload-mori-browser.js"),
         contextIsolation: true, nodeIntegration: false, sandbox: true } });
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
