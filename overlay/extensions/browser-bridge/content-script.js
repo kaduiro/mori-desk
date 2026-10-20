@@ -60,14 +60,16 @@
   }
 
   function bindObserver() {
-    // Scope frequent mutations to the conversation area when available. The
-    // ten-second check also discovers a replaced SPA root.
-    const target = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+    // Some layouts render the composer/stop controls beside main, and replace
+    // main during SPA navigation. Observe the body so these control changes
+    // trigger the same bounded debounce; mutation text is never inspected.
+    const target = document.body;
     if (!target || target === observerRoot) return;
     observer.disconnect(); observerRoot = target;
     observer.observe(target, {
       subtree: true, childList: true, attributes: true,
-      attributeFilter: ['aria-label', 'aria-hidden', 'data-testid', 'data-is-streaming', 'hidden', 'disabled'],
+      attributeFilter: ['aria-label', 'aria-hidden', 'aria-busy', 'role', 'contenteditable',
+        'data-testid', 'data-is-streaming', 'hidden', 'disabled'],
     });
   }
 
@@ -120,7 +122,7 @@
 
   function onStopClick(event) {
     if (stopped) return;
-    if (event.isTrusted && adapterForRoute(route)?.isStopTarget(event.target)) {
+    if (event.isTrusted && adapterForRoute(route)?.isStopTarget(event.target, document, location.href)) {
       controller.stopRequested(); schedule();
     }
   }

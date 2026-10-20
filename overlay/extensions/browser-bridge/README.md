@@ -20,6 +20,10 @@ MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト�
 
 初回追加や `chrome://extensions` で拡張機能を再読み込みした後は、既に開いている AI のタブも再読み込みしてください。回答の生成中であれば、その終了を待ってから行ってください。接続済みでも、待機中の過去の会話を開いただけでは HUD の行を作りません。この接続後に質問を送り、生成中の状態を一度観測すると行が作られます。ChatGPT のデスクトップアプリや別の Chrome プロファイルは、この拡張機能では監視できません。
 
+0.1.3 は、従来の入力欄・停止ボタン・回答欄の目印がない ChatGPT 画面に、実験的な検知を追加します。一つの可視の編集可能な入力欄、一つの完全一致の短い停止ラベル（`Stop` / `停止` / `停止する`）、可視の `aria-busy="true"` が揃ったときだけ生成を開始します。短い停止ボタンだけ、処理中属性だけ、複数の入力欄・停止候補では生成を断定しません。
+
+この組合せで開始した生成だけは、入力欄を引き続き確認でき、停止ボタンと処理中属性が両方消えた状態が800ミリ秒以上続くと `unverified` /「回答を確認」を通知します。従来形式で始まった生成の回答欄が見つからなくなった場合には、この条件を流用しません。画面全体の要素の有無を使う実験的な方式で、要素同士が同じフォームに属することや全アカウントの互換性を確認したものではありません。
+
 ## 接続エラーと拡張更新後のエラー
 
 `ERR_CONNECTION_REFUSED` は、その接続試行時にローカルポートへの接続が受理されなかった記録です。WebSocket handshake の404は HTTP 応答者がいたものの、期待する `/browser/v1` 接続が成立しなかったことを示します。これだけで応答元の製品は特定できません。Chrome のエラー履歴と、設定画面に表示する現在の接続状態は分けて確認してください。
@@ -62,7 +66,7 @@ npm test
 
 ```sh
 cd .runtime
-node --test test/browser-extension-core.test.js test/browser-extension-fixtures.test.js test/browser-extension-transport.test.js test/browser-extension-worker.test.js
+node --test test/browser-extension-core.test.js test/browser-extension-fixtures.test.js test/browser-extension-alternate-layout.test.js test/browser-extension-transport.test.js test/browser-extension-worker.test.js
 ```
 
 MORI Desk 側の仕様は [ブラウザ接続プロトコル](https://github.com/kaduiro/mori-desk/blob/main/docs/browser-protocol-v1.md) を参照してください。実サイト確認では、複数タブの生成、停止、エラー、画面切り替え、再読み込み、スリープ復帰、MORI Desk 再起動、Chrome 再起動、未読のまま次の生成、HUD クリック中の別会話への移動を確認してください。
