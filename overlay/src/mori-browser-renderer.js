@@ -194,7 +194,7 @@ async function refresh() {
     $("connection").textContent = connection.label || "接続準備中";
     $("connection").dataset.state = connection.state || "starting";
     $("connection-detail").textContent = connection.detail || "";
-    $("server-detail").textContent = value.port ? `この PC の接続先: 127.0.0.1:${value.port} · 詳しい接続診断は拡張機能の「表示されない原因を確認」から開けます。` : "";
+    $("server-detail").textContent = value.port ? `この PC の接続先: 127.0.0.1:${value.port} · ページ内の監視は拡張機能の「タブの監視を確認・復旧」から確認できます。` : "";
     $("mode").textContent = value.cliEnabled ? "CLI 連携モード：有効。CLI セッションはキャラクター下の HUD に一緒に表示されます。" : "ブラウザ用モード。CLI の自動セットアップは無効です。";
     if (value.error || value.bridge?.error) {
       const errors = { secure_storage_unavailable: "OS の保護された鍵の保存先を利用できないため、ペアリングは停止しています。Windows / Mac で確認してください。",

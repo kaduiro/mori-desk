@@ -24,14 +24,14 @@ function getBrowserStatus({ bridge = null, port = null, error = "" } = {}) {
   const details = {
     starting: "Mori Desk の接続サーバーを準備しています。",
     pairing: "AI を使っている Chrome プロファイルに拡張機能を読み込み、下の接続コードで登録してください。",
-    disconnected: "登録した Chrome と通信できていません。Chrome の MORI Browser Bridge を開き、監視の再開・再接続を確認してください。",
-    ready: "Chrome と接続しています。対象の AI タブを拡張機能が読み取れているかは、Chrome 側の「表示されない原因を確認」で確認できます。",
+    disconnected: "登録した Chrome と通信できていません。Chrome の MORI Browser Bridge を開き、監視を停止している場合は再開し、「本体に再接続」を押してください。",
+    ready: "Chrome との通信は接続済みです。ページ内の監視は、拡張機能の「タブの監視を確認・復旧」で確認できます。",
     unavailable: "ブラウザ連携を開始できません。下の接続エラーを確認してください。",
   };
   const emptyText = state === "ready"
-    ? "生成状態はまだ届いていません。Chrome の MORI Browser Bridge で「表示されない原因を確認」を押してください。更新直後は、拡張機能と AI のタブの両方を再読み込みします。"
+    ? "生成状態はまだ届いていません。Chrome の MORI Browser Bridge で「タブの監視を確認・復旧」を押し、開いている AI タブの監視を確認してください。"
     : state === "pairing"
-      ? "Chrome の登録が完了すると、観測できた生成中の会話がここに表示されます。"
+      ? "Chrome の登録が完了すると、観測できた会話が待機中でもここに表示されます。"
       : state === "disconnected"
         ? "Chrome の再接続を待っています。AI を使っているプロファイルの拡張機能を確認してください。"
         : state === "unavailable"

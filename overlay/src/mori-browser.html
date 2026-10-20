@@ -11,13 +11,13 @@
 <ol><li>Chrome の <code>chrome://extensions</code> を開き、デベロッパーモードをオンにします。</li>
 <li>「パッケージ化されていない拡張機能を読み込む」で、下のボタンから開くフォルダーを選びます。</li>
 <li>接続コードを作成・コピーし、Chrome の「MORI Browser Bridge（プレビュー）」に貼り付けて「接続する」を押します。</li>
-<li>AI を使っているタブを再読み込みします。一覧が出ない場合は、拡張機能の「表示されない原因を確認」を押してください。</li></ol>
+<li>ChatGPT / Claude の会話タブを開きます。一覧が出ない場合は、拡張機能の「タブの監視を確認・復旧」を押してください。</li></ol>
 <div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
 <section><div class="section-heading"><h2>現在のタブ</h2><span id="count">0 件</span></div>
 <p class="session-intro">会話名と直近の依頼の抜粋から、どのタブかを確認できます。表示名は自分でも設定できます。</p>
-<p id="empty">接続後、ChatGPT / Claude のページを再読み込みして質問を送信してください。</p>
+<p id="empty">接続後、ChatGPT / Claude の会話タブを開いてください。表示されない場合は、拡張機能の「タブの監視を確認・復旧」で確認できます。</p>
 <div id="sessions"></div>
 <details id="history" class="session-history" hidden><summary><span>以前の記録</span><span id="history-count">0 件</span><span id="history-unread" class="session-unread" hidden></span></summary>
 <p class="session-intro">閉じたタブや、以前の接続で保存した記録です。未確認通知は確認するまで残ります。</p><div id="history-sessions"></div></details></section>

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
-importScripts('provider-utils.js', 'session-coordinator.js', 'outbox.js', 'transport.js');
+importScripts('provider-utils.js', 'session-coordinator.js', 'outbox.js', 'transport.js', 'observer-recovery.js');
 
 'use strict';
 const utils = MoriProviderUtils;
@@ -19,6 +19,8 @@ let flushing = false;
 const freshEvents = new Map();
 const liveReceipts = new Set();
 const eventKey = event => `${event.browserRunId}/${event.sessionId}/${event.eventId}`;
+const observerRecovery = MoriObserverRecovery.createRecovery({ chrome, within,
+  getBlockReason: () => fatalError ? 'storage_failed' : !settings.enabled ? 'paused' : !credential ? 'unpaired' : null });
 
 function enqueue(operation) {
   const result = queue.then(operation);
@@ -249,9 +251,9 @@ async function focusRequest(request) {
 
 async function requestFreshObservations() {
   if (!settings.enabled || !credential || fatalError) return;
-  const tabs = await chrome.tabs.query({ url: utils.URL_PATTERNS });
-  await Promise.allSettled(tabs.map(tab => chrome.tabs.sendMessage(tab.id,
-    { type: 'mori.observe.now' }, { frameId: 0 })));
+  const tabs = await within(chrome.tabs.query({ url: utils.URL_PATTERNS }));
+  await Promise.allSettled(tabs.filter(tab => !!utils.routeForUrl(tab.url))
+    .slice(0, coordinator.MAX_TABS).map(tab => observerRecovery.ensure(tab)));
 }
 
 async function reconcileTabs() {
@@ -281,42 +283,77 @@ function statusSnapshot() {
   };
 }
 
+async function siteAccessSummary() {
+  // A withheld host permission may hide candidate URLs from tabs.query.
+  // These two permission counts are not counts of hidden tabs or proof that
+  // a temporary per-tab grant is unavailable. Never request broader access.
+  const summary = { granted: 0, missing: 0, unknown: 0 };
+  const results = await Promise.allSettled(utils.URL_PATTERNS.map(origin =>
+    within(Promise.resolve().then(() => chrome.permissions.contains({ origins: [origin] })))));
+  for (const result of results) {
+    summary[result.status !== 'fulfilled' || typeof result.value !== 'boolean'
+      ? 'unknown' : result.value ? 'granted' : 'missing']++;
+  }
+  return summary;
+}
+
 async function tabHealth() {
   // This is an explicit options-page diagnostic, not continuous tab history.
   // Query only origins already granted by the manifest. Probe at most the
   // coordinator limit and return aggregate counts, never URLs/titles/IDs.
-  const candidates = await within(chrome.tabs.query({ url: utils.URL_PATTERNS }));
+  const [candidates, siteAccess] = await Promise.all([
+    within(chrome.tabs.query({ url: utils.URL_PATTERNS })), siteAccessSummary(),
+  ]);
   const tabs = candidates.filter(tab => Number.isSafeInteger(tab.id) && tab.id >= 0
     && !!utils.providerForUrl(tab.url));
   const sampled = tabs.slice(0, coordinator.MAX_TABS);
   const results = await Promise.all(sampled.map(async tab => {
     const route = utils.routeForUrl(tab.url);
-    if (!route) return 'unsupportedRoute';
-    if (tab.status === 'loading') return 'unknown';
+    const recovery = await observerRecovery.ensure(tab);
+    if (!recovery.ok) return { status: recovery.reason === 'unsupported_route' ? 'unsupportedRoute'
+      : recovery.disposition === 'failed' ? 'needsReload' : 'unknown', recovery };
     let response;
     try {
       // The page waits for the worker to validate this observation, including
       // the existing bounded current-document check. Keep that handshake out
       // of the observation queue and allow enough time for its two API calls.
-      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' }, { frameId: 0 }), 4000);
-    } catch (error) { return error?.message === 'tab_unavailable' ? 'unknown' : 'needsReload'; }
+      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' },
+        recovery.documentId ? { documentId: recovery.documentId } : { frameId: 0 }), 4000);
+    } catch (error) { return { status: error?.message === 'tab_unavailable' ? 'unknown' : 'needsReload', recovery }; }
     if (!response || response.ok !== true || response.v !== 1
-      || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) return 'needsReload';
+      || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) {
+      return { status: 'needsReload', recovery };
+    }
     // A navigation during the diagnostic must not make an old page appear
     // healthy. No current URL is retained once this local comparison ends.
     try {
       const current = await within(chrome.tabs.get(tab.id));
-      if (current.status === 'loading' || !utils.sameRoute(route, utils.routeForUrl(current.url))) return 'unknown';
-    } catch (_) { return 'unknown'; }
+      if (current.status === 'loading' || current.discarded || current.frozen
+        || !utils.sameRoute(route, utils.routeForUrl(current.url))) return { status: 'unknown', recovery };
+      if (response.pageInstanceId !== undefined || response.observerVersion !== undefined || response.route !== undefined) {
+        if (!utils.ID.test(response.pageInstanceId || '') || !utils.sameRoute(route, response.route)
+          || !(await checkCurrentDocument(tab.id, response.pageInstanceId, route.conversationRef))) {
+          return { status: 'unknown', recovery };
+        }
+        const confirmed = await within(chrome.tabs.get(tab.id));
+        if (confirmed.status === 'loading' || confirmed.discarded || confirmed.frozen
+          || !utils.sameRoute(route, utils.routeForUrl(confirmed.url))) return { status: 'unknown', recovery };
+      }
+    } catch (_) { return { status: 'unknown', recovery }; }
     return { status: response.status === 'unsupported_route' ? 'unsupportedRoute' : response.status,
-      observationAck: utils.safeObservationAck(response.observationAck) };
+      observationAck: utils.safeObservationAck(response.observationAck), recovery };
   }));
   const counts = { needsReload: 0, unsupportedRoute: 0, unknown: 0, idle: 0, running: 0, settled: 0 };
   const observationDelivery = { accepted: 0, rejected: 0, unconfirmed: 0, runningAccepted: 0, reasons: {} };
+  const recoverySummary = { attempted: 0, recovered: 0, deferred: 0, failed: 0, reasons: {} };
   for (const result of results) {
-    if (typeof result === 'string') { counts[result]++; continue; }
+    const recovery = result.recovery;
+    if (recovery.attempted) recoverySummary.attempted++;
+    if (recovery.disposition !== 'healthy') recoverySummary[recovery.disposition]++;
+    if (recovery.reason) recoverySummary.reasons[recovery.reason] = (recoverySummary.reasons[recovery.reason] || 0) + 1;
     counts[result.status]++;
     const ack = result.observationAck;
+    if (!ack) continue;
     if (ack.ok === true) {
       observationDelivery.accepted++;
       if (result.status === 'running') observationDelivery.runningAccepted++;
@@ -329,14 +366,14 @@ async function tabHealth() {
     ok: true, checkedAt: Date.now(), paired: !!credential, enabled: settings.enabled,
     connectionState: connectionStatus.state,
     totalTabs: tabs.length, checkedTabs: sampled.length, remainingTabs: tabs.length - sampled.length,
-    counts, observationDelivery,
+    counts, observationDelivery, observerRecovery: recoverySummary, siteAccess,
   };
 }
 
 async function optionsMessage(message) {
   if (message.type === 'mori.options.status') return statusSnapshot();
-  if (fatalError) return { ok: false, reason: fatalError };
   if (message.type === 'mori.options.health') return tabHealth();
+  if (fatalError) return { ok: false, reason: fatalError };
   if (message.type === 'mori.options.pair') {
     const code = MoriTransport.parsePairingCode(message.code);
     if (credential && credential.instanceId !== code.instanceId) return { ok: false, reason: 'unpair_first' };
@@ -346,8 +383,8 @@ async function optionsMessage(message) {
     return { ok: true };
   }
   if (message.type === 'mori.options.retry') {
-    await transport.ensureConnected({ immediate: true });
-    await requestFreshObservations(); void flush();
+    await Promise.allSettled([transport.ensureConnected({ immediate: true }), requestFreshObservations()]);
+    void flush();
     return { ok: true };
   }
   if (message.type === 'mori.options.enabled' && typeof message.enabled === 'boolean') {
@@ -396,23 +433,34 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
+  observerRecovery.invalidate(tabId, true);
   initialized.then(() => enqueue(async () => {
     if (sessions && !fatalError) await commit(coordinator.closeTab(sessions, tabId));
   })).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (!changeInfo.url && changeInfo.status !== 'loading') return;
-  initialized.then(() => enqueue(async () => {
-    if (!sessions || fatalError || !sessions.tabs[tabId]) return;
-    const result = changeInfo.url && !utils.routeForUrl(changeInfo.url)
-      ? coordinator.closeTab(sessions, tabId) : coordinator.invalidateTab(sessions, tabId);
-    await commit(result);
-  })).catch(() => {});
+  if (changeInfo.url || changeInfo.status === 'loading') {
+    observerRecovery.invalidate(tabId);
+    initialized.then(() => enqueue(async () => {
+      if (!sessions || fatalError || !sessions.tabs[tabId]) return;
+      const result = changeInfo.url && !utils.routeForUrl(changeInfo.url)
+        ? coordinator.closeTab(sessions, tabId) : coordinator.invalidateTab(sessions, tabId);
+      await commit(result);
+    })).catch(() => {});
+  }
+  if (changeInfo.status === 'complete' || changeInfo.discarded === false || changeInfo.frozen === false || changeInfo.url) {
+    initialized.then(() => {
+      if (!fatalError && settings.enabled && credential) return observerRecovery.ensure({ id: tabId });
+    }).catch(() => {});
+  }
 });
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== 'mori-reconnect') return;
   initialized.then(async () => {
-    if (!fatalError && settings.enabled) { await transport.ensureConnected(); void flush(); }
+    if (!fatalError && settings.enabled) {
+      await Promise.allSettled([transport.ensureConnected(), requestFreshObservations()]);
+      void flush();
+    }
   }).catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => {
@@ -420,5 +468,6 @@ chrome.runtime.onStartup.addListener(() => {
 });
 chrome.runtime.onInstalled.addListener(details => {
   if (details.reason === 'install') chrome.runtime.openOptionsPage();
+  initialized.then(() => reconcileTabs()).catch(() => {});
 });
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());

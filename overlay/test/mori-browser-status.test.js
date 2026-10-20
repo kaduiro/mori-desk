@@ -25,7 +25,7 @@ test("authenticated socket is shown independently of missing DOM observations", 
   assert.equal(result.state, "ready");
   assert.equal(result.connectedCount, 1);
   assert.match(result.emptyText, /生成状態はまだ届いていません/);
-  assert.match(result.detail, /表示されない原因を確認/);
+  assert.match(result.detail, /タブの監視を確認・復旧/);
   assert.ok(!JSON.stringify(result).includes("private-client"));
   assert.ok(!JSON.stringify(result).includes("private-run"));
   assert.equal(Object.hasOwn(result, "sessions"), false);

@@ -1,9 +1,16 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (() => {
   'use strict';
-  if (globalThis.__moriBrowserObserverInstalled) return;
-  globalThis.__moriBrowserObserverInstalled = true;
+  const previous = globalThis.__moriBrowserObserverLifecycle;
+  // A live observer retains its generation, timers, and page identity when a
+  // recovery attempt races with normal content-script installation. The old
+  // boolean alone (0.1.5) is not proof of liveness after invalidation.
+  try {
+    if (previous?.isActive()) return;
+    previous?.stop();
+  } catch (_) {}
   const utils = MoriProviderUtils;
+  const observerVersion = '0.1.6';
   let pageInstanceId = crypto.randomUUID();
   const controller = MoriObservationController.createController();
   const metadataReader = MoriConversationMetadata.createReader();
@@ -22,6 +29,9 @@
   let sampled = false;
   let explicitNavigation = null;
   const observer = new MutationObserver(() => schedule());
+  const owner = { isActive: () => !stopped && !!runtimeId(), stop: stopInvalidatedObserver };
+  globalThis.__moriBrowserObserverLifecycle = owner;
+  globalThis.__moriBrowserObserverInstalled = true;
 
   function runtimeId() {
     try { return globalThis.chrome?.runtime?.id || null; }
@@ -43,8 +53,13 @@
     // An invalidated extension API may also reject listener removal. The DOM
     // observer and timers above are independent and have already been stopped.
     try { chrome.runtime.onMessage.removeListener(onRuntimeMessage); } catch (_) {}
-    // Losing the extension context is not an AI completion. A page reload
-    // installs the new observer; the desktop keeps its existing stale rules.
+    // Cleanup from an old generation must not remove a replacement guard.
+    if (globalThis.__moriBrowserObserverLifecycle === owner) {
+      delete globalThis.__moriBrowserObserverLifecycle;
+      delete globalThis.__moriBrowserObserverInstalled;
+    }
+    // Losing the extension context is not an AI completion. The worker can
+    // reinstall the packaged observer; existing stale/completion rules apply.
   }
 
   function handleRuntimeFailure(error) {
@@ -170,7 +185,7 @@
       verificationTimeout = setTimeout(() => { verificationTimeout = null; observe(false); }, 900);
     }
     return { status: !route ? 'unsupported_route' : !observation.supported ? 'unknown' : state.status,
-      acknowledgement };
+      acknowledgement, identity: { observerVersion, pageInstanceId, route: route ? { ...route } : null } };
   }
 
   function onPageClick(event) {
@@ -207,21 +222,26 @@
     if (sender.id !== id) return;
     try {
       if (message?.type === 'mori.observe.now') {
-        observe(true); if (!stopped) respond({ ok: true });
+        const result = observe(true);
+        // Do not await an observation ACK: recovery also runs while that
+        // receiving worker is still initializing.
+        if (!stopped && result) respond({ ok: true, v: 1, ...result.identity });
       } else if (message?.type === 'mori.health.check') {
         const result = observe(true);
         // Wait for this exact observation's worker receipt. Reading a running
         // control alone does not prove that the current document was accepted.
-        // Replies still contain categories only, never page content or IDs.
+        // This captured opaque identity lets the worker reject a reply from a
+        // document replaced while its receipt was pending. Only aggregate
+        // categories leave the worker for the diagnostic page.
         Promise.resolve(result?.acknowledgement).then(ack => {
           if (!stopped) respond({ ok: true, v: 1, status: result?.status || 'unknown',
-            observationAck: utils.safeObservationAck(ack) });
+            observationAck: utils.safeObservationAck(ack), ...result?.identity });
         });
         return true;
       } else if (message?.type === 'mori.focus.check') {
         const current = utils.routeForUrl(location.href);
         respond({
-          ok: document.visibilityState !== 'prerender' && !!current
+          ok: !document.prerendering && document.visibilityState !== 'prerender' && !!current
             && utils.sameRoute(route, current)
             && message.pageInstanceId === pageInstanceId
             && message.conversationRef === current.conversationRef,

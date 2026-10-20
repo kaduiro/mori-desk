@@ -10,15 +10,19 @@ MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト�
 2. Chrome の `chrome://extensions` を開き、デベロッパーモードをオンにします。
 3. 「パッケージ化されていない拡張機能を読み込む」で **`overlay/extensions/browser-bridge`**、または組み立て後の **`.runtime/extensions/browser-bridge`** を選択します。
 4. 拡張機能の設定画面にコードを貼り付け、「接続する」を押します。
-5. 既に開いていた ChatGPT / Claude のページを再読み込みします。通常のテキスト会話で、生成中 → 回答を確認 → HUD の行から元のタブに戻る、を確認します。
+5. 通常のテキスト会話で、生成中 → 回答を確認 → HUD の行から元のタブに戻る、を確認します。既に開いていたタブの監視も自動で復旧を試します。表示されない場合は、設定画面の **「タブの監視を確認・復旧」**を押してください。
 
 最低機能要件は Chrome 120 です。実験には会社がサポートする最新の Chrome を使ってください。対応する会話 URL は `https://chatgpt.com/c/<id>`、`https://chatgpt.com/g/<g-で始まる識別子>/c/<id>`、`https://claude.ai/chat/<id>`、および新規会話のルート画面です。ChatGPT の `/g/<識別子>` は通常のテキスト入力欄を確認できる場合だけ扱います。プロジェクト管理・GPT 編集の画面、音声、画像・動画生成、Deep Research は対象外です。URL に対応したことは、利用対象の実サービス DOM の動作確認を意味しません。
 
 ## HUD に行が出ないとき
 
-拡張機能の設定画面で **「表示されない原因を確認」** を押すと、この Chrome プロファイルの ChatGPT / Claude タブを最大 20 件調べます。診断は接続前や監視停止中にも実行でき、接続の不足、ページ再読み込み・サイトアクセスの確認が必要なタブ、対象外の URL、DOM を読み取れない画面、待機中、生成中を件数で表示します。URL・タイトル・会話本文・タブ ID は診断結果に保存しません。
+拡張機能の設定画面で **「タブの監視を確認・復旧」** を押すと、この Chrome プロファイルの ChatGPT / Claude タブを最大 20 件調べます。診断は接続前や監視停止中にも実行できます。本体との接続、ページ内の監視の応答、監視の復旧結果、対象外の URL、DOM を読み取れない画面、待機中、生成中を件数で表示します。URL・タイトル・会話本文・タブ ID は診断結果に保存しません。
 
-初回追加や `chrome://extensions` で拡張機能を再読み込みした後は、既に開いている AI のタブも再読み込みしてください。回答の生成中であれば、その終了を待ってから行ってください。0.1.5 では、対応する会話は待機中でも HUD に行を作ります。過去の会話を開いたり再接続したりしただけで完了通知は作りません。ChatGPT のデスクトップアプリや別の Chrome プロファイルは、この拡張機能では監視できません。
+0.1.6 は、初回接続、拡張の起動・更新、再接続、定期確認、診断で、応答しない監視プログラムの復旧を試します。監視が有効でペアリング済みの場合に、アクセスが許可された対応ページへ同梱の監視プログラムだけを再配置します。ページの再読み込みや自動でのタブの前面化は行わず、生成や未送信の文章には触れません。正常に応答する監視は重複して起動せず、失敗後は待機してから再確認します。
+
+サイトへのアクセスがない場合は Chrome の拡張機能の詳細で ChatGPT / Claude への許可を確認してください。休止中のタブは自分で開き、読み込み中のページは表示が落ち着いてから診断します。復旧に失敗し続ける場合だけ、生成が終わるのを待ち、必要な未送信文を控えてからページを再読み込みしてください。監視を停止中・未ペアリングの場合は、勝手に監視を再開しません。
+
+0.1.5 以降は、対応する会話は待機中でも HUD に行を作ります。過去の会話を開いたり再接続したりしただけで完了通知は作りません。ChatGPT のデスクトップアプリや別の Chrome プロファイルは、この拡張機能では監視できません。
 
 ## 会話を見分ける表示
 
@@ -36,9 +40,9 @@ MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト�
 
 `ERR_CONNECTION_REFUSED` は、その接続試行時にローカルポートへの接続が受理されなかった記録です。WebSocket handshake の404は HTTP 応答者がいたものの、期待する `/browser/v1` 接続が成立しなかったことを示します。これだけで応答元の製品は特定できません。Chrome のエラー履歴と、設定画面に表示する現在の接続状態は分けて確認してください。
 
-再接続は保存済みポートの後に23333〜23337を探索します。0.1.2 は自動再接続の待機を DOM 観測やアラームが迂回しないようにし、明示的な「今すぐ再接続」だけが待機を解除します。本体が停止している間の接続エラー自体を正常接続とは扱いません。
+再接続は保存済みポートの後に23333〜23337を探索します。0.1.2 は自動再接続の待機を DOM 観測やアラームが迂回しないようにし、明示的な「本体に再接続」だけが待機を解除します。本体が停止している間の接続エラー自体を正常接続とは扱いません。
 
-`Extension context invalidated` は、拡張を更新した後に古いページ側の監視処理が残る場合などに起きます。0.1.2 は同期例外と Promise の拒否を扱い、無効化された監視処理を停止します。新しい監視処理を動かすためには、拡張機能に続いて既に開いている会話タブも再読み込みしてください。
+`Extension context invalidated` は、拡張を更新した後に古いページ側の監視処理が残る場合などに起きます。0.1.2 以降は同期例外と Promise の拒否を扱い、無効化された監視処理を停止します。0.1.6 では、新しい監視プログラムが応答しない対象タブへ、ページを再読み込みせず監視を復旧する処理を追加しました。設定画面の診断で復旧結果を確認できます。
 
 具体的な本体起動・ポート確認の手順は [Windows の接続エラーの切り分け](../../../docs/windows-ja.md) を参照してください。
 
@@ -81,7 +85,7 @@ MORI Desk 側の仕様は [ブラウザ接続プロトコル](https://github.com
 
 ## Chrome での最初の接続確認
 
-この環境では Chrome 本体を起動して拡張機能を読み込む確認は実施していません。Node 上の WebSocket テストは、Chrome の CSP・権限・会社の管理ポリシーを検証するものではありません。
+0.1.6ではLinuxのChrome for Testing 155.0.8059.84へ実際の拡張機能を読み込み、合成の会話ページとMoriのローカルWebSocketを使って、拡張の更新・再読み込み後にページを開き直さず監視が復旧することを確認しました。未送信文と既存の未確認通知も保持しています。実際のChatGPT / ClaudeのDOM、利用者のChrome設定、Windows / macOSのサイト許可や組織ポリシーを確認した結果ではありません。詳細は[検証状況](../../../docs/verification-ja.md#ページ内の監視の自動復旧拡張機能016)を参照してください。
 
 Service Worker は同梱スクリプトだけを `importScripts` で読み込み、CSP の `connect-src` に明記した 5 つの localhost WebSocket 接続先だけを使います。Chrome 公式の WebSocket サンプルも WebSocket 専用の host permission を宣言していませんが、localhost / loopback の扱いは Chrome のバージョンや管理ポリシーでも確認が必要です。
 
@@ -92,6 +96,8 @@ Service Worker は同梱スクリプトだけを `importScripts` で読み込み
 - [Chrome extension WebSocket service worker](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)
 - [Chrome storage API / access level](https://developer.chrome.com/docs/extensions/reference/api/storage)
 - [Chrome tabs API](https://developer.chrome.com/docs/extensions/reference/api/tabs)
+- [Chrome scripting API / 文書を指定した再配置](https://developer.chrome.com/docs/extensions/reference/api/scripting)
+- [Chrome permissions API / 現在の許可の確認](https://developer.chrome.com/docs/extensions/reference/api/permissions)
 - [Chrome extension CSP](https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy)
 - [Chrome 公式 WebSocket サンプルの manifest](https://github.com/GoogleChrome/chrome-extensions-samples/blob/main/functional-samples/tutorial.websockets/manifest.json)
 - [Chrome Local Network Access](https://developer.chrome.com/blog/local-network-access)

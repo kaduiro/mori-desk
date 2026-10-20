@@ -20,6 +20,9 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   let onWindowFocus = () => {};
   let onHealth = () => {};
   let onDocumentCheck = () => {};
+  let onScript = () => {};
+  let onProbe = () => {};
+  let injectionCount = 0;
   const transports = [];
   const clone = value => structuredClone(value);
   function area(data, name) {
@@ -52,19 +55,28 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
     storage: { local: area(local, 'local'), session: area(session, 'session') },
     runtime: { id: EXTENSION_ID, onMessage: event(), onStartup: event(), onInstalled: event(),
       getURL: file => `chrome-extension://${EXTENSION_ID}/${file}`,
-      getManifest: () => ({ version: '0.1.0' }), openOptionsPage: async () => {} },
+      getManifest: () => ({ version: '0.1.6' }), openOptionsPage: async () => {} },
     tabs: {
       onRemoved: event(), onUpdated: event(),
       async query() { return [...tabs.values()].map(clone); },
       async get(id) { if (!tabs.has(id)) throw new Error('no_tab'); return clone(tabs.get(id)); },
-      async sendMessage(id, message) {
+      async sendMessage(id, message, options) {
         const tab = tabs.get(id); if (!tab) throw new Error('no_tab');
-        if (message.type === 'mori.observe.now') return { ok: true };
+        if (tab.noReceiver || (options?.documentId && options.documentId !== (tab.documentId || `document-${id}`))) {
+          throw new Error('no_receiver_PRIVATE_URL');
+        }
+        const identity = tab.modernObserver ? { observerVersion: tab.observerVersion || '0.1.6',
+          pageInstanceId: tab.pageId, route: providerUtils.routeForUrl(tab.url) } : {};
+        if (message.type === 'mori.observe.now') {
+          log.push({ type: 'observer-probe', id, options: clone(options) });
+          await onProbe(tab);
+          return tab.invalidReady ? {} : { ok: true, ...(tab.modernObserver ? { v: 1, ...identity } : {}) };
+        }
         if (message.type === 'mori.health.check') {
           log.push({ type: 'health-probe', id });
-          if (tab.noReceiver) throw new Error('no_receiver_PRIVATE_URL');
           await onHealth(tab);
-          return tab.invalidHealth ? {} : { ok: true, v: 1, status: tab.healthState || 'idle', observationAck: tab.healthAck };
+          return tab.invalidHealth ? {} : { ok: true, v: 1, status: tab.healthState || 'idle',
+            observationAck: tab.healthAck, ...identity };
         }
         const ref = providerUtils.routeForUrl(tab.url)?.conversationRef ?? null;
         const result = { ok: tab.pageId === message.pageInstanceId && ref === message.conversationRef,
@@ -74,6 +86,26 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
       },
       async update(id, value) { log.push({ type: 'tab-focus', id, value }); return clone(tabs.get(id)); },
     },
+    scripting: { async executeScript(options) {
+      const tab = tabs.get(options.target.tabId);
+      log.push({ type: options.files ? 'observer-inject' : 'document-probe', target: clone(options.target),
+        world: options.world, files: options.files && [...options.files] });
+      if (!tab || tab.injectionError) throw new Error('PRIVATE_INJECTION_ERROR https://chatgpt.com/c/private');
+      const documentId = tab.documentId || `document-${tab.id}`;
+      if (options.files) {
+        if (options.target.documentIds?.[0] !== documentId) throw new Error('no_document_PRIVATE_URL');
+        if (!tab.injectionNoop) {
+          tab.noReceiver = false; tab.invalidReady = false; tab.modernObserver = true;
+          tab.pageId = `recovered-page-${++injectionCount}`;
+        }
+      }
+      const url = new URL(tab.url);
+      const result = { frameId: 0, documentId,
+        result: { url: url.origin + url.pathname, readyState: 'complete', active: !tab.prerendering } };
+      await onScript(options, tab);
+      return [result];
+    } },
+    permissions: { async contains({ origins }) { log.push({ type: 'permission-check', origins }); return true; } },
     windows: { async update(id, value) { log.push({ type: 'window-focus', id, value }); await onWindowFocus(); } },
     alarms: { async create() {}, onAlarm: event() },
     action: { onClicked: event() },
@@ -111,7 +143,8 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   }
   return { chrome, log, local, session, tabs, context, drain, observe, dispatch, transport: transports[0],
     focusDuring: callback => { onWindowFocus = callback; }, healthDuring: callback => { onHealth = callback; },
-    documentCheckDuring: callback => { onDocumentCheck = callback; } };
+    documentCheckDuring: callback => { onDocumentCheck = callback; }, scriptDuring: callback => { onScript = callback; },
+    probeDuring: callback => { onProbe = callback; } };
 }
 
 test('worker rejects forged sources and old documents; only metadata reaches storage and the wire', async () => {
@@ -314,7 +347,7 @@ test('options health reports metadata-only counts for reload, route, unknown, id
     url: `https://chatgpt.com/c/private-${id}`,
     title: 'PRIVATE_TITLE', ...patch });
   const entries = [
-    makeTab(10, { noReceiver: true }),
+    makeTab(10, { noReceiver: true, injectionError: true }),
     makeTab(11, { url: 'https://chatgpt.com/g/g-PRIVATE_GPT/edit' }),
     makeTab(12, { healthState: 'unknown' }),
     makeTab(13, { healthState: 'idle' }),
@@ -332,7 +365,7 @@ test('options health reports metadata-only counts for reload, route, unknown, id
   assert.deepEqual({ ...summary.counts }, { needsReload: 1, unsupportedRoute: 1, unknown: 1, idle: 1, running: 1, settled: 1 });
   assert.doesNotMatch(JSON.stringify(summary), /PRIVATE_|private-|https:|tabId|pageInstanceId|conversationRef/);
   assert.equal(JSON.stringify({ local: f.local, session: f.session }), beforeStorage);
-  assert.deepEqual(f.log.filter(item => item.type === 'health-probe').map(item => item.id), [10, 12, 13, 14, 15]);
+  assert.deepEqual(f.log.filter(item => item.type === 'health-probe').map(item => item.id), [12, 13, 14, 15]);
   assert.equal(f.transport.events.length, 0);
   assert.deepEqual(structuredClone(summary.observationDelivery), { accepted: 0, rejected: 0, unconfirmed: 4,
     runningAccepted: 0, reasons: { ack_unavailable: 4 } });
@@ -405,4 +438,122 @@ test('options health remains available when monitoring is paused or this Chrome 
   assert.equal(unpaired.ok, true);
   assert.equal(unpaired.paired, false);
   assert.equal(unpaired.connectionState, 'unpaired');
+});
+
+test('diagnostics repair a missing observer in place and independently verify its receipt without finishing the lost turn', async () => {
+  const f = await workerFixture();
+  const tab = f.tabs.get(7);
+  tab.documentId = 'document-1';
+  assert.equal((await f.observe()).ok, true);
+  const original = f.transport.events.at(-1);
+  const credentials = structuredClone(f.local.moriCredential);
+  tab.noReceiver = true;
+  tab.healthState = 'idle';
+  f.healthDuring(async current => {
+    current.healthAck = await f.observe({ pageInstanceId: current.pageId, contentSequence: 1,
+      status: 'idle', generationToken: null }, { documentId: current.documentId });
+  });
+  const summary = await f.dispatch({ type: 'mori.options.health' },
+    { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+  assert.deepEqual(structuredClone(summary.observerRecovery),
+    { attempted: 1, recovered: 1, deferred: 0, failed: 0, reasons: {} });
+  assert.equal(summary.counts.needsReload, 0);
+  assert.equal(summary.counts.idle, 1);
+  assert.equal(summary.observationDelivery.accepted, 1);
+  assert.equal(f.log.filter(item => item.type === 'observer-inject').length, 1);
+  const record = Object.values(f.session.moriSessions.sessions).find(value => !value.closed);
+  assert.equal(record.sessionId, original.sessionId);
+  assert.notEqual(record.pageInstanceId, original.pageInstanceId);
+  assert.equal(record.unknownAfterReload, true);
+  assert.ok(f.transport.events.every(value => value.kind !== 'terminal'));
+  assert.equal(f.local.moriOutbox?.events?.length || 0, 0);
+  assert.deepEqual(f.local.moriCredential, credentials);
+  assert.equal((await f.observe({ pageInstanceId: original.pageInstanceId })).reason, 'old_document');
+  assert.equal(f.log.some(item => item.type === 'tab-focus' || item.type === 'window-focus'), false);
+  assert.doesNotMatch(JSON.stringify(summary), /https:|test|document-1|pageInstanceId|conversationRef|key|title/);
+});
+
+for (const trigger of ['startup', 'update', 'alarm', 'reconnect', 'retry', 'load-complete', 'thaw']) {
+  test(`${trigger} automatically restores a missing observer without a page reload`, async () => {
+    const f = await workerFixture();
+    f.tabs.get(7).noReceiver = true;
+    if (trigger === 'startup') f.chrome.runtime.onStartup.listeners[0]();
+    if (trigger === 'update') f.chrome.runtime.onInstalled.listeners[0]({ reason: 'update' });
+    if (trigger === 'alarm') f.chrome.alarms.onAlarm.listeners[0]({ name: 'mori-reconnect' });
+    if (trigger === 'reconnect') { f.transport.disconnect(); await f.transport.ensureConnected(); }
+    if (trigger === 'retry') await f.dispatch({ type: 'mori.options.retry' },
+      { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+    if (trigger === 'load-complete') f.chrome.tabs.onUpdated.listeners[0](7, { status: 'complete' });
+    if (trigger === 'thaw') f.chrome.tabs.onUpdated.listeners[0](7, { frozen: false });
+    await f.drain();
+    assert.equal(f.tabs.get(7).noReceiver, false);
+    assert.equal(f.log.filter(item => item.type === 'observer-inject').length, 1);
+    assert.equal(f.log.some(item => item.type === 'tab-focus' || item.type === 'window-focus'), false);
+    assert.equal(f.transport.events.length, 0, 'recovery itself is neither an observation receipt nor a completion');
+  });
+}
+
+test('worker initialization repairs an old existing tab without waiting for an observation ACK', async () => {
+  const f = await workerFixture({ savedTabs: [[7, { id: 7, windowId: 3, status: 'complete',
+    url: 'https://chatgpt.com/c/test', pageId: 'old-page', noReceiver: true }]] });
+  assert.equal(f.tabs.get(7).noReceiver, false);
+  assert.equal(f.log.filter(item => item.type === 'observer-inject').length, 1);
+  assert.equal(f.log.filter(item => item.type === 'health-probe').length, 0);
+  assert.equal(f.transport.events.length, 0);
+});
+
+test('automatic checks and manual diagnostics coalesce, while dead paused/unpaired tabs remain untouched', async () => {
+  const f = await workerFixture();
+  f.tabs.get(7).noReceiver = true;
+  let release;
+  f.scriptDuring(options => !options.files && new Promise(resolve => { release = resolve; }));
+  f.chrome.alarms.onAlarm.listeners[0]({ name: 'mori-reconnect' });
+  await new Promise(resolve => setImmediate(resolve));
+  const health = f.dispatch({ type: 'mori.options.health' },
+    { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+  await new Promise(resolve => setImmediate(resolve));
+  f.scriptDuring(() => {}); release();
+  const summary = await health;
+  assert.equal(summary.observerRecovery.recovered, 1);
+  assert.equal(f.log.filter(item => item.type === 'observer-inject').length, 1);
+  for (const reason of ['paused', 'unpaired']) {
+    const blocked = await workerFixture({ savedLocal: { moriClientId: 'profile-1',
+      moriSettings: { enabled: reason !== 'paused' } } });
+    blocked.tabs.get(7).noReceiver = true;
+    const result = await blocked.dispatch({ type: 'mori.options.health' },
+      { id: EXTENSION_ID, url: blocked.chrome.runtime.getURL('options.html') });
+    assert.equal(result.observerRecovery.deferred, 1);
+    assert.equal(result.observerRecovery.reasons[reason], 1);
+    assert.equal(result.observerRecovery.attempted, 0);
+    assert.equal(blocked.log.some(item => item.type === 'observer-inject' || item.type === 'document-probe'), false);
+  }
+});
+
+test('health rejects a same-URL replacement during the reply instead of counting an old accepted document', async () => {
+  const f = await workerFixture();
+  const tab = f.tabs.get(7);
+  tab.modernObserver = true;
+  tab.healthAck = { ok: true };
+  f.healthDuring(current => { current.pageId = 'replacement-page'; current.documentId = 'replacement-document'; });
+  const summary = await f.dispatch({ type: 'mori.options.health' },
+    { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+  assert.equal(summary.counts.unknown, 1);
+  assert.equal(summary.observationDelivery.accepted, 0);
+  assert.equal(summary.observerRecovery.attempted, 0);
+});
+
+test('site access diagnostics are two fixed permission counts, independent of visible tab count', async () => {
+  const f = await workerFixture();
+  f.tabs.clear();
+  f.chrome.permissions.contains = async ({ origins }) => origins[0] !== 'https://claude.ai/*';
+  const sender = { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') };
+  const summary = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.equal(summary.totalTabs, 0);
+  assert.deepEqual(structuredClone(summary.siteAccess), { granted: 1, missing: 1, unknown: 0 });
+  assert.deepEqual(structuredClone(summary.observerRecovery),
+    { attempted: 0, recovered: 0, deferred: 0, failed: 0, reasons: {} });
+  f.chrome.permissions.contains = async () => { throw new Error('PRIVATE_PERMISSION_ERROR'); };
+  const unavailable = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.deepEqual(structuredClone(unavailable.siteAccess), { granted: 0, missing: 0, unknown: 2 });
+  assert.doesNotMatch(JSON.stringify(unavailable), /PRIVATE_|https:|chatgpt|claude/);
 });

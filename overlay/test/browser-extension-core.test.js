@@ -40,7 +40,9 @@ test('fixed public key matches the desktop allowlist, and browser capabilities a
   const id = crypto.createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex')
     .slice(0, 32).replace(/[0-9a-f]/g, char => String.fromCharCode(97 + parseInt(char, 16)));
   assert.equal(id, protocol.EXTENSION_ID);
-  assert.deepEqual(manifest.permissions, ['storage', 'alarms']);
+  assert.deepEqual(manifest.permissions, ['storage', 'alarms', 'scripting']);
+  assert.equal(manifest.version, '0.1.6');
+  assert.deepEqual([...require('../extensions/browser-bridge/observer-recovery').FILES], manifest.content_scripts[0].js);
   assert.deepEqual(manifest.host_permissions, ['https://chatgpt.com/*', 'https://claude.ai/*']);
   assert.equal(manifest.minimum_chrome_version, '120');
   assert.equal(manifest.content_scripts[0].all_frames, false);

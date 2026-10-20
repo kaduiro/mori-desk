@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
+const providerUtils = require('../extensions/browser-bridge/provider-utils');
 
 // Synthetic HTML fixtures only. This tiny selector/visibility harness covers
 // the simple selector vocabulary used by these adapters; it is not evidence
@@ -136,7 +137,9 @@ test('content observer rotates its opaque identity between empty scopes, retains
     assert.equal(listeners[0]({ type: 'mori.health.check' }, { id: 'test-extension' },
       value => resolve(structuredClone(value))), true);
   });
-  const received = status => ({ ok: true, v: 1, status, observationAck: { ok: true, reason: null } });
+  const received = status => ({ ok: true, v: 1, status, observationAck: { ok: true, reason: null },
+    observerVersion: '0.1.6', pageInstanceId: messages.at(-1).pageInstanceId,
+    route: providerUtils.routeForUrl(location.href) });
   const a = messages.at(-1);
   assert.equal(a.status, 'running');
   assert.deepEqual(await health(), received('running'));
@@ -201,6 +204,9 @@ function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https:
   let metadataNodes = { links: [], users: [] };
   const root = {};
   const main = {};
+  const draft = { value: '未送信 IME_DRAFT', selectionStart: 3, selectionEnd: 3, composing: true,
+    focus() { throw new Error('observer must not focus the composer'); },
+    dispatchEvent() { throw new Error('observer must not dispatch input/composition events'); } };
   const visible = () => ({ getAttribute: () => null, getClientRects: () => [{}] });
   let visibleElement = visible();
   const location = { href: initialUrl };
@@ -210,7 +216,7 @@ function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https:
   };
   const unlisten = (map, type, callback) => map.get(type)?.delete(callback);
   const document = {
-    body: root, visibilityState: 'visible',
+    body: root, visibilityState: 'visible', activeElement: draft,
     querySelector: selector => selector === 'main' ? main : null,
     querySelectorAll: selector => {
       if (selector === 'a[href]') return metadataNodes.links;
@@ -252,12 +258,33 @@ function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https:
     chrome: { runtime },
   });
   const base = path.join(__dirname, '../extensions/browser-bridge');
-  for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
-    'observation-controller.js', 'conversation-metadata.js', 'content-script.js']) {
-    vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
-  }
+  const reinject = () => {
+    for (const file of require('../extensions/browser-bridge/observer-recovery').FILES) {
+      vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
+    }
+  };
+  reinject();
   return {
-    messages, timeouts, intervals, runtime, location,
+    messages, timeouts, intervals, runtime, location, document, draft, reinject,
+    get lifecycle() { return context.__moriBrowserObserverLifecycle; },
+    orphanLegacyGuard() {
+      context.__moriBrowserObserverLifecycle?.stop();
+      delete context.__moriBrowserObserverLifecycle;
+      context.__moriBrowserObserverInstalled = true;
+    },
+    ready() {
+      let response;
+      for (const listener of runtimeListeners) listener({ type: 'mori.observe.now' }, { id: runtime.id },
+        value => { response = structuredClone(value); });
+      return response;
+    },
+    focus(pageInstanceId) {
+      let response;
+      for (const listener of runtimeListeners) listener({ type: 'mori.focus.check', pageInstanceId,
+        conversationRef: providerUtils.routeForUrl(location.href)?.conversationRef }, { id: runtime.id },
+      value => { response = structuredClone(value); });
+      return response;
+    },
     fail: value => { failure = value; },
     reply: value => { reply = value; },
     health: () => new Promise(resolve => {
@@ -471,7 +498,8 @@ test('health preserves the running DOM state but reports a rejected document rec
   assert.deepEqual(rejected.observationAck, { ok: false, reason: 'old_document' });
   assert.equal(f.activeObserver, true);
   assert.equal(f.intervals.size, 1);
-  assert.doesNotMatch(JSON.stringify(rejected), /PRIVATE_|pageInstanceId|contentSequence|generationToken/);
+  assert.doesNotMatch(JSON.stringify(rejected), /PRIVATE_|contentSequence|generationToken/);
+  assert.equal(rejected.pageInstanceId, f.messages.at(-1).pageInstanceId);
   f.reply({ ok: true });
   assert.deepEqual((await f.health()).observationAck, { ok: true, reason: null });
   assert.equal(f.messages.every(message => message.status === 'running'), true);
@@ -519,4 +547,75 @@ test('a missing extension runtime ID stops the observer before another API call'
   assert.equal(f.activeObserver, false);
   assert.equal(f.intervals.size, 0);
   assert.equal(f.listenerCount, 0);
+});
+
+test('reinjection preserves a healthy observer, its running identity, timers, and unfinished input', () => {
+  const f = contentLifecycleFixture('running');
+  const original = f.messages.at(-1);
+  const owner = f.lifecycle;
+  const listeners = f.listenerCount;
+  const input = { value: f.draft.value, selectionStart: f.draft.selectionStart,
+    selectionEnd: f.draft.selectionEnd, composing: f.draft.composing };
+  f.reinject(); f.reinject();
+  assert.equal(f.lifecycle, owner);
+  assert.equal(f.messages.length, 1);
+  assert.equal(f.listenerCount, listeners);
+  assert.equal(f.intervals.size, 1);
+  const ready = f.ready();
+  assert.equal(ready.observerVersion, '0.1.6');
+  assert.equal(ready.pageInstanceId, original.pageInstanceId);
+  assert.equal(f.messages.at(-1).generationToken, original.generationToken);
+  assert.equal(f.document.activeElement, f.draft);
+  assert.deepEqual({ value: f.draft.value, selectionStart: f.draft.selectionStart,
+    selectionEnd: f.draft.selectionEnd, composing: f.draft.composing }, input);
+  assert.doesNotMatch(JSON.stringify(f.messages), /IME_DRAFT/);
+});
+
+test('a stopped observer or orphaned 0.1.5 boolean guard can recover without reload or a fabricated completion', async () => {
+  for (const legacy of [false, true]) {
+    const f = contentLifecycleFixture('running');
+    const original = f.messages.at(-1);
+    const oldOwner = f.lifecycle;
+    if (legacy) f.orphanLegacyGuard();
+    else oldOwner.stop();
+    assert.equal(f.listenerCount, 0);
+    assert.equal(f.intervals.size, 0);
+    assert.equal(f.ready(), undefined);
+    // The old turn has ended while its observer was unavailable. A recovered
+    // observer can report this idle baseline; it cannot attest to that end.
+    f.showLayout('settling'); f.reinject();
+    const restored = f.messages.at(-1);
+    assert.notEqual(restored.pageInstanceId, original.pageInstanceId);
+    assert.equal(restored.status, 'idle');
+    assert.equal(restored.generationToken, null);
+    assert.equal(restored.outcome, null);
+    assert.equal(f.focus(original.pageInstanceId).ok, false);
+    assert.equal(f.focus(restored.pageInstanceId).ok, true);
+    assert.equal(f.intervals.size, 1);
+    assert.equal(f.lifecycle.isActive(), true);
+    oldOwner.stop();
+    assert.equal(f.lifecycle.isActive(), true, 'late cleanup cannot erase a replacement lifecycle');
+    assert.equal((await f.health()).pageInstanceId, restored.pageInstanceId);
+    assert.ok(f.messages.every(message => message.status !== 'settled'));
+    assert.equal(f.draft.value, '未送信 IME_DRAFT');
+    assert.equal(f.draft.composing, true);
+    assert.equal(f.document.activeElement, f.draft);
+  }
+});
+
+test('a health reply retains the sampled page identity when a same-document route changes before its receipt', async () => {
+  const f = contentLifecycleFixture('idle');
+  const receipts = [];
+  f.reply(() => new Promise(resolve => receipts.push(resolve)));
+  const old = f.messages.at(-1).pageInstanceId;
+  const delayedHealth = f.health();
+  f.location.href = 'https://chatgpt.com/c/other';
+  const current = f.ready();
+  assert.notEqual(current.pageInstanceId, old);
+  receipts[0]({ ok: true });
+  const response = await delayedHealth;
+  assert.equal(response.pageInstanceId, old);
+  assert.equal(response.route.conversationRef, '/c/test');
+  assert.equal(f.focus(response.pageInstanceId).ok, false);
+  receipts[1]({ ok: true });
 });
