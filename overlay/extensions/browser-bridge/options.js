@@ -29,6 +29,16 @@
     receipt_limit: 'MORI Desk の通知保存数が上限に達しました。デスクトップ側で通知を整理してください。',
     session_limit: 'MORI Desk のセッション数が上限に達しました。デスクトップ側で不要な行を整理してください。',
     unpaired: 'MORI Desk で接続コードを発行して、この画面で登録してください。',
+    paused: '観測を受け付けていません。接続状況を確認し、「監視を再開」を押してください。',
+    old_document: '観測元と現在のタブの一致を確認できませんでした。ページの読み込みを待って、もう一度確認してください。続く場合は、回答生成の終了後に AI タブを F5 で再読み込みしてください。',
+    invalid_sender: 'Chrome から届いた観測元を確認できませんでした。拡張機能を更新した場合は、回答生成の終了後に AI タブも F5 で再読み込みしてください。',
+    old_observation: '観測の到着が遅れたため、現在の状態として受け付けませんでした。PC のスリープやページの読み込みが落ち着いてから、もう一度確認してください。',
+    duplicate_observation: '新しい観測の順序を確認できませんでした。もう一度確認し、続く場合は回答生成の終了後に AI タブを再読み込みしてください。',
+    invalid_observation: '観測データの形式を確認できませんでした。拡張機能を更新した場合は、回答生成の終了後に AI タブも再読み込みしてください。',
+    tab_unavailable: '現在のタブからの応答を確認できませんでした。AI タブを前面に出して、もう一度確認してください。',
+    observation_failed: '生成状態を拡張機能が受け付けられませんでした。接続状況を確認して、もう一度確認してください。',
+    worker_unavailable: 'ページから拡張機能への応答を確認できませんでした。もう一度確認し、続く場合は拡張機能と AI タブを再読み込みしてください。',
+    ack_unavailable: 'ページの監視プログラムから、観測の受付結果が返りませんでした。古い版が残っている場合があるため、回答生成の終了後に AI タブを F5 で再読み込みしてください。',
   };
 
   function friendly(code) { return errors[code] || '処理を完了できませんでした。MORI Desk と拡張機能のバージョンを確認してください。'; }
@@ -53,7 +63,15 @@
     if (counts.unknown) line(`${counts.unknown} 件で現在の生成状態を読み取れません。ページの読み込みを待ち、通常のテキスト会話で確認してください。画面変更に追従できない場合も、回答完了とは判定しません。`);
     if (counts.idle) line('待機中のタブは監視プログラムが動いています。HUD に初めて行を出すには、この接続後に質問を送信し、生成中の状態を観測する必要があります。');
     if (counts.settled) line('生成停止を観測したタブでは、回答やエラーの有無を確認してください。停止したことだけでは正常終了とは断定しません。');
-    if (counts.running && result.paired && result.enabled && result.connectionState === 'connected') line('ブラウザでは生成中の状態を読み取れています。MORI Desk の「ブラウザ連携・セッション」で行を確認し、キャラクター下に表示されなければ HUD の表示設定も確認してください。');
+    const delivery = result.observationDelivery;
+    if (delivery) {
+      line(`拡張機能が観測を受け付けたタブ ${delivery.accepted} 件・受け付けられなかったタブ ${delivery.rejected} 件・受付結果が未確認のタブ ${delivery.unconfirmed} 件。`);
+      for (const [reason, count] of Object.entries(delivery.reasons || {})) line(`${count} 件：${friendly(reason)}`);
+    }
+    if (counts.running && result.paired && result.enabled && result.connectionState === 'connected') {
+      if (delivery?.runningAccepted) line(`生成中 ${delivery.runningAccepted} 件の観測を拡張機能が受け付けました。MORI Desk への反映は、アプリの「ブラウザ連携・セッション」で確認できます。`);
+      else line('ページでは生成中ですが、その観測を拡張機能が受け付けたことは確認できていません。上の受付結果を確認してください。');
+    }
     if (result.remainingTabs) line(`負荷を抑えるため、残り ${result.remainingTabs} 件は今回確認していません。不要な AI タブを閉じて、もう一度確認してください。`);
     line('この診断は件数だけを表示し、ページの URL・タイトル・会話本文を保存しません。');
   }

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("mori", {
   focus: (id, noticeSequence) => ipcRenderer.invoke("mori:focus", { id, noticeSequence }),
   ack: (id, noticeSequence) => ipcRenderer.invoke("mori:ack", { id, noticeSequence }),
   dismiss: id => ipcRenderer.invoke("mori:dismiss", { id }),
+  setLabel: (id, label) => ipcRenderer.invoke("mori:set-label", { id, label }),
   revoke: clientId => ipcRenderer.invoke("mori:revoke", { clientId }),
   onChange: callback => {
     const listener = () => callback();

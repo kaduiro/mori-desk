@@ -62,7 +62,7 @@ async function workerFixture() {
           log.push({ type: 'health-probe', id });
           if (tab.noReceiver) throw new Error('no_receiver_PRIVATE_URL');
           await onHealth(tab);
-          return tab.invalidHealth ? {} : { ok: true, v: 1, status: tab.healthState || 'idle' };
+          return tab.invalidHealth ? {} : { ok: true, v: 1, status: tab.healthState || 'idle', observationAck: tab.healthAck };
         }
         const ref = providerUtils.routeForUrl(tab.url)?.conversationRef ?? null;
         return { ok: tab.pageId === message.pageInstanceId && ref === message.conversationRef,
@@ -121,6 +121,38 @@ test('worker rejects forged sources and old documents; only metadata reaches sto
   const records = JSON.stringify({ local: f.local, session: f.session, events: f.transport.events });
   assert.doesNotMatch(records, /PRIVATE_(?:PROMPT|ANSWER|KEY)/);
   assert.deepEqual(f.log.slice(0, 2).map(item => item.value.accessLevel), ['TRUSTED_CONTEXTS', 'TRUSTED_CONTEXTS']);
+});
+
+test('worker does not acknowledge stale or duplicate observations as newly accepted', async () => {
+  const f = await workerFixture();
+  assert.equal((await f.observe({ observedAt: Date.now() - 31000 })).reason, 'old_observation');
+  assert.equal(f.transport.events.length, 0);
+  assert.equal((await f.observe()).ok, true);
+  const before = f.transport.events.length;
+  const previous = structuredClone(f.session.moriSessions);
+  const duplicate = await f.observe({ contentSequence: 2 });
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.reason, 'duplicate_observation');
+  assert.equal(f.transport.events.length, before);
+  assert.deepEqual(f.session.moriSessions, previous);
+});
+
+test('worker returns a capacity refusal for the new tab instead of claiming its observation was accepted', async () => {
+  const f = await workerFixture();
+  f.tabs.clear();
+  for (let id = 1; id <= 21; id++) {
+    const url = `https://chatgpt.com/c/test-${id}`;
+    f.tabs.set(id, { id, windowId: 3, status: 'complete', url, pageId: `page-${id}` });
+    const result = await f.observe({ pageInstanceId: `page-${id}` },
+      { url, tab: { id }, documentId: `document-${id}` });
+    if (id <= 20) assert.equal(result.ok, true);
+    else {
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'capacity');
+    }
+  }
+  assert.equal(Object.keys(f.session.moriSessions.tabs).length, 20);
+  assert.equal(f.transport.events.length, 20);
 });
 
 test('worker writes the offline terminal before sending, replays it before the next turn, and removes only its ACK', async () => {
@@ -232,8 +264,47 @@ test('options health reports metadata-only counts for reload, route, unknown, id
   assert.equal(JSON.stringify({ local: f.local, session: f.session }), beforeStorage);
   assert.deepEqual(f.log.filter(item => item.type === 'health-probe').map(item => item.id), [10, 12, 13, 14, 15]);
   assert.equal(f.transport.events.length, 0);
+  assert.deepEqual(structuredClone(summary.observationDelivery), { accepted: 0, rejected: 0, unconfirmed: 4,
+    runningAccepted: 0, reasons: { ack_unavailable: 4 } });
   assert.equal((await f.dispatch({ type: 'mori.options.health' },
     { id: EXTENSION_ID, frameId: 0, url: 'https://chatgpt.com/c/test' })).unhandled, true);
+});
+
+test('health cannot report accepted generation when the worker rejects the current document; a valid observation recovers', async () => {
+  const f = await workerFixture();
+  const tab = f.tabs.get(7);
+  tab.healthState = 'running';
+  let pageInstanceId = 'old-page';
+  f.healthDuring(async current => { current.healthAck = await f.observe({ pageInstanceId }); });
+  const sender = { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') };
+  const refused = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.equal(refused.counts.running, 1);
+  assert.deepEqual(structuredClone(refused.observationDelivery), { accepted: 0, rejected: 1, unconfirmed: 0,
+    runningAccepted: 0, reasons: { old_document: 1 } });
+  assert.equal(f.transport.events.length, 0);
+  assert.doesNotMatch(JSON.stringify(refused), /old-page|pageInstanceId|documentId|https:|conversationRef/);
+  pageInstanceId = 'page-1';
+  const accepted = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.equal(accepted.counts.running, 1);
+  assert.deepEqual(structuredClone(accepted.observationDelivery), { accepted: 1, rejected: 0, unconfirmed: 0,
+    runningAccepted: 1, reasons: {} });
+  assert.equal(f.transport.events.at(-1).observation, 'fresh');
+});
+
+test('health projects only fixed receipt codes and treats an older observer with no receipt as unconfirmed', async () => {
+  const f = await workerFixture();
+  const tab = f.tabs.get(7);
+  tab.healthState = 'running';
+  tab.healthAck = { ok: false, reason: 'PRIVATE_API_MESSAGE https://chatgpt.com/c/private', title: 'PRIVATE_TITLE' };
+  const sender = { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') };
+  const rejected = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.deepEqual(structuredClone(rejected.observationDelivery), { accepted: 0, rejected: 1, unconfirmed: 0,
+    runningAccepted: 0, reasons: { observation_failed: 1 } });
+  assert.doesNotMatch(JSON.stringify(rejected), /PRIVATE_|https:|private|title/);
+  delete tab.healthAck;
+  const oldObserver = await f.dispatch({ type: 'mori.options.health' }, sender);
+  assert.deepEqual(structuredClone(oldObserver.observationDelivery), { accepted: 0, rejected: 0, unconfirmed: 1,
+    runningAccepted: 0, reasons: { ack_unavailable: 1 } });
 });
 
 test('options health bounds probes at 20 and treats navigation or an old observer as unverified', async () => {

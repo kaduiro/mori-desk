@@ -50,8 +50,13 @@
   }
 
   function sendObservation(message) {
-    try { Promise.resolve(chrome.runtime.sendMessage(message)).catch(handleRuntimeFailure); }
-    catch (error) { handleRuntimeFailure(error); }
+    const unavailable = error => {
+      handleRuntimeFailure(error);
+      return utils.safeObservationAck({ ok: null, reason: 'worker_unavailable' });
+    };
+    try {
+      return Promise.resolve(chrome.runtime.sendMessage(message)).then(utils.safeObservationAck, unavailable);
+    } catch (error) { return Promise.resolve(unavailable(error)); }
   }
 
   function adapterForRoute(value) {
@@ -101,6 +106,7 @@
     const observation = adapter ? adapter.observe(document, location.href) : { supported: false };
     const state = controller.sample(observation, now);
     const signature = JSON.stringify([route?.path, state.status, state.outcome, state.generationToken]);
+    let acknowledgement;
     if (force || signature !== lastSignature || now - lastSentAt >= 10000) {
       lastSignature = signature; lastSentAt = now;
       const message = {
@@ -111,13 +117,14 @@
       // boundary. IDs and the route are verified by the worker from sender.
       // sendMessage can throw synchronously after an extension reload, before
       // a Promise exists. Catch both that case and asynchronous rejections.
-      sendObservation(message);
+      acknowledgement = sendObservation(message);
     }
     if (stopped) return;
     if (controller.isRunning() && !observation.generating && verificationTimeout === null) {
       verificationTimeout = setTimeout(() => { verificationTimeout = null; observe(false); }, 900);
     }
-    return { status: !route ? 'unsupported_route' : !observation.supported ? 'unknown' : state.status };
+    return { status: !route ? 'unsupported_route' : !observation.supported ? 'unknown' : state.status,
+      acknowledgement };
   }
 
   function onStopClick(event) {
@@ -140,9 +147,14 @@
         observe(true); if (!stopped) respond({ ok: true });
       } else if (message?.type === 'mori.health.check') {
         const result = observe(true);
-        // Diagnostic replies contain categories only, never page content or
-        // route/document identifiers. The worker bounds and aggregates probes.
-        if (!stopped) respond({ ok: true, v: 1, status: result?.status || 'unknown' });
+        // Wait for this exact observation's worker receipt. Reading a running
+        // control alone does not prove that the current document was accepted.
+        // Replies still contain categories only, never page content or IDs.
+        Promise.resolve(result?.acknowledgement).then(ack => {
+          if (!stopped) respond({ ok: true, v: 1, status: result?.status || 'unknown',
+            observationAck: utils.safeObservationAck(ack) });
+        });
+        return true;
       } else if (message?.type === 'mori.focus.check') {
         const current = utils.routeForUrl(location.href);
         respond({

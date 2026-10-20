@@ -273,6 +273,7 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     },
     async ack(id, noticeSequence) { return store ? store.ack(id, noticeSequence) : { ok: false, reason: "bridge_unavailable" }; },
     async dismiss(id) { return store ? store.dismiss(id) : { ok: false, reason: "bridge_unavailable" }; },
+    async setLabel(id, label) { return store ? store.setLabel(id, label) : { ok: false, reason: "bridge_unavailable" }; },
     async revoke(clientId) {
       if (!auth || !store || !isId(clientId)) return { ok: false, reason: "invalid_client" };
       auth.removeClient(clientId); // Revoke first; a later metadata failure cannot leave access active.

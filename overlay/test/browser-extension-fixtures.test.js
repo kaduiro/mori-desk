@@ -103,7 +103,7 @@ test('synthetic scoped ChatGPT text conversations use the same controls; an empt
   assert.equal(chatgpt.observe(otherLayout, 'https://chatgpt.com/g/g-custom').generating, false);
 });
 
-test('content observer rotates its opaque identity between empty scopes, retains assignment, and reports health without page data', () => {
+test('content observer rotates its opaque identity between empty scopes, retains assignment, and reports health without page data', async () => {
   const messages = [];
   const listeners = [];
   const root = {};
@@ -132,9 +132,14 @@ test('content observer rotates its opaque identity between empty scopes, retains
     listeners[0](message, { id: 'test-extension' }, value => { response = structuredClone(value); });
     return response;
   };
+  const health = () => new Promise(resolve => {
+    assert.equal(listeners[0]({ type: 'mori.health.check' }, { id: 'test-extension' },
+      value => resolve(structuredClone(value))), true);
+  });
+  const received = status => ({ ok: true, v: 1, status, observationAck: { ok: true, reason: null } });
   const a = messages.at(-1);
   assert.equal(a.status, 'running');
-  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'running' });
+  assert.deepEqual(await health(), received('running'));
   location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B';
   // The focus check arrives before MutationObserver / the scheduled sample.
   // Both empty scopes have null conversation IDs, so compare the local route.
@@ -152,9 +157,9 @@ test('content observer rotates its opaque identity between empty scopes, retains
   assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: b.pageInstanceId,
     conversationRef: '/c/opaque-conversation' }).ok, true);
   fixture = fixtureDocument('<main><div data-new-layout="true">PRIVATE_REPLY</div></main>');
-  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'unknown' });
+  assert.deepEqual(await health(), received('unknown'));
   location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_B/edit';
-  assert.deepEqual(dispatch({ type: 'mori.health.check' }), { ok: true, v: 1, status: 'unsupported_route' });
+  assert.deepEqual(await health(), received('unsupported_route'));
   fixture = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true"></div>'
     + '<button data-testid="stop-button"></button></main>');
   location.href = 'https://chatgpt.com/g/g-PRIVATE_SCOPE_C';
@@ -182,6 +187,7 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   const messages = [];
   let nextTimer = 0;
   let failure = null;
+  let reply = { ok: true };
   let activeObserver = false;
   let observedTarget = null;
   let observedOptions = null;
@@ -217,7 +223,7 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
       messages.push(structuredClone(message));
       if (failure?.kind === 'sync') throw new Error(failure.message);
       if (failure?.kind === 'async') return Promise.reject(new Error(failure.message));
-      return Promise.resolve({ ok: true });
+      return Promise.resolve(typeof reply === 'function' ? reply(message) : reply);
     },
   };
   const context = vm.createContext({
@@ -243,6 +249,14 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   return {
     messages, timeouts, intervals, runtime,
     fail: value => { failure = value; },
+    reply: value => { reply = value; },
+    health: () => new Promise(resolve => {
+      for (const listener of runtimeListeners) {
+        if (listener({ type: 'mori.health.check' }, { id: runtime.id },
+          value => resolve(structuredClone(value))) === true) return;
+      }
+      resolve(null);
+    }),
     showLayout: value => { layout = value; },
     mutate: () => mutationCallback(),
     mutateOutsideMain(attributeName) {
@@ -317,6 +331,52 @@ test('temporary content message failures preserve the observer and recover on th
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.messages.length, beforeRecovery + 1);
   assert.equal(f.activeObserver, true);
+});
+
+test('health preserves the running DOM state but reports a rejected document receipt and recovers without broadening identity', async () => {
+  const f = contentLifecycleFixture('running');
+  f.reply({ ok: false, reason: 'old_document', private: 'PRIVATE_ACK_DATA' });
+  const rejected = await f.health();
+  assert.equal(rejected.status, 'running');
+  assert.deepEqual(rejected.observationAck, { ok: false, reason: 'old_document' });
+  assert.equal(f.activeObserver, true);
+  assert.equal(f.intervals.size, 1);
+  assert.doesNotMatch(JSON.stringify(rejected), /PRIVATE_|pageInstanceId|contentSequence|generationToken/);
+  f.reply({ ok: true });
+  assert.deepEqual((await f.health()).observationAck, { ok: true, reason: null });
+  assert.equal(f.messages.every(message => message.status === 'running'), true);
+});
+
+test('health binds its receipt to its own observation even when the replies arrive out of order', async () => {
+  const f = contentLifecycleFixture('running');
+  const receipts = [];
+  f.reply(() => new Promise(resolve => receipts.push(resolve)));
+  const first = f.health();
+  const second = f.health();
+  assert.equal(receipts.length, 2);
+  receipts[1]({ ok: true });
+  assert.deepEqual((await second).observationAck, { ok: true, reason: null });
+  receipts[0]({ ok: false, reason: 'old_document' });
+  assert.deepEqual((await first).observationAck, { ok: false, reason: 'old_document' });
+});
+
+test('health distinguishes missing worker receipts from acceptance and never exposes exception text', async () => {
+  const f = contentLifecycleFixture('running');
+  f.reply(undefined);
+  assert.deepEqual((await f.health()).observationAck, { ok: null, reason: 'ack_unavailable' });
+  f.reply({ ok: false, reason: 'PRIVATE_SERVER_ERROR https://chatgpt.com/c/private' });
+  const rejected = await f.health();
+  assert.deepEqual(rejected.observationAck, { ok: false, reason: 'observation_failed' });
+  assert.doesNotMatch(JSON.stringify(rejected), /PRIVATE_|https:|private/);
+  for (const kind of ['sync', 'async']) {
+    f.fail({ kind, message: 'PRIVATE_API_FAILURE https://chatgpt.com/c/private' });
+    const unavailable = await f.health();
+    assert.deepEqual(unavailable.observationAck, { ok: null, reason: 'worker_unavailable' });
+    assert.doesNotMatch(JSON.stringify(unavailable), /PRIVATE_|https:|private/);
+    assert.equal(f.activeObserver, true);
+  }
+  f.fail(null); f.reply({ ok: true });
+  assert.deepEqual((await f.health()).observationAck, { ok: true, reason: null });
 });
 
 test('a missing extension runtime ID stops the observer before another API call', () => {

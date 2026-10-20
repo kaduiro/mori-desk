@@ -1,3 +1,31 @@
 :root{font-family:system-ui,"Yu Gothic UI",sans-serif;color:#243d30;background:#f5f6ee;color-scheme:light}*{box-sizing:border-box}body{margin:0}main{max-width:850px;margin:auto;padding:30px}header,.section-heading,.actions,.session-top{display:flex;align-items:center;justify-content:space-between;gap:12px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:2px;color:#60806d}h1{font-size:27px;margin:8px 0}h2{font-size:17px;margin:0 0 14px}p,li{font-size:13px;line-height:1.8}.intro{color:#62756a;margin:8px 0 24px}section{background:#fff;border:1px solid #dce4d5;border-radius:17px;padding:22px;margin:18px 0;box-shadow:0 4px 18px #243d3005}ol{padding-left:22px;color:#536459}li{margin:8px 0}.actions{justify-content:flex-start;flex-wrap:wrap}button{font:inherit;font-size:12px;font-weight:650;cursor:pointer;border:1px solid #cbd7c5;border-radius:9px;padding:10px 14px;background:#f8faf4;color:#274b35}button.primary{background:#356448;color:white;border-color:#356448}button:hover{filter:brightness(.96)}button:disabled{opacity:.5;cursor:wait}button:focus-visible{outline:3px solid #74b084;outline-offset:3px}.badge{white-space:nowrap;background:#e7edde;border-radius:20px;padding:8px 13px;font-size:12px}#pairing{margin-top:18px}label{display:block;font-size:12px;color:#62756a}textarea{display:block;width:100%;resize:none;background:#f4f7ef;color:#344a3b;border:1px solid #dce4d5;border-radius:8px;margin:8px 0;padding:10px;font:11px monospace}#status{min-height:20px;color:#586f5e;margin-bottom:0}.session{padding:15px 0;border-top:1px solid #e5ebe0}.session:first-child{border-top:0}.session-name{font-size:14px;font-weight:650}.session-state{font-size:12px;color:#5a7162}.session-actions{display:flex;gap:8px;margin-top:10px}.session-unread{font-size:11px;color:#704f11;background:#fff1c7;padding:4px 8px;border-radius:6px}.section-heading h2{margin:0}#count{font-size:12px;color:#708171}footer{color:#718073}footer p{font-size:11px}code{font-size:12px}
 
 .connection-summary{background:#eaf0e2;border:1px solid #d7e1cd;border-radius:12px;padding:12px 16px}.connection-summary p{margin:0}#server-detail{font-size:11px;color:#647964;margin-top:5px}.badge[data-state="ready"]{background:#d9ebd5;color:#285135}.badge[data-state="unavailable"]{background:#fbe4dc;color:#874b3c}
+
+[hidden]{display:none!important}
+.session-intro{color:#62756a;margin:10px 0 16px}
+.session{padding:20px 0;scroll-margin-top:18px}
+.session-selected{background:#f3f8ed;box-shadow:0 0 0 12px #f3f8ed;border-radius:5px}
+.session-top{flex-wrap:wrap;justify-content:flex-start;align-items:center}
+.session-heading{flex:1;min-width:180px;overflow-wrap:anywhere}
+.session-name{margin:0;font-size:16px;line-height:1.5}
+.session-source{font-size:11px;color:#718073}
+.session-top>.session-state{border-radius:7px;background:#eff3e9;padding:5px 8px}
+.session[data-status="unknown"] .session-top>.session-state,.session[data-status="unsupported"] .session-top>.session-state{background:#fff1d5;color:#7a5a19}
+.session[data-status="generating"] .session-top>.session-state{background:#dff0da;color:#2b6237}
+.session-detail{margin:12px 0 6px}
+.session-recovery{margin:6px 0 12px;padding:10px 12px;background:#fff7e7;border-left:3px solid #d6b368;color:#715725}
+.session-metadata{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 22px;margin:16px 0;font-size:12px}
+.session-metadata div{min-width:0}
+.session-metadata dt{font-size:11px;color:#718073;margin-bottom:3px}
+.session-metadata dd{margin:0;overflow-wrap:anywhere}
+.session-actions{flex-wrap:wrap}
+.session-navigation-hint{margin:8px 0;font-size:12px;color:#80602a}
+.session-label-editor{display:flex;align-items:flex-end;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #e5ebe0}
+.session-label-field{flex:1;min-width:0}
+.session-label-input{display:block;width:100%;margin-top:6px;border:1px solid #cbd7c5;border-radius:8px;padding:10px;background:#fff;color:#243d30;font:13px system-ui,"Yu Gothic UI",sans-serif}
+.session-label-input:focus{outline:2px solid #74b084;outline-offset:1px}
+.session-label-editor button{white-space:nowrap}
+.session-label-hint{font-size:11px;color:#718073;margin:7px 0 0}
+button:disabled{cursor:default}
+@media(max-width:660px){main{padding:22px}.session-metadata{gap:10px 12px}.session-label-editor{flex-wrap:wrap}.session-label-field{flex-basis:100%}}

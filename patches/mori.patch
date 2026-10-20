@@ -7,7 +7,7 @@ index d177f08..91dbb6f 100644
 -  "name": "clawd-on-desk",
 -  "version": "1.3.0",
 +  "name": "mori-desk",
-+  "version": "0.1.1-preview.1",
++  "version": "0.1.2-preview.1",
    "lockfileVersion": 3,
    "requires": true,
    "packages": {
@@ -15,7 +15,7 @@ index d177f08..91dbb6f 100644
 -      "name": "clawd-on-desk",
 -      "version": "1.3.0",
 +      "name": "mori-desk",
-+      "version": "0.1.1-preview.1",
++      "version": "0.1.2-preview.1",
        "hasInstallScript": true,
        "license": "AGPL-3.0-only",
        "dependencies": {
@@ -29,7 +29,7 @@ index e7a7fc7..1c2f835 100644
 -  "version": "1.3.0",
 -  "description": "A desktop pet that reacts to your Claude Code sessions in real-time.",
 +  "name": "mori-desk",
-+  "version": "0.1.1-preview.1",
++  "version": "0.1.2-preview.1",
 +  "description": "A desktop companion showing browser AI and CLI session progress.",
    "main": "src/main.js",
    "scripts": {
@@ -837,16 +837,15 @@ index dbbe64e..2db0e48 100644
        "cursor-agent": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
        "gemini-cli": { integrationInstalled: false, enabled: false, permissionsEnabled: true, notificationHookEnabled: true },
 diff --git a/src/preload-session-hud.js b/src/preload-session-hud.js
-index 2e0f3a8..9531dd9 100644
 --- a/src/preload-session-hud.js
 +++ b/src/preload-session-hud.js
-@@ -20,6 +20,9 @@ ipcRenderer.on("session-hud:lang-change", (_event, payload) => {
+@@ -20,6 +20,9 @@
  contextBridge.exposeInMainWorld("sessionHudAPI", {
    getI18n: () => ipcRenderer.invoke("session-hud:get-i18n"),
    focusSession: (sessionId) => ipcRenderer.send("session-hud:focus-session", sessionId),
 +  focusBrowser: (id, noticeSequence) => ipcRenderer.invoke("mori:focus", { id, noticeSequence }),
 +  ackBrowser: (id, noticeSequence) => ipcRenderer.invoke("mori:ack", { id, noticeSequence }),
-+  openBrowserPanel: () => ipcRenderer.invoke("mori:open-panel"),
++  openBrowserPanel: (id) => ipcRenderer.invoke("mori:open-panel", typeof id === "string" ? { id } : undefined),
    openSessionFolder: (sessionId) => ipcRenderer.invoke("session-hud:open-session-folder", sessionId),
    openDashboard: () => ipcRenderer.send("session-hud:open-dashboard"),
    setPinned: (value) => ipcRenderer.send("session-hud:set-pinned", !!value),
@@ -923,20 +922,19 @@ index 4153d77..64b0c1d 100644
      && entry.agentId === "codex"
      && isCodexDesktopOriginator(entry.codexOriginator || entry.originator);
 diff --git a/src/session-hud-renderer.js b/src/session-hud-renderer.js
-index e5bf008..6390324 100644
 --- a/src/session-hud-renderer.js
 +++ b/src/session-hud-renderer.js
 @@ -1,6 +1,7 @@
  "use strict";
- 
+
  const { canOfferLocalFolder, focusUnavailableReasonKey } = globalThis.ClawdSessionFocusUnavailable;
 +const { getMoriHudStatus } = globalThis.MoriHudStatus;
- 
+
  const HUD_MAX_EXPANDED_ROWS = 3;
  const HUD_MAX_EXPANDED_ROWS_LABELS = 5;
-@@ -127,6 +128,9 @@ function makeChipInfo(entry) {
+@@ -127,6 +128,9 @@
  }
- 
+
  function stateChipInfo(session) {
 +  if (session && session.source === "browser") {
 +    return { label: session.statusLabel || "状態を確認", cls: session.phase === "running" && session.observation === "fresh" ? "chip-working" : "chip-notification" };
@@ -944,7 +942,7 @@ index e5bf008..6390324 100644
    if (snapshot.hudShowStateLabels === false) {
      return session && session.startupRecovered
        ? { label: t("sessionRecovered"), cls: "chip-recovered" }
-@@ -192,6 +196,11 @@ function updateUnread(sessions) {
+@@ -192,6 +196,11 @@
      if (!currentIds.has(id)) unreadSessions.delete(id);
    }
    for (const session of sessions) {
@@ -956,23 +954,81 @@ index e5bf008..6390324 100644
      const prev = prevBadges.get(session.id);
      const curr = session.badge;
      if (curr !== "done") {
-@@ -303,7 +312,7 @@ function createRowForSession(session, now) {
+@@ -221,7 +230,15 @@
+ }
+
+ function focusUnavailableTooltip(session) {
++  if (session?.source === "browser") return session.focusUnavailableReason || "ブラウザとの接続を確認してください。詳細から状態を確認できます。";
+   return t(focusUnavailableReasonKey(session));
++}
++
++async function openBrowserDetails(session) {
++  try {
++    const result = await window.sessionHudAPI.openBrowserPanel(session.id);
++    if (!result?.ok) showSessionFeedback(session.id, "詳細を開けませんでした。設定からブラウザ連携を開いてください。");
++  } catch { showSessionFeedback(session.id, "詳細を開けませんでした。設定からブラウザ連携を開いてください。"); }
+ }
+
+ function showSessionFeedback(sessionId, message) {
+@@ -260,6 +277,11 @@
+     row.classList.add("row-unfocusable");
+     row.title = focusUnavailableTooltip(session);
+   }
++  if (session.source === "browser") {
++    row.classList.add("row-browser");
++    row.title = [titleFor(session), session.statusLabel, session.statusDetail,
++      session.focusUnavailableReason, session.recoveryHint].filter(Boolean).join("\n");
++  }
+
+   const left = document.createElement("div");
+   left.className = "left";
+@@ -303,7 +325,7 @@
    right.className = "right";
    let hasRightContent = false;
- 
+
 -  if (!feedbackText && session.badge === "done" && unreadSessions.has(session.id)) {
 +  if (!feedbackText && (session.badge === "done" || session.source === "browser") && unreadSessions.has(session.id)) {
      const bell = document.createElement("span");
      bell.className = "completion-bell unread-bell";
      bell.innerHTML = BELL_SVG;
-@@ -389,7 +398,16 @@ function createRowForSession(session, now) {
+@@ -362,6 +384,7 @@
+     const chip = document.createElement("span");
+     chip.className = `state-chip ${chipInfo.cls}`;
+     chip.textContent = chipInfo.label;
++    if (session.source === "browser") chip.title = [session.statusDetail, session.recoveryHint].filter(Boolean).join("\n");
+     right.appendChild(chip);
+     hasRightContent = true;
+   }
+@@ -386,10 +409,38 @@
+     hasRightContent = true;
+   }
+
++  if (session.source === "browser") {
++    const details = document.createElement("button");
++    details.type = "button";
++    details.className = "browser-details-button";
++    details.textContent = "詳細";
++    details.title = "セッションの名前・状態・接続を確認";
++    details.setAttribute("aria-label", `${titleFor(session)} の詳細`);
++    details.addEventListener("click", async (event) => {
++      event.stopPropagation();
++      await openBrowserDetails(session);
++    });
++    right.appendChild(details);
++    hasRightContent = true;
++  }
++
    row.appendChild(left);
    if (hasRightContent) row.appendChild(right);
- 
+
 -  row.addEventListener("click", () => {
 +  row.addEventListener("click", async () => {
 +    if (session.source === "browser") {
-+      if (!canFocus) { showSessionFeedback(session.id, "接続を確認してください。未確認の通知は保持されます。"); return; }
++      if (!canFocus) {
++        showSessionFeedback(session.id, focusUnavailableTooltip(session));
++        await openBrowserDetails(session);
++        return;
++      }
 +      const sequence = session.pendingNotice?.noticeSequence ?? session.noticeSequence ?? null;
 +      try {
 +        const result = await window.sessionHudAPI.focusBrowser(session.id, sequence);
@@ -983,18 +1039,18 @@ index e5bf008..6390324 100644
      unreadSessions.delete(session.id);
      if (canFocus) {
        render();
-@@ -429,12 +447,41 @@ function createFoldedRow(count) {
+@@ -429,10 +480,39 @@
    row.appendChild(left);
- 
+
    row.addEventListener("click", () => {
 -    window.sessionHudAPI.openDashboard();
 +    if (snapshot.sessions.some(entry => entry.source === "browser")) window.sessionHudAPI.openBrowserPanel();
 +    else window.sessionHudAPI.openDashboard();
    });
- 
+
    return row;
- }
- 
++}
++
 +function createBrowserStatusNotice(status) {
 +  const button = document.createElement("button");
 +  button.type = "button";
@@ -1021,12 +1077,10 @@ index e5bf008..6390324 100644
 +    }
 +  });
 +  return button;
-+}
-+
+ }
+
  function createPinButton(pinned) {
-   const btn = document.createElement("button");
-   btn.type = "button";
-@@ -464,9 +511,16 @@ function render() {
+@@ -464,9 +544,16 @@
    updateUnread(sessions);
    hudEl.replaceChildren();
    hudEl.classList.add("has-pin");
@@ -1043,17 +1097,36 @@ index e5bf008..6390324 100644
 +    }
 +    return;
 +  }
- 
+
    const now = Date.now();
    const { expanded, folded } = splitHudLayout(sessions);
 diff --git a/src/session-hud.html b/src/session-hud.html
-index de11acd..cee12da 100644
 --- a/src/session-hud.html
 +++ b/src/session-hud.html
-@@ -117,6 +117,15 @@ body { padding: 2px 3px 8px; }
-   background: rgba(0, 0, 0, 0.06);
+@@ -113,8 +113,33 @@
+   cursor: default;
  }
- 
+
++.row-browser { cursor: pointer; }
++
++.browser-details-button {
++  flex: 0 0 auto;
++  padding: 2px 4px;
++  border: 1px solid var(--hud-border);
++  border-radius: 4px;
++  color: var(--text-muted);
++  background: transparent;
++  font: inherit;
++  font-size: 10px;
++  cursor: pointer;
++}
++.browser-details-button:hover { color: var(--text); background: rgba(128, 128, 128, 0.12); }
++.browser-details-button:focus-visible { outline: 2px solid var(--running); outline-offset: 1px; }
++
+ .row:hover {
+   background: rgba(0, 0, 0, 0.06);
++}
++
 +.row-browser-status {
 +  width: 100%;
 +  border: none;
@@ -1061,12 +1134,10 @@ index de11acd..cee12da 100644
 +  color: var(--text);
 +  font: inherit;
 +  text-align: left;
-+}
-+
+ }
+
  @media (prefers-color-scheme: dark) {
-   .row:hover {
-     background: rgba(255, 255, 255, 0.08);
-@@ -339,6 +348,7 @@ body { padding: 2px 3px 8px; }
+@@ -339,6 +364,7 @@
  <body>
    <div id="hud" class="hud"></div>
    <script src="./session-focus-unavailable.js"></script>
