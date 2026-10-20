@@ -128,7 +128,8 @@ test("closed or disconnected rows show observation loss while retaining prior un
   const id = f.store.getSnapshot()[0].id;
   f.store.disconnect("client-1", "run-1");
   let row = f.store.getSnapshot()[0];
-  assert.equal(row.statusLabel, "状態を確認できません");
+  assert.equal(row.statusLabel, "ブラウザ未接続");
+  assert.equal(row.statusReason, "disconnected");
   assert.equal(row.pendingNotice.outcome, "unverified");
   f.store.connect("client-1", "run-1");
   f.store.ingest("client-1", f.event({ sequence: 3, kind: "closed", phase: "settled", outcome: "unverified", observation: "closed" }));
@@ -250,4 +251,98 @@ test("reconnect and replayed invalidation never freshen prior DOM evidence", (t)
   assert.equal(f.store.getSnapshot()[0].lastObservationAt, started.lastObservationAt);
   f.store.ingest("client-1", f.event({ sequence: 3, routeRevision: 1 }));
   assert.equal(f.store.getSnapshot()[0].status, "generating");
+});
+
+test("unknown state explains disconnected, restarted, reobserving and expired evidence independently", (t) => {
+  const f = fixture(t);
+  f.store.ingest("client-1", f.terminal({ outcome: "unverified" }));
+  const original = f.store.getSnapshot()[0];
+  f.store.disconnect("client-1", "run-1");
+  let row = f.store.getSnapshot()[0];
+  assert.equal(row.statusReason, "disconnected");
+  assert.equal(row.canFocus, false);
+  assert.match(row.focusUnavailableReason, /接続/);
+  assert.match(row.recoveryHint, /拡張機能/);
+
+  f.store.connect("client-1", "run-2");
+  row = f.store.getSnapshot()[0];
+  assert.equal(row.statusReason, "browser_restarted");
+  assert.equal(row.canFocus, false);
+  assert.equal(f.store.getFocusTarget(row.id), null);
+  assert.match(row.statusDetail, /保存された記録/);
+
+  f.store.connect("client-1", "run-1");
+  row = f.store.getSnapshot()[0];
+  assert.equal(row.statusReason, "awaiting_observation");
+  assert.equal(row.canFocus, true);
+  assert.equal(row.focusUnavailableReason, "");
+  f.store.ingest("client-1", f.event({ sequence: 3, phase: "settled", outcome: "unverified" }));
+  f.advance(STALE_MS + 1);
+  f.store.heartbeat("client-1");
+  row = f.store.getSnapshot()[0];
+  assert.equal(row.statusReason, "observation_expired");
+  assert.match(row.statusDetail, /90 秒/);
+  assert.equal(row.canFocus, true);
+  assert.equal(row.lastObservationAt, original.lastObservationAt);
+  assert.equal(row.requiresCompletionAck, true);
+  assert.equal(row.noticeSequence, original.noticeSequence);
+  assert.equal(row.outcome, "unverified");
+
+  f.store.ingest("client-1", f.event({ sequence: 4, phase: "settled", outcome: "unverified", observation: "stale" }));
+  assert.equal(f.store.getSnapshot()[0].statusReason, "observation_stale");
+});
+
+test("unsupported controls keep exact-tab navigation without claiming generation or acknowledging unread", (t) => {
+  const f = fixture(t);
+  f.store.ingest("client-1", f.terminal({ outcome: "unverified" }));
+  const original = f.store.getSnapshot()[0];
+  f.store.ingest("client-1", f.event({ sequence: 3, phase: "settled", outcome: "unverified", observation: "unsupported" }));
+  const row = f.store.getSnapshot()[0];
+  assert.equal(row.status, "unsupported");
+  assert.equal(row.statusReason, "unsupported");
+  assert.equal(row.canFocus, true);
+  assert.equal(row.focusUnavailableReason, "");
+  assert.equal(row.requiresCompletionAck, true);
+  const target = f.store.getFocusTarget(row.id, original.noticeSequence);
+  assert.equal(target.tabId, original.tabId);
+  assert.equal(target.pageInstanceId, original.pageInstanceId);
+  assert.equal(target.noticeSequence, original.noticeSequence);
+  assert.equal(f.store.matchesFocusTarget(target), true);
+  f.store.ingest("client-1", f.event({ sequence: 4, phase: "settled", outcome: "unverified", observation: "unsupported", pageInstanceId: "next-document" }));
+  assert.equal(f.store.matchesFocusTarget(target), false);
+  assert.equal(f.store.getSnapshot()[0].unreadCount, 1);
+  f.store.disconnect("client-1", "run-1");
+  assert.equal(f.store.getSnapshot()[0].statusReason, "disconnected");
+  assert.equal(f.store.getSnapshot()[0].statusLabel, "ブラウザ未接続");
+  f.store.connect("client-1", "run-2");
+  assert.equal(f.store.getSnapshot()[0].statusReason, "browser_restarted");
+  assert.equal(f.store.getSnapshot()[0].canFocus, false);
+});
+
+test("explicit local names persist per row without changing identity, timestamps, phase or unread receipts", (t) => {
+  const f = fixture(t);
+  f.store.ingest("client-1", f.terminal({ outcome: "unverified" }));
+  f.store.ingest("client-1", f.event({ sessionId: "session-2", tabId: 2 }));
+  const original = f.store.getSnapshot().find(row => row.tabId === 1);
+  assert.deepEqual(f.store.setLabel(original.id, "  営業資料の作成  "), { ok: true });
+  let row = f.store.getSnapshot().find(row => row.id === original.id);
+  assert.equal(row.customLabel, "営業資料の作成");
+  assert.equal(row.displayTitle, row.customLabel);
+  assert.equal(row.label, "ChatGPT 1");
+  for (const key of ["id", "tabId", "pageInstanceId", "routeRevision", "conversationRef", "phase", "outcome", "noticeSequence", "lastObservationAt", "phaseChangedAt", "updatedAt"]) assert.equal(row[key], original[key], key);
+  assert.equal(f.store.getSnapshot().find(item => item.tabId === 2).displayTitle, "ChatGPT 2");
+
+  const restarted = createBrowserSessionStore({ dataDir: f.dataDir, now: f.now });
+  row = restarted.getSnapshot().find(item => item.id === original.id);
+  assert.equal(row.customLabel, "営業資料の作成");
+  assert.equal(row.requiresCompletionAck, true);
+  assert.equal(row.statusReason, "disconnected");
+  assert.deepEqual(restarted.setLabel(row.id, ""), { ok: true });
+  assert.equal(restarted.getSnapshot().find(item => item.id === row.id).displayTitle, "ChatGPT 1");
+
+  const beforeInvalid = fs.readFileSync(path.join(f.dataDir, "sessions.json"), "utf8");
+  for (const invalid of ["x".repeat(81), "line\nbreak", "control\u0000", 42, null]) assert.deepEqual(restarted.setLabel(row.id, invalid), { ok: false, reason: "invalid_label" });
+  assert.equal(fs.readFileSync(path.join(f.dataDir, "sessions.json"), "utf8"), beforeInvalid);
+  assert.deepEqual(restarted.setLabel("missing-session", "名前"), { ok: false, reason: "session_missing" });
+  assert.throws(() => f.store.ingest("client-1", { ...f.event({ sequence: 3 }), customLabel: "from-browser" }));
 });

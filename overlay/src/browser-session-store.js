@@ -7,6 +7,12 @@ const STALE_MS = 90 * 1000;
 const MAX_ACTIVE = 20;
 const MAX_SESSIONS = 200;
 const MAX_RECEIPTS = 4096;
+const MAX_CUSTOM_LABEL_LENGTH = 80;
+
+function isCustomLabel(value) {
+  return typeof value === "string" && value.length <= MAX_CUSTOM_LABEL_LENGTH
+    && value === value.trim() && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+}
 
 function eventFingerprint(event) {
   const { replay: _replay, ...body } = event;
@@ -34,6 +40,7 @@ function validateStore(value) {
       || (row.currentTurnId !== null && !isId(row.currentTurnId))
       || (row.outcome !== null && !["completed", "interrupted", "error", "unverified"].includes(row.outcome))
       || typeof row.label !== "string" || !/^(ChatGPT|Claude) [1-9][0-9]{0,9}$/.test(row.label)
+      || (row.customLabel !== undefined && !isCustomLabel(row.customLabel))
       || typeof row.dismissed !== "boolean"
       || !["idle", "running", "settled"].includes(row.phase)
       || !["fresh", "stale", "closed", "unsupported"].includes(row.observation)) throw new Error("Invalid browser session record");
@@ -63,10 +70,45 @@ function pendingReceipts(data, row) {
 }
 
 function effectiveObservation(row, now, activeRuns, restored) {
-  if (row.observation === "closed" || row.observation === "unsupported") return row.observation;
-  if (restored.has(row.id) || activeRuns.get(row.clientId) !== row.browserRunId
+  if (row.observation === "closed") return "closed";
+  if (activeRuns.get(row.clientId) !== row.browserRunId) return "stale";
+  if (row.observation === "unsupported") return "unsupported";
+  if (restored.has(row.id)
     || row.observation !== "fresh" || !row.lastObservationAt || now - row.lastObservationAt > STALE_MS) return "stale";
   return "fresh";
+}
+
+function observationDetails(row, status, now, activeRuns, restored) {
+  const activeRun = activeRuns.get(row.clientId);
+  let reason = status;
+  if (status === "unknown") {
+    if (!activeRun) reason = "disconnected";
+    else if (activeRun !== row.browserRunId) reason = "browser_restarted";
+    else if (restored.has(row.id) || !row.lastObservationAt) reason = "awaiting_observation";
+    else if (row.observation !== "fresh") reason = "observation_stale";
+    else if (now - row.lastObservationAt > STALE_MS) reason = "observation_expired";
+  }
+  const messages = {
+    disconnected: ["ブラウザ未接続", "このセッションを通知していた拡張機能との接続が切れています。保存済みの状態を表示しています。", "Chrome と Mori Desk を起動し、拡張機能の設定で接続状態を確認してください。"],
+    browser_restarted: ["再起動前のセッション", "この行は、現在接続中のブラウザとは別の起動時に保存された記録です。", "現在の AI タブを再読み込みし、新しく表示される行を確認してください。この行の未確認通知は保持されます。"],
+    awaiting_observation: ["タブの状態を再取得中", "ブラウザは接続していますが、このタブの新しい状態をまだ受信していません。", "AI タブを表示し、状態が更新されない場合はタブを再読み込みしてください。拡張機能の「表示されない原因を確認」でも採用状況を調べられます。"],
+    observation_stale: ["タブの状態を再取得中", "ページの切り替えなどにより、以前の観測を現在の状態として扱えません。", "対象の AI タブを表示し、必要に応じて再読み込みしてください。"],
+    observation_expired: ["タブの状態更新が停止", "ブラウザとの接続はありますが、90 秒を超えてこのタブの新しい状態を受信していません。", "AI タブを表示し、状態が更新されない場合は再読み込みしてください。拡張機能の「表示されない原因を確認」で観測の採用結果を確認できます。"],
+    unsupported: ["この画面には未対応", "このタブの画面から生成状態を判定できません。正常終了を確認したという意味ではありません。", "「タブへ戻る」で回答を確認してください。拡張機能の「表示されない原因を確認」で観測結果を調べられます。"],
+    closed: ["タブを閉じました", "対象タブを閉じたため、保存済みの状態を表示しています。未確認の通知は保持されます。", "必要な回答をブラウザの履歴から確認してください。不要になった記録は一覧から削除できます。"],
+    idle: ["待機中", "このタブの待機状態を受信しています。", ""],
+    generating: ["生成中", "このタブの画面から生成中の状態を受信しています。", ""],
+    completed: ["回答完了", "完了の通知を受信しました。回答は元のタブで確認できます。", ""],
+    interrupted: ["生成を中断", "生成の中断を観測しました。回答は元のタブで確認してください。", ""],
+    error: ["エラー", "AI の画面でエラーを観測しました。内容は元のタブで確認してください。", ""],
+    unverified: ["回答を確認", "生成中の表示が消えました。正常終了は確定していないため、元のタブで回答を確認してください。", ""],
+  };
+  const [label, detail, recoveryHint] = messages[reason] || ["状態を確認できません", "このタブの新しい状態を確認できません。", "対象タブと拡張機能の接続状態を確認してください。"];
+  const focusUnavailableReason = row.observation === "closed" ? "対象のタブは閉じられています。"
+    : !activeRun ? "ブラウザとの接続がないため、タブへ戻れません。詳細で接続状態を確認してください。"
+    : activeRun !== row.browserRunId ? "再起動前の記録です。現在のタブを再読み込みして、新しい行を確認してください。"
+    : "";
+  return { statusReason: reason, statusLabel: label, statusDetail: detail, recoveryHint, focusUnavailableReason };
 }
 
 function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
@@ -80,25 +122,25 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
   else if (!fresh) status = "unknown";
   else if (row.phase === "running") status = "generating";
   else if (row.phase === "settled" && row.outcome) status = row.outcome;
-  const labels = {
-    idle: "待機中", generating: "生成中", completed: pending ? "回答完了・未確認" : "回答完了",
-    interrupted: "生成を中断", error: "エラー", unverified: "回答を確認",
-    unknown: "状態を確認できません", unsupported: "この画面には未対応", closed: "タブを閉じました",
-  };
+  const details = observationDetails(row, status, now, activeRuns, restored);
+  if (status === "completed" && pending) details.statusLabel = "回答完了・未確認";
+  const displayTitle = row.customLabel || row.label;
   return {
     id: row.id, source: "browser", platform: "webui", agentId: `browser-${row.provider}`,
-    provider: row.provider, label: row.label, sessionTitle: row.label, displayTitle: row.label,
+    provider: row.provider, label: row.label, customLabel: row.customLabel || "", sessionTitle: displayTitle, displayTitle,
     clientId: row.clientId, browserRunId: row.browserRunId, sessionId: row.sessionId,
     tabId: row.tabId, pageInstanceId: row.pageInstanceId, routeRevision: row.routeRevision,
     conversationRef: row.conversationRef, currentTurnId: row.currentTurnId, generation: row.generation,
-    phase: row.phase, outcome: row.outcome, observation, status, statusLabel: labels[status],
+    phase: row.phase, outcome: row.outcome, observation, status, ...details,
     state: status === "generating" ? "working" : status === "error" ? "error" : pending ? "attention" : "idle",
     badge: status === "generating" ? "running" : status === "unknown" ? "unknown" : status === "error" ? "error" : row.phase === "settled" ? "done" : "idle",
     requiresCompletionAck: !!pending, unreadCount: receipts.length,
     noticeSequence: pending?.noticeSequence || null,
     pendingNotice: pending ? { noticeSequence: pending.noticeSequence, turnId: pending.turnId, outcome: pending.outcome } : null,
     acknowledgedThrough: row.acknowledgedThrough,
-    canFocus: activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed" && observation !== "unsupported",
+    // Generation certainty does not determine whether an existing tab can be
+    // visited. The extension still checks the exact tab/document/route twice.
+    canFocus: activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed",
     capabilities: { focus: true, acknowledge: true, dismiss: true, directSend: false, permission: false },
     lastConnectionAt: connectionTimes.get(row.clientId) || 0,
     lastObservationAt: row.lastObservationAt, phaseChangedAt: row.phaseChangedAt,
@@ -277,6 +319,22 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       commit(next); changed();
       return { ok: true };
     },
+    setLabel(id, input) {
+      // Explicit local display metadata only. Never accept this through a
+      // browser event or send it back to the extension / external consumers.
+      if (typeof input !== "string" || input.length > MAX_CUSTOM_LABEL_LENGTH
+        || /[\u0000-\u001f\u007f-\u009f]/.test(input)) return { ok: false, reason: "invalid_label" };
+      const customLabel = input.trim();
+      const existing = getRecord(id);
+      if (!existing || existing.dismissed) return { ok: false, reason: "session_missing" };
+      if ((existing.customLabel || "") === customLabel) return { ok: true };
+      const next = structuredClone(data);
+      const row = next.sessions.find((item) => item.id === id);
+      if (customLabel) row.customLabel = customLabel;
+      else delete row.customLabel;
+      commit(next); changed();
+      return { ok: true };
+    },
     forgetClient(clientId) {
       // Only call after the corresponding authentication credential is revoked.
       const ids = new Set(data.sessions.filter((row) => row.clientId === clientId).map((row) => row.id));
@@ -294,4 +352,4 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
   };
 }
 
-module.exports = { createBrowserSessionStore, STALE_MS, MAX_ACTIVE, MAX_SESSIONS, MAX_RECEIPTS, validateStore };
+module.exports = { createBrowserSessionStore, STALE_MS, MAX_ACTIVE, MAX_SESSIONS, MAX_RECEIPTS, MAX_CUSTOM_LABEL_LENGTH, validateStore };

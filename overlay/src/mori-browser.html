@@ -16,7 +16,8 @@
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
 <section><div class="section-heading"><h2>ブラウザのセッション</h2><span id="count">0 件</span></div>
+<p class="session-intro">記録ごとの状態・最終観測・未確認通知を確認できます。識別しやすい表示名を、この PC に保存できます。</p>
 <p id="empty">接続後、ChatGPT / Claude のページを再読み込みして質問を送信してください。</p>
 <div id="sessions"></div></section>
-<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。会話本文・入力内容は収集しません。</p><p id="mode"></p></footer>
+<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。通信時刻の更新だけでは、生成状態が更新されたとは判断できません。</p><p>会話本文・入力内容・ページタイトルを自動収集せず、会話の要約は作成しません。表示名は自分で入力したものを、この PC のセッション記録に保存します。</p><p id="mode"></p></footer>
 </main><script src="mori-browser-renderer.js"></script></body></html>

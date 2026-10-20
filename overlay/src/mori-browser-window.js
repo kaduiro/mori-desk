@@ -8,6 +8,8 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "" }) {
   let window = null;
   let pairing = null;
+  let selectedSessionId = null;
+  let selectionRevision = 0;
   const page = pathToFileURL(path.join(__dirname, "mori-browser.html")).toString();
   const hudPage = pathToFileURL(path.join(__dirname, "session-hud.html")).toString();
   const handlers = [];
@@ -37,6 +39,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     return { ok: !!bridge, port, cliEnabled, bridge: bridgeStatus,
       connection: getBrowserStatus({ bridge: bridgeStatus, port, error }),
       sessions: bridge?.getSnapshot() || [], error,
+      selectedSessionId, selectionRevision,
       pairingExpiresAt: pairing?.expiresAt || null };
   }
 
@@ -66,6 +69,11 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     if (typeof payload?.id !== "string" || payload.id.length > 512) return { ok: false, reason: "invalid-payload" };
     return getBridge()?.dismiss(payload.id) || { ok: false, reason: "not-ready" };
   });
+  handle("mori:set-label", payload => {
+    if (typeof payload?.id !== "string" || payload.id.length > 512
+      || typeof payload.label !== "string" || payload.label.length > 80) return { ok: false, reason: "invalid-payload" };
+    return getBridge()?.setLabel(payload.id, payload.label) || { ok: false, reason: "not-ready" };
+  });
   handle("mori:revoke", payload => {
     if (typeof payload?.clientId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.clientId)) return { ok: false, reason: "invalid-client" };
     return getBridge()?.revoke(payload.clientId) || { ok: false, reason: "not-ready" };
@@ -76,10 +84,18 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     const reason = await shell.openPath(extensionDir);
     return { ok: !reason, message: reason || "" };
   });
-  handle("mori:open-panel", () => { open(); return { ok: true }; }, true);
+  handle("mori:open-panel", payload => {
+    if (payload !== undefined && (typeof payload?.id !== "string" || payload.id.length > 512)) return { ok: false, reason: "invalid-payload" };
+    return open(payload);
+  }, true);
 
-  function open() {
-    if (window && !window.isDestroyed()) { window.show(); window.focus(); return; }
+  function open(options) {
+    if (typeof options?.id === "string") {
+      if (!getBridge()?.getSnapshot().some(row => row.id === options.id)) return { ok: false, reason: "session_missing" };
+      selectedSessionId = options.id;
+      selectionRevision += 1;
+    }
+    if (window && !window.isDestroyed()) { window.show(); window.focus(); notify(); return { ok: true }; }
     window = new BrowserWindow({ width: 790, height: 690, minWidth: 620, minHeight: 480,
       title: "Mori Desk · ブラウザ連携", autoHideMenuBar: true, backgroundColor: "#f5f6ee",
       webPreferences: { preload: path.join(__dirname, "preload-mori-browser.js"),
@@ -87,7 +103,8 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", event => event.preventDefault());
     window.loadFile(path.join(__dirname, "mori-browser.html"));
-    window.on("closed", () => { window = null; pairing = null; });
+    window.on("closed", () => { window = null; pairing = null; selectedSessionId = null; });
+    return { ok: true };
   }
 
   function notify() {

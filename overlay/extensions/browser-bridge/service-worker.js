@@ -202,9 +202,13 @@ async function observationMessage(input, sender) {
     || !(await checkCurrentDocument(tab.id, observation.pageInstanceId, route.conversationRef))) {
     return { ok: false, reason: 'old_document' };
   }
-  await commit(coordinator.reduceObservation(sessions, input,
-    { route, tabId: tab.id, documentId: sender.documentId }));
+  const result = coordinator.reduceObservation(sessions, input,
+    { route, tabId: tab.id, documentId: sender.documentId });
+  await commit(result);
   void transport.ensureConnected();
+  if (['invalid_observation', 'old_observation', 'duplicate_observation', 'capacity'].includes(result.diagnostic)) {
+    return { ok: false, reason: result.diagnostic };
+  }
   return { ok: true };
 }
 
@@ -285,8 +289,11 @@ async function tabHealth() {
     if (tab.status === 'loading') return 'unknown';
     let response;
     try {
-      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' }, { frameId: 0 }));
-    } catch (_) { return 'needsReload'; }
+      // The page waits for the worker to validate this observation, including
+      // the existing bounded current-document check. Keep that handshake out
+      // of the observation queue and allow enough time for its two API calls.
+      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' }, { frameId: 0 }), 4000);
+    } catch (error) { return error?.message === 'tab_unavailable' ? 'unknown' : 'needsReload'; }
     if (!response || response.ok !== true || response.v !== 1
       || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) return 'needsReload';
     // A navigation during the diagnostic must not make an old page appear
@@ -295,15 +302,28 @@ async function tabHealth() {
       const current = await within(chrome.tabs.get(tab.id));
       if (current.status === 'loading' || !utils.sameRoute(route, utils.routeForUrl(current.url))) return 'unknown';
     } catch (_) { return 'unknown'; }
-    return response.status === 'unsupported_route' ? 'unsupportedRoute' : response.status;
+    return { status: response.status === 'unsupported_route' ? 'unsupportedRoute' : response.status,
+      observationAck: utils.safeObservationAck(response.observationAck) };
   }));
   const counts = { needsReload: 0, unsupportedRoute: 0, unknown: 0, idle: 0, running: 0, settled: 0 };
-  for (const result of results) counts[result]++;
+  const observationDelivery = { accepted: 0, rejected: 0, unconfirmed: 0, runningAccepted: 0, reasons: {} };
+  for (const result of results) {
+    if (typeof result === 'string') { counts[result]++; continue; }
+    counts[result.status]++;
+    const ack = result.observationAck;
+    if (ack.ok === true) {
+      observationDelivery.accepted++;
+      if (result.status === 'running') observationDelivery.runningAccepted++;
+    } else {
+      observationDelivery[ack.ok === false ? 'rejected' : 'unconfirmed']++;
+      observationDelivery.reasons[ack.reason] = (observationDelivery.reasons[ack.reason] || 0) + 1;
+    }
+  }
   return {
     ok: true, checkedAt: Date.now(), paired: !!credential, enabled: settings.enabled,
     connectionState: connectionStatus.state,
     totalTabs: tabs.length, checkedTabs: sampled.length, remainingTabs: tabs.length - sampled.length,
-    counts,
+    counts, observationDelivery,
   };
 }
 
@@ -352,7 +372,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const isOptions = sender.url === chrome.runtime.getURL('options.html');
   if (message.type === 'mori.observation') {
     initialized.then(() => enqueue(() => observationMessage(message, sender)))
-      .then(respond).catch(() => respond({ ok: false, reason: fatalError || diagnostic || 'observation_failed' }));
+      .then(respond).catch(error => respond(utils.safeObservationAck({ ok: false,
+        reason: fatalError || error?.message || 'observation_failed' })));
     return true;
   }
   if (isOptions && typeof message.type === 'string' && message.type.startsWith('mori.options.')) {

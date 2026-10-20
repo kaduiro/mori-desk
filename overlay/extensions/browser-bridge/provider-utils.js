@@ -9,6 +9,19 @@
   const CONVERSATION_ID = /^[A-Za-z0-9-]{1,128}$/;
   const CHATGPT_SCOPE = /^g-[A-Za-z0-9_-]{1,160}$/;
   const URL_PATTERNS = ['https://chatgpt.com/*', 'https://claude.ai/*'];
+  const OBSERVATION_REJECTIONS = new Set(['paused', 'invalid_sender', 'old_document',
+    'invalid_observation', 'old_observation', 'duplicate_observation', 'capacity',
+    'outbox_full', 'storage_failed', 'local_data_invalid', 'tab_unavailable', 'observation_failed']);
+
+  function safeObservationAck(value) {
+    if (value?.ok === true) return { ok: true, reason: null };
+    if (value?.ok === false) return { ok: false,
+      reason: OBSERVATION_REJECTIONS.has(value.reason) ? value.reason : 'observation_failed' };
+    // Absence of a receipt is not acceptance. Never forward exception strings
+    // or arbitrary properties from the messaging API into a diagnostic.
+    return { ok: null, reason: value?.ok === null && value.reason === 'worker_unavailable'
+      ? 'worker_unavailable' : 'ack_unavailable' };
+  }
 
   function providerUrl(value) {
     let url;
@@ -107,5 +120,5 @@
   }
 
   return { ID, URL_PATTERNS, providerForUrl, routeForUrl, sameRoute, canAssignConversation,
-    isVisible, findVisible, safeObservation };
+    isVisible, findVisible, safeObservation, safeObservationAck };
 });
