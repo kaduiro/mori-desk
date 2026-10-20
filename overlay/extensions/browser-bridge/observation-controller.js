@@ -11,9 +11,10 @@
     let generationToken = null;
     let absentSince = null;
     let stoppedByUser = false;
+    let shortStopCycle = false;
     function reset() {
       status = 'idle'; outcome = null; generationToken = null;
-      absentSince = null; stoppedByUser = false;
+      absentSince = null; stoppedByUser = false; shortStopCycle = false;
     }
     function stopRequested() { if (status === 'running') stoppedByUser = true; }
     function sample(observation, now) {
@@ -22,17 +23,23 @@
         return { status: 'unknown', generationToken, outcome: null };
       }
       if (observation.generating) {
-        if (status !== 'running') generationToken = uuid();
+        if (status !== 'running') {
+          generationToken = uuid();
+          shortStopCycle = observation.generationSignal === 'short_stop_busy';
+        }
         status = 'running'; outcome = null; absentSince = null;
       } else if (status === 'running') {
         if (observation.error) {
           status = 'settled'; outcome = 'error'; absentSince = null;
-        } else if (observation.ready && observation.hasAssistant) {
+        } else if (observation.ready && (shortStopCycle
+          ? observation.controlsIdle === true : observation.hasAssistant)) {
           if (absentSince === null) absentSince = now;
           if (now - absentSince >= settleMs) {
             status = 'settled';
             // Absence is not proof of normal completion. This preview never
-            // produces "completed" for either provider.
+            // produces "completed" for either provider. The alternate path
+            // requires a prior short-stop + busy cycle and both signals quiet;
+            // it does not pretend that an assistant message was found.
             outcome = stoppedByUser ? 'interrupted' : 'unverified';
             absentSince = null;
           }

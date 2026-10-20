@@ -39,13 +39,19 @@ function fixtureDocument(html) {
     }
     return true;
   }
-  const wrap = node => ({
-    hidden: Object.hasOwn(node.attribs, 'hidden'),
-    getAttribute: name => node.attribs[name] ?? null,
-    getClientRects: () => visible(node) ? [{}] : [],
-    get textContent() { throw new Error('reply text must not be read'); },
-    get innerHTML() { throw new Error('HTML must not be read'); },
-  });
+  const wrappers = new Map();
+  const wrap = node => {
+    if (wrappers.has(node)) return wrappers.get(node);
+    const element = {
+      hidden: Object.hasOwn(node.attribs, 'hidden'),
+      getAttribute: name => node.attribs[name] ?? null,
+      getClientRects: () => visible(node) ? [{}] : [],
+      get textContent() { throw new Error('reply text must not be read'); },
+      get innerHTML() { throw new Error('HTML must not be read'); },
+    };
+    wrappers.set(node, element);
+    return element;
+  };
   return { querySelectorAll: selector => elements.filter(node => matches(node, selector)).map(wrap) };
 }
 
@@ -91,7 +97,10 @@ test('synthetic scoped ChatGPT text conversations use the same controls; an empt
   assert.equal(chatgpt.observe(stopOnly, 'https://chatgpt.com/g/g-custom').supported, false);
   assert.equal(chatgpt.observe(stopOnly, 'https://chatgpt.com/g/g-custom').generating, false);
   const otherLayout = fixtureDocument('<main><div contenteditable="true" role="textbox"></div></main>');
-  assert.equal(chatgpt.observe(otherLayout, 'https://chatgpt.com/g/g-custom').supported, false);
+  // A unique alternate editor is a candidate idle page; it cannot announce a
+  // generation without the paired short stop + busy signals.
+  assert.equal(chatgpt.observe(otherLayout, 'https://chatgpt.com/g/g-custom').supported, true);
+  assert.equal(chatgpt.observe(otherLayout, 'https://chatgpt.com/g/g-custom').generating, false);
 });
 
 test('content observer rotates its opaque identity between empty scopes, retains assignment, and reports health without page data', () => {
@@ -174,9 +183,12 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   let nextTimer = 0;
   let failure = null;
   let activeObserver = false;
+  let observedTarget = null;
+  let observedOptions = null;
   let mutationCallback;
   let layout = initialLayout;
   const root = {};
+  const main = {};
   const visibleElement = { getAttribute: () => null, getClientRects: () => [{}] };
   const listen = (map, type, callback) => {
     if (!map.has(type)) map.set(type, new Set());
@@ -185,11 +197,14 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   const unlisten = (map, type, callback) => map.get(type)?.delete(callback);
   const document = {
     body: root, visibilityState: 'visible',
-    querySelector: selector => selector === 'main' ? root : null,
+    querySelector: selector => selector === 'main' ? main : null,
     querySelectorAll: selector => {
-      if (layout !== 'unknown' && selector === '#prompt-textarea') return [visibleElement];
+      if (['idle', 'running', 'settling'].includes(layout) && selector === '#prompt-textarea') return [visibleElement];
       if (layout === 'running' && selector === 'button[data-testid="stop-button"]') return [visibleElement];
       if (layout === 'settling' && selector === '[data-message-author-role="assistant"]') return [visibleElement];
+      if (layout.startsWith('alternate-') && selector === '[contenteditable="true"]') return [visibleElement];
+      if (layout.startsWith('alternate-') && selector === 'button[aria-label="Stop"]') return [visibleElement];
+      if (layout === 'alternate-running' && selector === '[aria-busy="true"]') return [visibleElement];
       return [];
     },
     addEventListener: (type, callback) => listen(documentListeners, type, callback),
@@ -216,7 +231,7 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
     MutationObserver: class {
       constructor(callback) { mutationCallback = callback; }
       disconnect() { activeObserver = false; }
-      observe() { activeObserver = true; }
+      observe(target, options) { activeObserver = true; observedTarget = target; observedOptions = options; }
     },
     chrome: { runtime },
   });
@@ -230,11 +245,32 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
     fail: value => { failure = value; },
     showLayout: value => { layout = value; },
     mutate: () => mutationCallback(),
+    mutateOutsideMain(attributeName) {
+      // Synthetic mutation delivery: a main-only observer cannot receive an
+      // attribute change from its sibling composer. Body + the attribute
+      // subscription are both necessary to deliver it before the heartbeat.
+      if (activeObserver && observedTarget === root && observedOptions.subtree
+        && observedOptions.attributes && observedOptions.attributeFilter.includes(attributeName)) mutationCallback();
+    },
     get activeObserver() { return activeObserver; },
     get listenerCount() { return [...documentListeners.values(), ...windowListeners.values()]
       .reduce((total, callbacks) => total + callbacks.size, runtimeListeners.size); },
   };
 }
+
+test('a busy change beside main starts an alternate session through the mutation debounce, before the heartbeat', () => {
+  const f = contentLifecycleFixture('alternate-stop-only');
+  assert.equal(f.messages.at(-1).status, 'unknown');
+  f.showLayout('alternate-running');
+  f.mutateOutsideMain('aria-busy');
+  assert.equal(f.timeouts.size, 1, 'the body sibling attribute change must schedule an observation');
+  const [id, callback] = f.timeouts.entries().next().value;
+  f.timeouts.delete(id); callback();
+  assert.equal(f.messages.at(-1).status, 'running');
+  assert.deepEqual(Object.keys(f.messages.at(-1)).sort(), ['type', 'v', 'pageInstanceId',
+    'contentSequence', 'observedAt', 'status', 'generationToken', 'outcome'].sort());
+  assert.equal(f.intervals.size, 1, 'no heartbeat was needed to see the start');
+});
 
 for (const kind of ['sync', 'async']) {
   test(`invalidated content runtime stops observation after a ${kind} API failure without uncaught errors or repeated sends`, async () => {
