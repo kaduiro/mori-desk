@@ -10,7 +10,7 @@
   const MAX_BYTES = 512 * 1024;
   const FIELDS = ['type', 'v', 'eventId', 'browserRunId', 'sessionId', 'sequence', 'kind', 'provider',
     'tabId', 'pageInstanceId', 'routeRevision', 'conversationRef', 'turnId', 'generation',
-    'phase', 'outcome', 'observation', 'observedAt', 'replay'];
+    'phase', 'outcome', 'observation', 'observedAt', 'replay', 'conversationTitle', 'requestPreview'];
   function eventValid(event) {
     if (!event || Object.keys(event).some(key => !FIELDS.includes(key))
       || event.type !== 'event' || event.v !== 1 || !['terminal', 'closed'].includes(event.kind)) return false;
@@ -25,6 +25,9 @@
       || ![null, 'interrupted', 'error', 'unverified'].includes(event.outcome)
       || !['fresh', 'stale', 'closed', 'unsupported'].includes(event.observation)
       || !Number.isFinite(event.observedAt) || typeof event.replay !== 'boolean') return false;
+    for (const field of ['conversationTitle', 'requestPreview']) {
+      if (Object.hasOwn(event, field) && !utils.validMetadataText(event[field])) return false;
+    }
     if (event.conversationRef !== null) {
       const domain = event.provider === 'chatgpt' ? 'chatgpt.com' : 'claude.ai';
       const route = utils.routeForUrl(`https://${domain}${event.conversationRef}`);

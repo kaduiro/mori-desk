@@ -9,6 +9,8 @@
   const CONVERSATION_ID = /^[A-Za-z0-9-]{1,128}$/;
   const CHATGPT_SCOPE = /^g-[A-Za-z0-9_-]{1,160}$/;
   const URL_PATTERNS = ['https://chatgpt.com/*', 'https://claude.ai/*'];
+  const MAX_METADATA_LENGTH = 160;
+  const METADATA_CONTROLS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u;
   const OBSERVATION_REJECTIONS = new Set(['paused', 'invalid_sender', 'old_document',
     'invalid_observation', 'old_observation', 'duplicate_observation', 'capacity',
     'outbox_full', 'storage_failed', 'local_data_invalid', 'tab_unavailable', 'observation_failed']);
@@ -98,6 +100,29 @@
     return null;
   }
 
+  function metadataText(value) {
+    if (typeof value !== 'string') return '';
+    // Keep meaningful Unicode (including emoji ZWJ sequences), but discard
+    // control/bidi characters and lone UTF-16 surrogates. Whitespace is
+    // collapsed before controls are removed so line breaks separate words.
+    const singleLine = value.replace(/\s+/gu, ' ')
+      .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu, '')
+      .replace(/\s+/gu, ' ').trim();
+    let text = '';
+    for (const character of singleLine) {
+      if (character.length === 1 && /[\ud800-\udfff]/u.test(character)) continue;
+      if (text.length + character.length > MAX_METADATA_LENGTH) break;
+      text += character;
+    }
+    return text.replace(/\s+/gu, ' ').trim();
+  }
+
+  function validMetadataText(value) {
+    return typeof value === 'string' && value.length <= MAX_METADATA_LENGTH
+      && !METADATA_CONTROLS.test(value) && value === value.replace(/\s+/gu, ' ').trim()
+      && Array.from(value).every(character => character.length === 2 || !/[\ud800-\udfff]/u.test(character));
+  }
+
   function safeObservation(input) {
     if (!input || input.type !== 'mori.observation' || input.v !== 1) return null;
     if (!ID.test(input.pageInstanceId || '') || !Number.isSafeInteger(input.contentSequence)
@@ -107,6 +132,9 @@
     if (![null, 'interrupted', 'error', 'unverified'].includes(input.outcome)) return null;
     if (input.status === 'settled' && (!input.generationToken || !input.outcome)) return null;
     if (input.status !== 'settled' && input.outcome !== null) return null;
+    for (const field of ['conversationTitle', 'requestPreview']) {
+      if (Object.hasOwn(input, field) && !validMetadataText(input[field])) return null;
+    }
     // Project only this allowlist. A compromised page cannot smuggle content
     // through additional properties into either storage or the local wire.
     return {
@@ -116,9 +144,12 @@
       status: input.status,
       generationToken: input.generationToken,
       outcome: input.outcome,
+      ...(Object.hasOwn(input, 'conversationTitle') ? { conversationTitle: input.conversationTitle } : {}),
+      ...(Object.hasOwn(input, 'requestPreview') ? { requestPreview: input.requestPreview } : {}),
     };
   }
 
   return { ID, URL_PATTERNS, providerForUrl, routeForUrl, sameRoute, canAssignConversation,
-    isVisible, findVisible, safeObservation, safeObservationAck };
+    isVisible, findVisible, metadataText, validMetadataText, MAX_METADATA_LENGTH,
+    safeObservation, safeObservationAck };
 });

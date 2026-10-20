@@ -1,7 +1,7 @@
 const crypto = require("node:crypto");
 const path = require("node:path");
 const { openJsonFile } = require("./browser-bridge-persistence");
-const { VERSION, isId, isInteger, desktopSessionId, validateEvent, normalizeConversationRef, protocolError } = require("./browser-bridge-protocol");
+const { VERSION, isId, isInteger, isConversationMetadata, desktopSessionId, validateEvent, normalizeConversationRef, protocolError } = require("./browser-bridge-protocol");
 
 const STALE_MS = 90 * 1000;
 const MAX_ACTIVE = 20;
@@ -17,17 +17,24 @@ function isCustomLabel(value) {
 function eventFingerprint(event) {
   const { replay: _replay, ...body } = event;
   // Property order is fixed by this array, independent of sender JSON ordering.
-  return crypto.createHash("sha256").update(JSON.stringify([
+  const fields = [
     body.eventId, body.browserRunId, body.sessionId, body.sequence, body.kind, body.provider,
     body.tabId, body.pageInstanceId, body.routeRevision, body.conversationRef,
     body.turnId, body.generation, body.phase, body.outcome, body.observation, body.observedAt,
-  ])).digest("hex");
+  ];
+  // Keep pre-metadata receipt hashes valid across an upgrade. New metadata is
+  // part of event identity, so a replay cannot silently rewrite a saved title.
+  if (Object.hasOwn(body, "conversationTitle") || Object.hasOwn(body, "requestPreview")) {
+    fields.push("conversation-metadata", body.conversationTitle ?? null, body.requestPreview ?? null);
+  }
+  return crypto.createHash("sha256").update(JSON.stringify(fields)).digest("hex");
 }
 
 function validateStore(value) {
   if (value?.version !== VERSION || !Array.isArray(value.sessions) || value.sessions.length > MAX_SESSIONS
     || !Array.isArray(value.receipts) || value.receipts.length > MAX_RECEIPTS
-    || !isInteger(value.nextNoticeSequence) || !isInteger(value.labels?.chatgpt) || !isInteger(value.labels?.claude)) throw new Error("Invalid browser session store");
+    || !isInteger(value.nextNoticeSequence) || !isInteger(value.labels?.chatgpt) || !isInteger(value.labels?.claude)
+    || (value.nextLabelSequence !== undefined && !isInteger(value.nextLabelSequence))) throw new Error("Invalid browser session store");
   const ids = new Set();
   for (const row of value.sessions) {
     if (![row.clientId, row.browserRunId, row.sessionId, row.pageInstanceId].every(isId)
@@ -41,6 +48,10 @@ function validateStore(value) {
       || (row.outcome !== null && !["completed", "interrupted", "error", "unverified"].includes(row.outcome))
       || typeof row.label !== "string" || !/^(ChatGPT|Claude) [1-9][0-9]{0,9}$/.test(row.label)
       || (row.customLabel !== undefined && !isCustomLabel(row.customLabel))
+      || (row.customLabelSequence !== undefined && (!isInteger(row.customLabelSequence, 1)
+        || row.customLabelSequence > (value.nextLabelSequence || 0) || row.customLabel === undefined))
+      || ["conversationTitle", "requestPreview"].some((key) => Object.hasOwn(row, key) && !isConversationMetadata(row[key]))
+      || (row.metadataObservedAt !== undefined && !isInteger(row.metadataObservedAt, 1))
       || typeof row.dismissed !== "boolean"
       || !["idle", "running", "settled"].includes(row.phase)
       || !["fresh", "stale", "closed", "unsupported"].includes(row.observation)) throw new Error("Invalid browser session record");
@@ -67,6 +78,53 @@ function validateStore(value) {
 
 function pendingReceipts(data, row) {
   return data.receipts.filter((receipt) => receipt.id === row.id && receipt.noticeSequence > row.acknowledgedThrough);
+}
+
+function latestConversationLabel(data, target) {
+  // A route without a conversation ID is not a shared identity. Profile and
+  // provider boundaries remain significant even when conversation IDs match.
+  if (!target.conversationRef) return null;
+  let latest = null;
+  for (const row of data.sessions) {
+    if (row.id === target.id || row.clientId !== target.clientId || row.provider !== target.provider
+      || row.conversationRef !== target.conversationRef || row.customLabel === undefined) continue;
+    if (!latest || (row.customLabelSequence || 0) > (latest.customLabelSequence || 0)
+      || ((row.customLabelSequence || 0) === (latest.customLabelSequence || 0) && row.createdAt >= latest.createdAt)) latest = row;
+  }
+  return latest;
+}
+
+function inheritConversationLabel(data, row) {
+  const previous = latestConversationLabel(data, row);
+  if (!previous) return;
+  row.customLabel = previous.customLabel;
+  if (previous.customLabelSequence !== undefined) row.customLabelSequence = previous.customLabelSequence;
+}
+
+function updateContext(data, row, event) {
+  // A revision-only invalidation fences pending focus requests while the
+  // coordinator still describes the original page/conversation. Preserve its
+  // identifying text if the next event closes it into history.
+  const changed = row.pageInstanceId !== event.pageInstanceId || row.conversationRef !== event.conversationRef;
+  if (changed) {
+    row.conversationTitle = "";
+    row.requestPreview = "";
+    delete row.metadataObservedAt;
+  }
+  if (row.conversationRef !== event.conversationRef) {
+    // The provider can assign an ID to the same newly submitted turn. A name
+    // entered before that assignment still belongs to that exact session.
+    const assignedRunningConversation = row.conversationRef === null && event.conversationRef !== null
+      && row.phase === "running" && row.currentTurnId === event.turnId && row.generation === event.generation;
+    if (!assignedRunningConversation) {
+      delete row.customLabel;
+      delete row.customLabelSequence;
+    }
+    row.conversationRef = event.conversationRef;
+    if (row.customLabel === undefined) inheritConversationLabel(data, row);
+  }
+  row.pageInstanceId = event.pageInstanceId;
+  row.routeRevision = event.routeRevision;
 }
 
 function effectiveObservation(row, now, activeRuns, restored) {
@@ -124,10 +182,14 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
   else if (row.phase === "settled" && row.outcome) status = row.outcome;
   const details = observationDetails(row, status, now, activeRuns, restored);
   if (status === "completed" && pending) details.statusLabel = "回答完了・未確認";
-  const displayTitle = row.customLabel || row.label;
+  const conversationTitle = row.conversationTitle || "";
+  const requestPreview = row.requestPreview || "";
+  const displayTitle = row.customLabel || conversationTitle || row.label;
+  const isCurrent = activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed";
   return {
     id: row.id, source: "browser", platform: "webui", agentId: `browser-${row.provider}`,
     provider: row.provider, label: row.label, customLabel: row.customLabel || "", sessionTitle: displayTitle, displayTitle,
+    conversationTitle, requestPreview, isCurrent, isHistory: !isCurrent,
     clientId: row.clientId, browserRunId: row.browserRunId, sessionId: row.sessionId,
     tabId: row.tabId, pageInstanceId: row.pageInstanceId, routeRevision: row.routeRevision,
     conversationRef: row.conversationRef, currentTurnId: row.currentTurnId, generation: row.generation,
@@ -140,7 +202,7 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
     acknowledgedThrough: row.acknowledgedThrough,
     // Generation certainty does not determine whether an existing tab can be
     // visited. The extension still checks the exact tab/document/route twice.
-    canFocus: activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed",
+    canFocus: isCurrent,
     capabilities: { focus: true, acknowledge: true, dismiss: true, directSend: false, permission: false },
     lastConnectionAt: connectionTimes.get(row.clientId) || 0,
     lastObservationAt: row.lastObservationAt, phaseChangedAt: row.phaseChangedAt,
@@ -150,7 +212,7 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
 
 function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () => {}, onNotice = () => {} } = {}) {
   const file = openJsonFile(path.join(dataDir, "sessions.json"), validateStore, fs ? { fs } : {});
-  let data = file.value || { version: VERSION, sessions: [], receipts: [], nextNoticeSequence: 0, labels: { chatgpt: 0, claude: 0 } };
+  let data = file.value || { version: VERSION, sessions: [], receipts: [], nextNoticeSequence: 0, nextLabelSequence: 0, labels: { chatgpt: 0, claude: 0 } };
   const activeRuns = new Map();
   const connectionTimes = new Map();
   const restored = new Set(data.sessions.map((row) => row.id));
@@ -226,6 +288,7 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
           phase: "idle", outcome: null, observation: "stale", lastObservationAt: 0,
           phaseChangedAt: event.observedAt, turnStartedAt: null, createdAt: now(), acknowledgedThrough: 0, dismissed: false,
         };
+        inheritConversationLabel(next, row);
         next.sessions.push(row);
       }
       // Receipt acceptance is deliberately independent of live-state ordering.
@@ -240,13 +303,17 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
         row.dismissed = false;
       }
       let liveChanged = false;
+      const contextChanged = row.pageInstanceId !== event.pageInstanceId || row.routeRevision !== event.routeRevision
+        || row.conversationRef !== event.conversationRef;
+      const contextTimely = !contextChanged || event.observedAt >= Math.max(row.metadataObservedAt || 0, row.lastObservationAt);
       const newer = event.sequence > row.lastSequence && event.generation >= row.generation
-        && event.routeRevision >= row.routeRevision;
+        && event.routeRevision >= row.routeRevision && contextTimely;
       if (newer && event.kind === "observation" && event.replay && currentRun && existing
         && ["stale", "unsupported"].includes(event.observation)) {
-        // Replayed metadata can invalidate old DOM evidence, never make it live.
+        // A saved page/conversation change invalidates its title as well as DOM
+        // evidence. Its saved excerpt is not new evidence for a different page.
+        updateContext(next, row, event);
         row.lastSequence = event.sequence;
-        row.routeRevision = event.routeRevision;
         row.observation = event.observation;
         liveChanged = true;
       } else if (newer && event.kind === "closed" && event.replay && existing) {
@@ -258,10 +325,19 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       } else if (newer && ((!event.replay && currentRun) || !existing)) {
         const phaseChanged = row.phase !== event.phase || row.currentTurnId !== event.turnId || row.outcome !== event.outcome;
         const newTurn = event.generation > row.generation;
+        const metadataTimely = event.observedAt >= Math.max(row.metadataObservedAt || 0, row.lastObservationAt);
+        const metadataFresh = !event.replay && currentRun && ["fresh", "unsupported"].includes(event.observation)
+          && now() - event.observedAt <= STALE_MS && metadataTimely;
+        const archiveMetadata = !existing && event.replay && ["terminal", "closed"].includes(event.kind);
+        updateContext(next, row, event);
+        if (metadataFresh || archiveMetadata) {
+          let metadataChanged = false;
+          for (const key of ["conversationTitle", "requestPreview"]) {
+            if (Object.hasOwn(event, key)) { row[key] = event[key]; metadataChanged = true; }
+          }
+          if (metadataChanged) row.metadataObservedAt = event.observedAt;
+        }
         row.lastSequence = event.sequence;
-        row.pageInstanceId = event.pageInstanceId;
-        row.routeRevision = event.routeRevision;
-        row.conversationRef = event.conversationRef;
         row.currentTurnId = event.turnId;
         row.generation = event.generation;
         row.phase = event.phase;
@@ -327,11 +403,17 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       const customLabel = input.trim();
       const existing = getRecord(id);
       if (!existing || existing.dismissed) return { ok: false, reason: "session_missing" };
-      if ((existing.customLabel || "") === customLabel) return { ok: true };
+      const inherited = latestConversationLabel(data, existing);
+      const clearsInheritedLabel = customLabel === "" && inherited?.customLabel
+        && (inherited.customLabelSequence || 0) >= (existing.customLabelSequence || 0);
+      if ((existing.customLabel || "") === customLabel && !clearsInheritedLabel) return { ok: true };
       const next = structuredClone(data);
       const row = next.sessions.find((item) => item.id === id);
-      if (customLabel) row.customLabel = customLabel;
-      else delete row.customLabel;
+      // Empty is an explicit local choice; keeping it prevents an old alias
+      // from returning when this conversation is reopened after a restart.
+      row.customLabel = customLabel;
+      row.customLabelSequence = (next.nextLabelSequence || 0) + 1;
+      next.nextLabelSequence = row.customLabelSequence;
       commit(next); changed();
       return { ok: true };
     },

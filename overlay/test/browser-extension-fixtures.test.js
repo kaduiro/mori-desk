@@ -124,7 +124,7 @@ test('content observer rotates its opaque identity between empty scopes, retains
   });
   const base = path.join(__dirname, '../extensions/browser-bridge');
   for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
-    'observation-controller.js', 'content-script.js']) {
+    'observation-controller.js', 'conversation-metadata.js', 'content-script.js']) {
     vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
   }
   const dispatch = message => {
@@ -145,7 +145,12 @@ test('content observer rotates its opaque identity between empty scopes, retains
   // Both empty scopes have null conversation IDs, so compare the local route.
   assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: a.pageInstanceId, conversationRef: null }).ok, false);
   dispatch({ type: 'mori.observe.now' });
+  assert.equal(messages.at(-1).status, 'unknown', 'old scope controls cannot start a turn in the new scope');
+  fixture = fixtureDocument('<main><div id="prompt-textarea" contenteditable="true"></div>'
+    + '<button data-testid="stop-button"></button></main>');
+  dispatch({ type: 'mori.observe.now' });
   const b = messages.at(-1);
+  assert.equal(b.status, 'running');
   assert.notEqual(b.pageInstanceId, a.pageInstanceId);
   assert.notEqual(b.generationToken, a.generationToken);
   assert.equal(dispatch({ type: 'mori.focus.check', pageInstanceId: a.pageInstanceId, conversationRef: null }).ok, false);
@@ -178,7 +183,7 @@ test('content observer rotates its opaque identity between empty scopes, retains
   assert.doesNotMatch(JSON.stringify(messages), /PRIVATE_|https:|\/g\//);
 });
 
-function contentLifecycleFixture(initialLayout = 'unknown') {
+function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https://chatgpt.com/c/test') {
   const timeouts = new Map();
   const intervals = new Map();
   const documentListeners = new Map();
@@ -193,9 +198,12 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   let observedOptions = null;
   let mutationCallback;
   let layout = initialLayout;
+  let metadataNodes = { links: [], users: [] };
   const root = {};
   const main = {};
-  const visibleElement = { getAttribute: () => null, getClientRects: () => [{}] };
+  const visible = () => ({ getAttribute: () => null, getClientRects: () => [{}] });
+  let visibleElement = visible();
+  const location = { href: initialUrl };
   const listen = (map, type, callback) => {
     if (!map.has(type)) map.set(type, new Set());
     map.get(type).add(callback);
@@ -205,6 +213,8 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
     body: root, visibilityState: 'visible',
     querySelector: selector => selector === 'main' ? main : null,
     querySelectorAll: selector => {
+      if (selector === 'a[href]') return metadataNodes.links;
+      if (selector === '[data-message-author-role="user"]') return metadataNodes.users;
       if (['idle', 'running', 'settling'].includes(layout) && selector === '#prompt-textarea') return [visibleElement];
       if (layout === 'running' && selector === 'button[data-testid="stop-button"]') return [visibleElement];
       if (layout === 'settling' && selector === '[data-message-author-role="assistant"]') return [visibleElement];
@@ -227,7 +237,7 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
     },
   };
   const context = vm.createContext({
-    crypto: crypto.webcrypto, URL, location: { href: 'https://chatgpt.com/c/test' }, document,
+    crypto: crypto.webcrypto, URL, location, document,
     addEventListener: (type, callback) => listen(windowListeners, type, callback),
     removeEventListener: (type, callback) => unlisten(windowListeners, type, callback),
     setTimeout: callback => { const id = ++nextTimer; timeouts.set(id, callback); return id; },
@@ -243,11 +253,11 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
   });
   const base = path.join(__dirname, '../extensions/browser-bridge');
   for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
-    'observation-controller.js', 'content-script.js']) {
+    'observation-controller.js', 'conversation-metadata.js', 'content-script.js']) {
     vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
   }
   return {
-    messages, timeouts, intervals, runtime,
+    messages, timeouts, intervals, runtime, location,
     fail: value => { failure = value; },
     reply: value => { reply = value; },
     health: () => new Promise(resolve => {
@@ -258,6 +268,21 @@ function contentLifecycleFixture(initialLayout = 'unknown') {
       resolve(null);
     }),
     showLayout: value => { layout = value; },
+    replaceControls: () => { visibleElement = visible(); },
+    clickConversation(href) {
+      const link = { getAttribute: name => name === 'href' ? href : null };
+      for (const listener of documentListeners.get('click') || []) listener({ isTrusted: true, button: 0,
+        target: { closest: selector => selector === 'a[href]' ? link : null } });
+    },
+    popstate() { for (const listener of windowListeners.get('popstate') || []) listener(); },
+    showMetadata(title, preview, href = '/c/test') {
+      const node = (value, attributes = {}) => ({ nodeType: 1, tagName: 'DIV',
+        childNodes: [{ nodeType: 3, nodeValue: value }],
+        getAttribute: name => attributes[name] ?? null,
+        getClientRects: () => [{}], closest: () => null });
+      metadataNodes = { links: [node(title, { href, 'data-sidebar-item': 'true' })],
+        users: [node(preview, { 'data-message-author-role': 'user' })] };
+    },
     mutate: () => mutationCallback(),
     mutateOutsideMain(attributeName) {
       // Synthetic mutation delivery: a main-only observer cannot receive an
@@ -282,8 +307,113 @@ test('a busy change beside main starts an alternate session through the mutation
   f.timeouts.delete(id); callback();
   assert.equal(f.messages.at(-1).status, 'running');
   assert.deepEqual(Object.keys(f.messages.at(-1)).sort(), ['type', 'v', 'pageInstanceId',
-    'contentSequence', 'observedAt', 'status', 'generationToken', 'outcome'].sort());
+    'contentSequence', 'observedAt', 'status', 'generationToken', 'outcome',
+    'conversationTitle', 'requestPreview'].sort());
+  assert.equal(f.messages.at(-1).conversationTitle, '');
+  assert.equal(f.messages.at(-1).requestPreview, '');
   assert.equal(f.intervals.size, 1, 'no heartbeat was needed to see the start');
+});
+
+test('an idle title/request update is published through the mutation debounce without inventing a generation', () => {
+  const f = contentLifecycleFixture('idle');
+  const before = f.messages.at(-1);
+  f.showMetadata('会話の目標', '送信済みの依頼');
+  f.mutate();
+  const [id, callback] = f.timeouts.entries().next().value;
+  f.timeouts.delete(id); callback();
+  const after = f.messages.at(-1);
+  assert.equal(after.conversationTitle, '会話の目標');
+  assert.equal(after.requestPreview, '送信済みの依頼');
+  assert.equal(after.status, 'idle');
+  assert.equal(after.generationToken, null);
+  assert.equal(after.outcome, null);
+  assert.equal(after.pageInstanceId, before.pageInstanceId);
+  assert.ok(after.contentSequence > before.contentSequence);
+  assert.equal(f.intervals.size, 1);
+});
+
+test('SPA navigation quarantines lingering A generation controls so idle B never inherits a turn or terminal', async () => {
+  const f = contentLifecycleFixture('running');
+  f.showMetadata('会話 A', 'A の依頼');
+  await f.health();
+  const a = f.messages.at(-1);
+  assert.equal(a.status, 'running');
+  f.location.href = 'https://chatgpt.com/c/b';
+  await f.health();
+  const transition = f.messages.at(-1);
+  assert.equal(transition.status, 'unknown');
+  assert.equal(transition.generationToken, null);
+  assert.equal(transition.requestPreview, '');
+  assert.notEqual(transition.pageInstanceId, a.pageInstanceId);
+  // B's completed old conversation becomes visible, with no observed B turn.
+  f.showLayout('settling');
+  f.showMetadata('会話 B', 'B の過去の依頼', '/c/b');
+  await f.health(); await f.health();
+  const idle = f.messages.at(-1);
+  assert.equal(idle.status, 'idle');
+  assert.equal(idle.generationToken, null);
+  assert.equal(idle.outcome, null);
+  assert.equal(idle.conversationTitle, '会話 B');
+  assert.equal(idle.requestPreview, 'B の過去の依頼');
+  assert.ok(f.messages.every(message => message.pageInstanceId === a.pageInstanceId || message.status !== 'settled'));
+  // A real subsequent B generation can be observed after controls change.
+  f.replaceControls(); f.showLayout('running');
+  await f.health();
+  assert.equal(f.messages.at(-1).status, 'running');
+  assert.ok(f.messages.at(-1).generationToken);
+  assert.notEqual(f.messages.at(-1).generationToken, a.generationToken);
+});
+
+test('SPA navigation permits a real B generation when its controls are new, without inheriting A token', async () => {
+  const f = contentLifecycleFixture('running');
+  const a = f.messages.at(-1);
+  f.location.href = 'https://chatgpt.com/c/b';
+  f.replaceControls();
+  await f.health();
+  const b = f.messages.at(-1);
+  assert.equal(b.status, 'running');
+  assert.notEqual(b.pageInstanceId, a.pageInstanceId);
+  assert.notEqual(b.generationToken, a.generationToken);
+});
+
+for (const navigation of ['trusted-link', 'popstate', 'known-existing-link']) {
+  test(`same-scope new-chat navigation via ${navigation} cannot be mistaken for a newly assigned conversation`, async () => {
+    const f = contentLifecycleFixture('idle', 'https://chatgpt.com/');
+    if (navigation === 'known-existing-link') {
+      f.showMetadata('既存の B', 'A の依頼', '/c/b');
+      await f.health();
+    }
+    f.showLayout('running');
+    await f.health();
+    f.showMetadata('既存の B', 'A の依頼', '/c/b');
+    await f.health();
+    const a = f.messages.at(-1);
+    if (navigation === 'trusted-link') f.clickConversation('/c/b');
+    f.location.href = 'https://chatgpt.com/c/b';
+    if (navigation === 'popstate') f.popstate();
+    await f.health();
+    const b = f.messages.at(-1);
+    assert.equal(b.status, 'unknown');
+    assert.equal(b.generationToken, null);
+    assert.equal(b.requestPreview, '');
+    assert.notEqual(b.pageInstanceId, a.pageInstanceId);
+  });
+}
+
+test('new server-assigned conversation ID retains the running turn even if its new history link renders first', async () => {
+  const f = contentLifecycleFixture('idle', 'https://chatgpt.com/');
+  f.showLayout('running');
+  await f.health();
+  const before = f.messages.at(-1);
+  f.showMetadata('新しい会話', '新しい依頼', '/c/newly-assigned');
+  await f.health();
+  f.location.href = 'https://chatgpt.com/c/newly-assigned';
+  await f.health();
+  const assigned = f.messages.at(-1);
+  assert.equal(assigned.pageInstanceId, before.pageInstanceId);
+  assert.equal(assigned.generationToken, before.generationToken);
+  assert.equal(assigned.status, 'running');
+  assert.equal(assigned.requestPreview, '新しい依頼');
 });
 
 for (const kind of ['sync', 'async']) {

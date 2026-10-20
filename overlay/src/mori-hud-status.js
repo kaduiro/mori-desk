@@ -38,5 +38,27 @@
     return notices[status.state];
   }
 
-  return { getMoriHudStatus };
+  function isBrowserHistory(row) {
+    return row?.source === "browser" && (row.isHistory === true || row.isCurrent === false);
+  }
+
+  function getMoriHudHistory(snapshot) {
+    if (!snapshot || snapshot.moriBrowserStatus?.dnd === true) return null;
+    const history = snapshot.moriBrowserHistory;
+    if (!history || !Number.isSafeInteger(history.count) || history.count <= 0) return null;
+    const unreadCount = Number.isSafeInteger(history.unreadCount) ? Math.max(0, history.unreadCount) : 0;
+    return {
+      label: `以前の記録 ${history.count} 件${unreadCount ? ` · 未確認 ${unreadCount} 件` : ""}`,
+      detail: "閉じたタブや以前の接続の記録です。クリックすると未確認通知と詳細を確認できます。",
+      sessionId: typeof history.firstSessionId === "string" ? history.firstSessionId : null,
+      unreadCount,
+    };
+  }
+
+  // Matches the browser-only row CSS. CLI rows keep their inherited geometry.
+  function getMoriBrowserRowHeight(row) {
+    return row?.source === "browser" ? (row.requestPreview ? 66 : 48) : 28;
+  }
+
+  return { getMoriHudStatus, getMoriHudHistory, isBrowserHistory, getMoriBrowserRowHeight };
 });

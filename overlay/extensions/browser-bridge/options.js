@@ -61,7 +61,7 @@
     if (counts.needsReload) line(`${counts.needsReload} 件でページの監視プログラムから応答がありません。開いている AI タブを F5 で再読み込みし、拡張機能のサイトへのアクセスを確認してください。回答生成中なら、終了してから再読み込みしてください。`);
     if (counts.unsupportedRoute) line(`${counts.unsupportedRoute} 件は対象外のページです。ChatGPT / Claude の会話画面を開いてください。プロジェクトの管理画面や GPT の編集画面は監視しません。`);
     if (counts.unknown) line(`${counts.unknown} 件で現在の生成状態を読み取れません。ページの読み込みを待ち、通常のテキスト会話で確認してください。画面変更に追従できない場合も、回答完了とは判定しません。`);
-    if (counts.idle) line('待機中のタブは監視プログラムが動いています。HUD に初めて行を出すには、この接続後に質問を送信し、生成中の状態を観測する必要があります。');
+    if (counts.idle) line('待機中のタブも監視プログラムが動いています。接続先が観測を受け付けると、現在開いている会話が HUD に表示されます。開いただけで完了通知は出しません。');
     if (counts.settled) line('生成停止を観測したタブでは、回答やエラーの有無を確認してください。停止したことだけでは正常終了とは断定しません。');
     const delivery = result.observationDelivery;
     if (delivery) {

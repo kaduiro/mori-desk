@@ -121,13 +121,13 @@ test('cross-scope navigation to an existing conversation cannot inherit an unfin
   const old = f.ingest({}, { route: a }).events[0];
   const changed = f.ingest({ pageInstanceId: 'new-scope-page', status: 'idle', generationToken: null },
     { route: utils.routeForUrl('https://chatgpt.com/g/g-PRIVATE_SCOPE_B/c/old-id') });
-  assert.deepEqual(changed.events.map(event => event.kind), ['closed']);
+  assert.deepEqual(changed.events.map(event => event.kind), ['closed', 'observation']);
   assert.equal(changed.events[0].outcome, null);
   assert.equal(changed.events[0].sessionId, old.sessionId);
   const target = f.state.sessions[f.state.tabs[7]];
   assert.notEqual(target.sessionId, old.sessionId);
   assert.equal(target.phase, 'idle');
-  assert.equal(target.announced, false);
+  assert.equal(target.announced, true);
   assert.equal(target.turnId, null);
 });
 
@@ -164,8 +164,15 @@ test('opening a completed historical conversation produces no terminal or new tu
   const idle = model.sample({ supported: true, ready: true, hasAssistant: true, generating: false }, now);
   assert.deepEqual(idle, { status: 'idle', generationToken: null, outcome: null });
   const f = fixture();
-  assert.equal(f.ingest({ status: 'idle', generationToken: null }).events.length, 0);
-  assert.equal(f.ingest({ status: 'settled', generationToken: 'previous', outcome: 'unverified' }).events.length, 0);
+  for (const result of [f.ingest({ status: 'idle', generationToken: null }),
+    f.ingest({ status: 'settled', generationToken: 'previous', outcome: 'unverified' })]) {
+    assert.equal(result.events.length, 1);
+    assert.equal(result.events[0].kind, 'observation');
+    assert.equal(result.events[0].phase, 'idle');
+    assert.equal(result.events[0].generation, 0);
+    assert.equal(result.events[0].turnId, null);
+    assert.equal(result.events[0].outcome, null);
+  }
 });
 
 test('stop disappearance is only an unverified candidate, and transient or unknown DOM never completes', () => {
@@ -209,9 +216,11 @@ test('new conversation URL assignment retains a running session, while explicit 
   assert.equal(assigned.routeRevision, a.routeRevision + 1);
   const next = f.ingest({ status: 'idle', generationToken: null },
     { route: utils.routeForUrl('https://chatgpt.com/c/other-conversation') });
-  assert.equal(next.events.length, 1);
+  assert.equal(next.events.length, 2);
   assert.equal(next.events[0].kind, 'closed');
   assert.equal(next.events[0].outcome, null);
+  assert.equal(next.events[1].phase, 'idle');
+  assert.equal(next.events[1].kind, 'observation');
   assert.notEqual(next.state.tabs[7], a.sessionId);
 });
 
@@ -288,7 +297,7 @@ test('focus accepts a running row with no notice and rejects another browser run
   }
 });
 
-test('content entrypoint handles trusted stop clicks but never reads text or dispatches page input', () => {
+test('status detection stays text-free; only the metadata reader may inspect bounded authorized nodes', () => {
   const base = path.join(__dirname, '../extensions/browser-bridge');
   const source = ['content-script.js', 'adapters/chatgpt.js', 'adapters/claude.js']
     .map(name => fs.readFileSync(path.join(base, name), 'utf8')).join('\n');
@@ -296,4 +305,68 @@ test('content entrypoint handles trusted stop clicks but never reads text or dis
   assert.doesNotMatch(source, /\b(?:innerHTML|outerHTML|innerText|textContent|document\.cookie|document\.title)\b/);
   assert.doesNotMatch(source, /\b(?:dispatchEvent|KeyboardEvent|InputEvent|fetch|XMLHttpRequest)\s*\(/);
   assert.doesNotMatch(source, /storage\.(?:local|sync)/);
+  const metadataSource = fs.readFileSync(path.join(base, 'conversation-metadata.js'), 'utf8');
+  assert.doesNotMatch(metadataSource, /\b(?:innerHTML|outerHTML|innerText|textContent|document\.cookie)\b/);
+  assert.doesNotMatch(metadataSource, /\b(?:dispatchEvent|KeyboardEvent|InputEvent|fetch|XMLHttpRequest)\s*\(/);
+  assert.doesNotMatch(metadataSource, /storage\.(?:local|sync)/);
+});
+
+test('idle title/preview updates retain the same tab identity across reload and reconnect', () => {
+  const f = fixture();
+  const original = f.ingest({ status: 'idle', generationToken: null,
+    conversationTitle: 'インターンの相談', requestPreview: '最初に取り組むことを考えたい' }).events[0];
+  assert.equal(original.phase, 'idle');
+  assert.equal(original.turnId, null);
+  const renamed = f.ingest({ status: 'idle', generationToken: null,
+    conversationTitle: '次の一週間の計画', requestPreview: '目標を整理したい' }).events[0];
+  assert.equal(renamed.sessionId, original.sessionId);
+  assert.equal(renamed.conversationTitle, '次の一週間の計画');
+  const replay = f.snapshot().events[0];
+  assert.equal(replay.sessionId, original.sessionId);
+  assert.equal(replay.conversationTitle, renamed.conversationTitle);
+  assert.equal(replay.replay, true);
+  const reloaded = f.ingest({ status: 'idle', generationToken: null, contentSequence: 1,
+    pageInstanceId: 'page-reloaded', conversationTitle: '再読込後の会話', requestPreview: '' },
+  { documentId: 'document-reloaded' }).events[0];
+  assert.equal(reloaded.sessionId, original.sessionId);
+  assert.ok(reloaded.routeRevision > renamed.routeRevision);
+  assert.equal(reloaded.conversationTitle, '再読込後の会話');
+  assert.equal(reloaded.requestPreview, '');
+  assert.equal(reloaded.turnId, null);
+  assert.equal(reloaded.kind, 'observation');
+  const otherTab = f.ingest({ status: 'idle', generationToken: null, pageInstanceId: 'page-2' },
+    { tabId: 8, documentId: 'document-2' }).events[0];
+  assert.notEqual(otherTab.sessionId, original.sessionId);
+  assert.equal(otherTab.conversationRef, original.conversationRef);
+});
+
+test('navigation creates an idle current row without copying the old conversation metadata or focus target', () => {
+  const f = fixture();
+  const old = f.ingest({ conversationTitle: '会話 A', requestPreview: '依頼 A' }).events[0];
+  const result = f.ingest({ status: 'idle', generationToken: null, pageInstanceId: 'page-b',
+    conversationTitle: '会話 B', requestPreview: '' },
+  { route: utils.routeForUrl('https://chatgpt.com/c/conversation-b') });
+  assert.deepEqual(result.events.map(event => event.kind), ['closed', 'observation']);
+  const current = result.events[1];
+  assert.equal(current.conversationTitle, '会話 B');
+  assert.equal(current.requestPreview, '');
+  assert.equal(current.turnId, null);
+  assert.equal(coordinator.focusMatches(f.state, { ...old, requestId: 'old-target', noticeSequence: null }), false);
+  assert.equal(coordinator.focusMatches(f.state, { ...current, requestId: 'current-target', noticeSequence: null }), true);
+});
+
+test('legacy durable events retain their exact fields; malformed authorized metadata is rejected', () => {
+  const f = fixture(); f.ingest();
+  const terminal = f.ingest({ status: 'settled', outcome: 'unverified',
+    conversationTitle: '会話', requestPreview: '送信済みの依頼' }).events[0];
+  assert.equal(outbox.eventValid(terminal), true);
+  const legacy = { ...terminal }; delete legacy.conversationTitle; delete legacy.requestPreview;
+  assert.equal(outbox.eventValid(legacy), true);
+  assert.deepEqual(outbox.append({ v: 1, events: [] }, [legacy]).events[0], legacy);
+  for (const value of ['x'.repeat(161), 'line\nbreak', ' bidi\u202e', '\ud800', 123, null]) {
+    assert.equal(outbox.eventValid({ ...terminal, conversationTitle: value }), false);
+    assert.equal(coordinator.validState({ ...f.state, sessions: {
+      ...f.state.sessions, [terminal.sessionId]: { ...f.state.sessions[terminal.sessionId], requestPreview: value },
+    } }), false);
+  }
 });

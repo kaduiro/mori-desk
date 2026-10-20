@@ -8,6 +8,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { pathToFileURL } = require("node:url");
 const { createBrowserSessionStore, STALE_MS } = require("../src/browser-session-store");
+const { mergeHudSnapshot } = require("../src/mori-desktop-snapshot");
 const createBrowserWindowRuntime = require("../src/mori-browser-window");
 
 // Exercise the shipped renderer, preload and IPC sender gate together. The DOM,
@@ -120,18 +121,24 @@ async function fixture(t) {
   await Promise.resolve();
   function publish() {
     const rows = store.getSnapshot();
-    preloadListeners.get("session-hud:session-snapshot")({}, {
-      sessions: rows, orderedIds: rows.map(row => row.id), hudTotalNonIdle: rows.length,
+    preloadListeners.get("session-hud:session-snapshot")({}, mergeHudSnapshot({
+      sessions: [], orderedIds: [], hudTotalNonIdle: 0,
       hudPinned: true, accountQuota: [], moriBrowserStatus: { state: "ready", dnd: false },
-    });
+    }, rows));
     return rows;
   }
   function rowElement() {
-    const element = root.children.find(child => child.className.split(/\s+/).includes("row"));
+    const element = root.children.find(child => child.className.split(/\s+/).includes("row-browser"));
     assert.ok(element, "expected a rendered browser session row");
     return element;
   }
-  return { store, calls, observe, publish, rowElement, hud, mainFrame, hudPage, context,
+  function historyElement() {
+    const element = root.children.find(child => child.className.split(/\s+/).includes("row-browser-history"));
+    assert.ok(element, "expected a history details link instead of an old current-tab row");
+    assert.equal(root.children.some(child => child.className.split(/\s+/).includes("row-browser")), false);
+    return element;
+  }
+  return { store, calls, observe, publish, rowElement, historyElement, hud, mainFrame, hudPage, context,
     panelStatus() {
       assert.ok(panelWindow, "expected browser details to open");
       return handlers.get("mori:status")({ sender: panelWindow.webContents, senderFrame: panelWindow.webContents.mainFrame });
@@ -193,21 +200,22 @@ test("a rejected browser focus keeps its unread receipt and never falls back to 
   assert.deepEqual(f.calls.legacy, []);
 });
 
-test("a disconnected retained row cannot issue browser focus or acknowledge a pending receipt", async t => {
+test("a disconnected retained record moves to the history link without issuing focus or acknowledging its receipt", async t => {
   const f = await fixture(t);
   f.observe({ kind: "terminal", phase: "settled", outcome: "unverified" });
   f.store.disconnect("profile-1", "browser-run-1");
   const [row] = f.publish();
   assert.equal(row.canFocus, false);
   assert.equal(typeof row.focusUnavailableReason, "string");
-  assert.doesNotMatch(f.rowElement().title, /ターミナル|terminal/i);
-  assert.ok(f.rowElement().title.includes(row.focusUnavailableReason));
-  await f.rowElement().click();
+  assert.equal(row.isHistory, true);
+  assert.doesNotMatch(f.historyElement().title, /ターミナル|terminal/i);
+  assert.match(f.historyElement().title, /未確認 1 件/);
+  await f.historyElement().click();
   assert.equal(f.calls.focus.length, 0);
   assert.equal(f.calls.directAck, 0);
   assert.deepEqual(f.calls.legacy, []);
   assert.equal(f.store.getSnapshot()[0].pendingNotice.noticeSequence, row.pendingNotice.noticeSequence);
-  assert.equal(f.calls.panel, 1, "the blocked row opens its connection details");
+  assert.equal(f.calls.panel, 1, "the history link opens the retained record's details");
   assert.equal((await f.panelStatus()).selectedSessionId, row.id);
 });
 
@@ -231,7 +239,7 @@ test("a connected row with unsupported generation controls can return to its val
   assert.deepEqual(f.calls.legacy, []);
 });
 
-test("closed and older-browser-run rows stay blocked and select their retained details", async t => {
+test("closed and older-browser-run records stay in history and select their retained details", async t => {
   for (const state of ["closed", "old-run"]) {
     const f = await fixture(t);
     f.observe({ kind: "terminal", phase: "settled", outcome: "unverified" });
@@ -242,7 +250,8 @@ test("closed and older-browser-run rows stay blocked and select their retained d
     }
     const [row] = f.publish();
     assert.equal(row.canFocus, false, state);
-    await f.rowElement().click();
+    assert.equal(row.isHistory, true, state);
+    await f.historyElement().click();
     assert.equal(f.calls.focus.length, 0, state);
     assert.equal(f.calls.directAck, 0, state);
     assert.deepEqual(f.calls.legacy, [], state);

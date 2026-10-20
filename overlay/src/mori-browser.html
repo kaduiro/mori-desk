@@ -15,9 +15,11 @@
 <div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
-<section><div class="section-heading"><h2>ブラウザのセッション</h2><span id="count">0 件</span></div>
-<p class="session-intro">記録ごとの状態・最終観測・未確認通知を確認できます。識別しやすい表示名を、この PC に保存できます。</p>
+<section><div class="section-heading"><h2>現在のタブ</h2><span id="count">0 件</span></div>
+<p class="session-intro">会話名と直近の依頼の抜粋から、どのタブかを確認できます。表示名は自分でも設定できます。</p>
 <p id="empty">接続後、ChatGPT / Claude のページを再読み込みして質問を送信してください。</p>
-<div id="sessions"></div></section>
-<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。通信時刻の更新だけでは、生成状態が更新されたとは判断できません。</p><p>会話本文・入力内容・ページタイトルを自動収集せず、会話の要約は作成しません。表示名は自分で入力したものを、この PC のセッション記録に保存します。</p><p id="mode"></p></footer>
+<div id="sessions"></div>
+<details id="history" class="session-history" hidden><summary><span>以前の記録</span><span id="history-count">0 件</span><span id="history-unread" class="session-unread" hidden></span></summary>
+<p class="session-intro">閉じたタブや、以前の接続で保存した記録です。未確認通知は確認するまで残ります。</p><div id="history-sessions"></div></details></section>
+<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。通信時刻の更新だけでは、生成状態が更新されたとは判断できません。</p><p>会話名と送信済みの直近の依頼の短い抜粋を、この PC のセッション記録に保存します。入力途中の文章・回答本文は取得せず、自動要約や外部 AI への送信は行いません。</p><p id="mode"></p></footer>
 </main><script src="mori-browser-renderer.js"></script></body></html>

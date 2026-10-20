@@ -12,7 +12,7 @@
       <span class="brand" aria-hidden="true">mori</span>
       <div><p class="eyebrow">BROWSER BRIDGE · プレビュー</p><h1>回答を待つ時間に、別の仕事を。</h1></div>
     </header>
-    <p class="intro">ChatGPT と Claude の生成状態を、デスクトップのキャラクターに届けます。</p>
+    <p class="intro">ChatGPT と Claude の状態と会話の目印を、デスクトップのキャラクターに届けます。</p>
 
     <section class="status-card" aria-labelledby="status-heading">
       <div class="status-heading"><h2 id="status-heading">接続状況</h2><span id="connection" class="pill">読み込み中</span></div>
@@ -46,14 +46,15 @@
 
     <section class="preview-note" aria-labelledby="preview-heading">
       <h2 id="preview-heading">プレビュー版で確認できること</h2>
-      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も、通常の入力欄と生成の停止ボタンを読み取れる画面で扱います。拡張機能の追加・再読み込み後は、開いている AI のタブも一度再読み込みしてください。生成中の状態を一度観測すると、1 つのタブが HUD の 1 行として表示されます。過去の会話を開いただけでは行は作りません。同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
+      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も、通常の入力欄と生成の停止ボタンを読み取れる画面で扱います。拡張機能の追加・再読み込み後は、開いている AI のタブも一度再読み込みしてください。対応する会話は待機中でも、1 つのタブが HUD の 1 行として表示されます。開いただけで完了通知は出しません。同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
       <p>この版の DOM 判定は、実際の利用環境での確認が必要です。生成の停止を検出したときは <strong>「回答を確認」</strong> と表示します。正常終了の保証や、回答内容の評価は行いません。読み取れない画面、タブの破棄、スリープ中は状態が不明になります。</p>
-      <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。プロジェクト名・GPT 名を収集せず、会話 ID だけを扱います。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
+      <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。URL のプロジェクト名・GPT 名の部分は保存せず、会話 ID に正規化します。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
     </section>
 
     <section aria-labelledby="privacy-heading">
       <h2 id="privacy-heading">この拡張機能が扱う情報</h2>
-      <p>AI の種類、会話の識別子、タブの識別子、生成状態、時刻だけを、この PC の MORI Desk に送ります。プロンプト・回答本文・ページのタイトル・Cookie・API キーは収集しません。</p>
+      <p>AI の種類、会話とタブの識別子、生成状態、時刻に加え、現在の会話タイトルと、最後に送信したユーザーの依頼の短い抜粋を、この PC の MORI Desk に送ります。タイトル・抜粋はそれぞれ最大 160 文字相当で、会話を見分けるために表示します。元の会話を特定できないときは取得できない状態として扱います。</p>
+      <p>入力途中の文章・AI の回答・HTML・Cookie・API キーは収集しません。外部サービスに会話を送って要約する処理はありません。「表示されない原因を確認」の診断は件数と状態だけを扱います。</p>
       <p>HUD の行をクリックしたときだけ、対象のタブとウィンドウを前面に出します。入力、送信、会話の削除、AI の操作許可は行いません。</p>
       <details><summary>接続の詳細と解除</summary>
         <p class="small">接続先は <code>127.0.0.1:23333–23337</code> の MORI Desk です。接続コードを使った相互認証を行います。外部サーバーへの通信や、拡張機能ストアからの自動更新設定は、このソース版にはありません。</p>

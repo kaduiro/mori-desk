@@ -202,6 +202,12 @@ async function observationMessage(input, sender) {
     || !(await checkCurrentDocument(tab.id, observation.pageInstanceId, route.conversationRef))) {
     return { ok: false, reason: 'old_document' };
   }
+  // The page check crosses an async boundary. A route switch while its reply
+  // is in flight must not attach the old document's metadata to the new tab.
+  const confirmedTab = await within(chrome.tabs.get(tab.id));
+  if (confirmedTab.status === 'loading' || !utils.sameRoute(route, utils.routeForUrl(confirmedTab.url))) {
+    return { ok: false, reason: 'old_document' };
+  }
   const result = coordinator.reduceObservation(sessions, input,
     { route, tabId: tab.id, documentId: sender.documentId });
   await commit(result);

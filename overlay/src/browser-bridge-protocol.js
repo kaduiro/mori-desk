@@ -6,6 +6,7 @@ const PRODUCT_ID = "mori-desk";
 const WS_PATH = "/browser/v1";
 const EXTENSION_ID = "obooegdoanifidoffaodpobadpeiilcl";
 const MAX_FRAME_BYTES = 16 * 1024;
+const MAX_CONVERSATION_METADATA_LENGTH = 160;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const SECRET = /^[A-Za-z0-9_-]{43}$/;
 const PHASES = new Set(["idle", "running", "settled"]);
@@ -26,6 +27,11 @@ function isSecret(value) {
 }
 function isInteger(value, min = 0) { return Number.isSafeInteger(value) && value >= min; }
 function isObject(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
+function isConversationMetadata(value) {
+  return typeof value === "string" && value.length <= MAX_CONVERSATION_METADATA_LENGTH
+    && value.isWellFormed() && value === value.replace(/\s+/gu, " ").trim()
+    && !/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(value);
+}
 function assertKeys(value, allowed) {
   if (!isObject(value) || Object.keys(value).some((key) => !allowed.includes(key))) {
     throw protocolError("invalid_schema");
@@ -74,7 +80,7 @@ function normalizeConversationRef(provider, ref) {
 function validateEvent(input) {
   assertKeys(input, ["type", "v", "eventId", "browserRunId", "sessionId", "sequence", "kind",
     "provider", "tabId", "pageInstanceId", "routeRevision", "conversationRef", "turnId", "generation",
-    "phase", "outcome", "observation", "observedAt", "replay"]);
+    "phase", "outcome", "observation", "observedAt", "replay", "conversationTitle", "requestPreview"]);
   if (input.type !== "event" || input.v !== VERSION
     || ![input.eventId, input.browserRunId, input.sessionId, input.pageInstanceId].every(isId)
     || !isInteger(input.sequence, 1) || !isInteger(input.tabId) || !isInteger(input.routeRevision)
@@ -89,6 +95,9 @@ function validateEvent(input) {
     || (input.kind === "terminal" && (input.phase !== "settled" || !OUTCOMES.has(input.outcome) || input.turnId === null || input.generation < 1))
     || (input.kind === "closed" && input.observation !== "closed")) {
     throw protocolError("invalid_event");
+  }
+  for (const key of ["conversationTitle", "requestPreview"]) {
+    if (Object.hasOwn(input, key) && !isConversationMetadata(input[key])) throw protocolError("invalid_metadata");
   }
   return { ...input, conversationRef: normalizeConversationRef(input.provider, input.conversationRef) };
 }
@@ -106,8 +115,8 @@ function desktopSessionId(clientId, browserRunId, sessionId) {
 }
 
 module.exports = {
-  VERSION, PRODUCT_ID, WS_PATH, EXTENSION_ID, MAX_FRAME_BYTES,
-  isId, isSecret, isInteger, isObject, assertKeys, protocolError,
+  VERSION, PRODUCT_ID, WS_PATH, EXTENSION_ID, MAX_FRAME_BYTES, MAX_CONVERSATION_METADATA_LENGTH,
+  isId, isSecret, isInteger, isObject, isConversationMetadata, assertKeys, protocolError,
   authText, mac, verifyMac, validateHello, validateEvent,
   normalizeConversationRef, decodeFrame, desktopSessionId,
 };

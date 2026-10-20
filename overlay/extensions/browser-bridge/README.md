@@ -18,7 +18,15 @@ MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト�
 
 拡張機能の設定画面で **「表示されない原因を確認」** を押すと、この Chrome プロファイルの ChatGPT / Claude タブを最大 20 件調べます。診断は接続前や監視停止中にも実行でき、接続の不足、ページ再読み込み・サイトアクセスの確認が必要なタブ、対象外の URL、DOM を読み取れない画面、待機中、生成中を件数で表示します。URL・タイトル・会話本文・タブ ID は診断結果に保存しません。
 
-初回追加や `chrome://extensions` で拡張機能を再読み込みした後は、既に開いている AI のタブも再読み込みしてください。回答の生成中であれば、その終了を待ってから行ってください。接続済みでも、待機中の過去の会話を開いただけでは HUD の行を作りません。この接続後に質問を送り、生成中の状態を一度観測すると行が作られます。ChatGPT のデスクトップアプリや別の Chrome プロファイルは、この拡張機能では監視できません。
+初回追加や `chrome://extensions` で拡張機能を再読み込みした後は、既に開いている AI のタブも再読み込みしてください。回答の生成中であれば、その終了を待ってから行ってください。0.1.5 では、対応する会話は待機中でも HUD に行を作ります。過去の会話を開いたり再接続したりしただけで完了通知は作りません。ChatGPT のデスクトップアプリや別の Chrome プロファイルは、この拡張機能では監視できません。
+
+## 会話を見分ける表示
+
+0.1.5 は、現在の会話のタイトルと、最後に送信したユーザーの依頼の短い抜粋を HUD に届けます。タイトルは履歴・ナビゲーション内のリンクが現在の会話 ID と一致するときだけ読み取ります。抜粋は送信済みユーザーメッセージの目印を持つ最後の要素だけが対象です。タイトルと抜粋はそれぞれ最大 160 UTF-16 コード単位に制限し、改行や連続する空白を一行に整えます。外部の要約 API は使いません。
+
+同じタブで別の会話へ移ったときは、前の会話の抜粋を新しい会話に流用しません。URL だけが切り替わり、古いメッセージの DOM が残っている間は、抜粋を取得できない状態として扱います。現在の会話に結びつくタイトルがない場合も空欄にし、汎用のページタイトルから推測しません。画面構造や履歴欄の有無により、タイトル・抜粋を取得できない場合があります。
+
+同じ会話を二つのタブで開いたときは、それぞれ別の行・移動先として扱います。同じブラウザ起動内の接続復旧やページ再読み込みは既存のタブ記録を再利用します。Chrome 再起動や拡張機能の再読み込みで起動 ID が変わった場合、以前の記録は本体が履歴として扱います。本体と拡張機能を対応する版に更新してください。
 
 0.1.3 は、従来の入力欄・停止ボタン・回答欄の目印がない ChatGPT 画面に、実験的な検知を追加します。一つの可視の編集可能な入力欄、一つの完全一致の短い停止ラベル（`Stop` / `停止` / `停止する`）、可視の `aria-busy="true"` が揃ったときだけ生成を開始します。短い停止ボタンだけ、処理中属性だけ、複数の入力欄・停止候補では生成を断定しません。
 
@@ -44,7 +52,7 @@ MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト�
 
 ## データと接続
 
-- 会話本文、入力、ページタイトル、Cookie、API キー、HTML は読み出して送信しません。
+- 現在の会話タイトルと最後に送信したユーザーの依頼の抜粋だけを、各 160 UTF-16 コード単位までローカルの MORI Desk に送ります。入力途中・編集中の文章、AI の回答、Cookie、API キー、HTML は読み出して送信しません。診断結果にはタイトルや抜粋を含めません。
 - 会話の URL はブラウザが渡す `sender.url` と実際のタブから検証し、必要な会話パスだけを送ります。ChatGPT のプロジェクト・GPT 内でも送信する参照は `/c/<id>` に正規化し、プロジェクト名・GPT 名を含み得る scope 部分、クエリ、fragment は保存・送信しません。
 - 接続鍵は `chrome.storage.local` の trusted extension contexts に制限します。Content Script に鍵を渡しません。Chrome の同期保存も使いません。
 - localhost の `ws://127.0.0.1:23333–23337/browser/v1` だけに接続します。永久鍵をネットワークに流さず、接続ごとに HMAC-SHA-256 の相互認証を行います。HMAC 認証は WebSocket 本文の暗号化ではありません。
@@ -66,7 +74,7 @@ npm test
 
 ```sh
 cd .runtime
-node --test test/browser-extension-core.test.js test/browser-extension-fixtures.test.js test/browser-extension-alternate-layout.test.js test/browser-extension-transport.test.js test/browser-extension-worker.test.js
+node --test test/browser-extension-core.test.js test/browser-extension-metadata.test.js test/browser-extension-fixtures.test.js test/browser-extension-alternate-layout.test.js test/browser-extension-transport.test.js test/browser-extension-worker.test.js
 ```
 
 MORI Desk 側の仕様は [ブラウザ接続プロトコル](https://github.com/kaduiro/mori-desk/blob/main/docs/browser-protocol-v1.md) を参照してください。実サイト確認では、複数タブの生成、停止、エラー、画面切り替え、再読み込み、スリープ復帰、MORI Desk 再起動、Chrome 再起動、未読のまま次の生成、HUD クリック中の別会話への移動を確認してください。

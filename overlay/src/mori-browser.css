@@ -10,6 +10,15 @@
 .session-heading{flex:1;min-width:180px;overflow-wrap:anywhere}
 .session-name{margin:0;font-size:16px;line-height:1.5}
 .session-source{font-size:11px;color:#718073}
+.session-request-preview{margin:10px 0 6px;padding:9px 12px;background:#f2f5ee;border-radius:8px;color:#425a49;overflow-wrap:anywhere}
+.session-request-preview.preview-unavailable{color:#718073;font-size:12px}
+.session-history{margin-top:22px;border-top:1px solid #dce4d5;padding-top:18px}
+.session-history>summary{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:650;list-style:none}
+.session-history>summary::before{content:"›";font-size:20px;line-height:1}
+.session-history[open]>summary::before{transform:rotate(90deg)}
+.session-history>summary:focus-visible{outline:2px solid #74b084;outline-offset:4px}
+#history-count{font-size:12px;font-weight:400;color:#718073}
+.session[data-history="true"] .session-name{color:#62756a}
 .session-top>.session-state{border-radius:7px;background:#eff3e9;padding:5px 8px}
 .session[data-status="unknown"] .session-top>.session-state,.session[data-status="unsupported"] .session-top>.session-state{background:#fff1d5;color:#7a5a19}
 .session[data-status="generating"] .session-top>.session-state{background:#dff0da;color:#2b6237}

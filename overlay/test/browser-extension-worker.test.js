@@ -9,15 +9,17 @@ const providerUtils = require('../extensions/browser-bridge/provider-utils');
 const { EXTENSION_ID, validateEvent } = require('../src/browser-bridge-protocol');
 
 function event() { const listeners = []; return { listeners, addListener(listener) { listeners.push(listener); } }; }
-async function workerFixture() {
+async function workerFixture({ savedLocal = null, savedSession = null, savedTabs = null } = {}) {
   const log = [];
-  const local = { moriClientId: 'profile-1', moriCredential: {
+  const local = savedLocal ? structuredClone(savedLocal) : { moriClientId: 'profile-1', moriCredential: {
     clientId: 'profile-1', instanceId: 'instance-1', port: 23333, key: crypto.randomBytes(32).toString('base64url'),
   } };
-  const session = {};
-  const tabs = new Map([[7, { id: 7, windowId: 3, status: 'complete', url: 'https://chatgpt.com/c/test', pageId: 'page-1' }]]);
+  const session = structuredClone(savedSession || {});
+  const tabs = new Map(savedTabs ? structuredClone(savedTabs) :
+    [[7, { id: 7, windowId: 3, status: 'complete', url: 'https://chatgpt.com/c/test', pageId: 'page-1' }]]);
   let onWindowFocus = () => {};
   let onHealth = () => {};
+  let onDocumentCheck = () => {};
   const transports = [];
   const clone = value => structuredClone(value);
   function area(data, name) {
@@ -65,8 +67,10 @@ async function workerFixture() {
           return tab.invalidHealth ? {} : { ok: true, v: 1, status: tab.healthState || 'idle', observationAck: tab.healthAck };
         }
         const ref = providerUtils.routeForUrl(tab.url)?.conversationRef ?? null;
-        return { ok: tab.pageId === message.pageInstanceId && ref === message.conversationRef,
+        const result = { ok: tab.pageId === message.pageInstanceId && ref === message.conversationRef,
           pageInstanceId: tab.pageId, conversationRef: ref };
+        await onDocumentCheck(tab, message);
+        return result;
       },
       async update(id, value) { log.push({ type: 'tab-focus', id, value }); return clone(tabs.get(id)); },
     },
@@ -106,7 +110,8 @@ async function workerFixture() {
     await drain(); return result;
   }
   return { chrome, log, local, session, tabs, context, drain, observe, dispatch, transport: transports[0],
-    focusDuring: callback => { onWindowFocus = callback; }, healthDuring: callback => { onHealth = callback; } };
+    focusDuring: callback => { onWindowFocus = callback; }, healthDuring: callback => { onHealth = callback; },
+    documentCheckDuring: callback => { onDocumentCheck = callback; } };
 }
 
 test('worker rejects forged sources and old documents; only metadata reaches storage and the wire', async () => {
@@ -127,14 +132,79 @@ test('worker does not acknowledge stale or duplicate observations as newly accep
   const f = await workerFixture();
   assert.equal((await f.observe({ observedAt: Date.now() - 31000 })).reason, 'old_observation');
   assert.equal(f.transport.events.length, 0);
-  assert.equal((await f.observe()).ok, true);
+  assert.equal((await f.observe({ conversationTitle: '現在の会話', requestPreview: '現在の依頼' })).ok, true);
   const before = f.transport.events.length;
   const previous = structuredClone(f.session.moriSessions);
-  const duplicate = await f.observe({ contentSequence: 2 });
+  const duplicate = await f.observe({ contentSequence: 2,
+    conversationTitle: '重複した古い会話', requestPreview: '古い依頼' });
   assert.equal(duplicate.ok, false);
   assert.equal(duplicate.reason, 'duplicate_observation');
   assert.equal(f.transport.events.length, before);
   assert.deepEqual(f.session.moriSessions, previous);
+});
+
+test('worker binds authorized idle metadata to the current route and rejects the old focus target after navigation', async () => {
+  const f = await workerFixture();
+  assert.equal((await f.observe({ status: 'idle', generationToken: null,
+    conversationTitle: '会話 A', requestPreview: 'A の送信済み依頼' })).ok, true);
+  const a = f.transport.events.at(-1);
+  assert.equal(a.phase, 'idle');
+  assert.equal(a.kind, 'observation');
+  assert.equal(a.turnId, null);
+  assert.equal(a.generation, 0);
+  assert.equal(a.conversationTitle, '会話 A');
+  const focus = event => ({ type: 'focus.request', v: 1, requestId: 'focus-idle',
+    browserRunId: event.browserRunId, sessionId: event.sessionId, tabId: event.tabId,
+    pageInstanceId: event.pageInstanceId, routeRevision: event.routeRevision,
+    conversationRef: event.conversationRef, noticeSequence: null });
+  assert.equal((await f.transport.onFocus(focus(a))).ok, true);
+  f.tabs.get(7).url = 'https://chatgpt.com/c/conversation-b';
+  f.tabs.get(7).pageId = 'page-b';
+  assert.equal((await f.observe({ conversationTitle: 'STALE_A', requestPreview: 'STALE_REQUEST' })).reason, 'old_document');
+  assert.equal((await f.observe({ status: 'idle', generationToken: null, pageInstanceId: 'page-b',
+    conversationTitle: '会話 B', requestPreview: '' }, { url: 'https://chatgpt.com/c/conversation-b' })).ok, true);
+  const b = f.transport.events.at(-1);
+  assert.equal(b.conversationRef, '/c/conversation-b');
+  assert.equal(b.conversationTitle, '会話 B');
+  assert.equal(b.requestPreview, '');
+  assert.notEqual(b.sessionId, a.sessionId);
+  assert.equal((await f.transport.onFocus(focus(a))).ok, false);
+  assert.equal((await f.transport.onFocus(focus(b))).ok, true);
+  assert.ok(f.transport.events.every(event => event.kind !== 'terminal'));
+  assert.doesNotMatch(JSON.stringify({ session: f.session, events: f.transport.events }), /STALE_/);
+});
+
+test('navigation during the current-document reply cannot commit stale title or preview', async () => {
+  const f = await workerFixture();
+  f.documentCheckDuring(async tab => { tab.url = 'https://chatgpt.com/c/new-route'; });
+  const result = await f.observe({ conversationTitle: 'STALE_TITLE', requestPreview: 'STALE_PREVIEW' });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'old_document');
+  assert.equal(f.transport.events.length, 0);
+  assert.deepEqual(Object.keys(f.session.moriSessions.sessions), []);
+});
+
+test('worker restart and page reload reuse the idle tab session within the same browser run', async () => {
+  const first = await workerFixture();
+  await first.observe({ status: 'idle', generationToken: null, conversationTitle: '継続する会話', requestPreview: '送信済みの依頼' });
+  const original = first.transport.events.at(-1);
+  const restarted = await workerFixture({ savedLocal: first.local, savedSession: first.session,
+    savedTabs: [...first.tabs] });
+  const replay = restarted.transport.events.at(-1);
+  assert.equal(replay.browserRunId, original.browserRunId);
+  assert.equal(replay.sessionId, original.sessionId);
+  assert.equal(replay.replay, true);
+  restarted.tabs.get(7).pageId = 'page-reloaded';
+  assert.equal((await restarted.observe({ status: 'idle', generationToken: null, contentSequence: 1,
+    pageInstanceId: 'page-reloaded', conversationTitle: '継続する会話', requestPreview: '' },
+  { documentId: 'document-reloaded' })).ok, true);
+  const current = restarted.transport.events.at(-1);
+  assert.equal(current.browserRunId, original.browserRunId);
+  assert.equal(current.sessionId, original.sessionId);
+  assert.equal(current.requestPreview, '');
+  assert.ok(current.routeRevision > original.routeRevision);
+  assert.equal(Object.keys(restarted.session.moriSessions.tabs).length, 1);
+  assert.ok(restarted.transport.events.every(event => event.kind !== 'terminal'));
 });
 
 test('worker returns a capacity refusal for the new tab instead of claiming its observation was accepted', async () => {

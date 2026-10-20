@@ -109,6 +109,30 @@ test("real loopback WebSocket pairs, persists completion, and returns to the exa
   assert.equal(f.bridge.getSnapshot()[0].requiresCompletionAck, false);
 });
 
+test("authenticated short metadata persists before ACK and stays out of navigation requests", async (t) => {
+  const f = await fixture(t);
+  const client = await f.pair();
+  const event = f.terminal({ conversationTitle: "会話を識別するタイトル", requestPreview: "提出した依頼の短い抜粋" });
+  await f.deliver(client, event);
+  const row = f.bridge.getSnapshot()[0];
+  const disk = JSON.parse(fs.readFileSync(path.join(f.dataDir, "sessions.json"), "utf8"));
+  assert.equal(disk.sessions[0].conversationTitle, event.conversationTitle);
+  assert.equal(disk.sessions[0].requestPreview, event.requestPreview);
+  assert.equal(disk.receipts.length, 1);
+  assert.equal(row.displayTitle, event.conversationTitle);
+  assert.equal(row.isCurrent, true);
+  assert.equal(row.isHistory, false);
+  const focused = f.bridge.focus(row.id, row.noticeSequence);
+  const request = await client.take("focus.request");
+  assert.equal(request.pageInstanceId, row.pageInstanceId);
+  assert.equal(request.conversationRef, row.conversationRef);
+  assert.equal(Object.hasOwn(request, "conversationTitle"), false);
+  assert.equal(Object.hasOwn(request, "requestPreview"), false);
+  client.send(f.focusResponse(request));
+  assert.equal((await focused).ok, true);
+  assert.equal(f.bridge.getSnapshot()[0].requiresCompletionAck, false);
+});
+
 test("a newer completion racing the focus result remains unread", async (t) => {
   const f = await fixture(t);
   const client = await f.pair();

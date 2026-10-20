@@ -75,7 +75,8 @@ function session(overrides = {}) {
 }
 
 function harness(rows = [session()]) {
-  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "code", "pairing", "copy", "extension"].map(id => [id, new Element("div")]));
+  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
+  elements.get("history").open = false;
   const document = {
     activeElement: null,
     getElementById(id) { assert.ok(elements.has(id), `Unknown panel element: ${id}`); return elements.get(id); },
@@ -86,7 +87,7 @@ function harness(rows = [session()]) {
   let onChange = null;
   const calls = [];
   let save = async (id, label) => {
-    state = { ...state, sessions: state.sessions.map(row => row.id === id ? { ...row, customLabel: label.trim(), displayTitle: label.trim() || row.label } : row) };
+    state = { ...state, sessions: state.sessions.map(row => row.id === id ? { ...row, customLabel: label.trim(), displayTitle: label.trim() || row.conversationTitle || row.label } : row) };
     onChange();
     return { ok: true };
   };
@@ -109,6 +110,7 @@ function harness(rows = [session()]) {
     setSave(fn) { save = fn; },
     async refresh(next = state) { state = next; await onChange(); await settle(); },
     card(index = 0) { return elements.get("sessions").children[index]; },
+    historyCard(index = 0) { return elements.get("history-sessions").children[index]; },
   };
 }
 
@@ -157,10 +159,10 @@ test("local display-name save refreshes the canonical name and empty input resto
   assert.deepEqual(h.calls[0], { kind: "label", id: "browser:fixture:session1", label: "  議事録の整理  " });
   assert.equal(input.value, "議事録の整理");
   assert.equal(byClass(card, "session-name").textContent, "議事録の整理");
-  assert.equal(byClass(card, "session-source").textContent, "自動名：ChatGPT 1");
+  assert.equal(byClass(card, "session-source").textContent, "ChatGPT 1 · 会話名は未取得");
   input.value = ""; await input.fire("input"); await form.fire("submit"); await h.settle();
   assert.equal(byClass(card, "session-name").textContent, "ChatGPT 1");
-  assert.equal(byClass(card, "session-source").hidden, true);
+  assert.equal(byClass(card, "session-source").hidden, false);
   assert.equal(input.value, "");
   assert.deepEqual(h.calls.map(call => call.kind), ["label", "label"], "Naming does not acknowledge an unread receipt");
 });
@@ -210,4 +212,72 @@ test("targeted details scroll once per explicit selection and labels remain iner
   assert.equal(card.scrolls.length, 1, "Observation updates must not repeatedly jump the page");
   await h.refresh({ ...h.state, selectionRevision: 2 });
   assert.equal(card.scrolls.length, 2);
+});
+
+test("conversation titles and submitted previews distinguish current tabs from collapsed previous records", async () => {
+  const first = session({ isCurrent: true, isHistory: false, conversationTitle: "長期インターンの考え方", displayTitle: "長期インターンの考え方", requestPreview: "何から始め何を目指せばいいですか" });
+  const second = session({ id: "second", label: "ChatGPT 2", isCurrent: true, conversationTitle: "HUD のセッション表示", displayTitle: "HUD のセッション表示", requestPreview: '<img src="x">タブを見分けたい' });
+  const previous = session({ id: "previous", label: "ChatGPT 3", isCurrent: false, isHistory: true, unreadCount: 2 });
+  const h = harness([previous, first, second]); await h.settle();
+  assert.equal(h.elements.get("count").textContent, "2 件");
+  assert.equal(h.elements.get("sessions").children.length, 2);
+  assert.equal(byClass(h.card(), "session-name").textContent, first.conversationTitle);
+  assert.equal(byClass(h.card(1), "session-name").textContent, second.conversationTitle);
+  assert.equal(byClass(h.card(1), "session-request-preview").textContent, `直近の依頼：${second.requestPreview}`);
+  assert.equal(descendants(h.card(1)).filter(node => node.tagName === "IMG").length, 0);
+  assert.equal(h.elements.get("history-count").textContent, "1 件");
+  assert.equal(h.elements.get("history-unread").textContent, "未確認 2 件");
+  assert.equal(h.elements.get("history").open, false);
+  assert.equal(h.historyCard().dataset.history, "true");
+  assert.equal(h.calls.length, 0);
+});
+
+test("a selected history record opens once without acknowledging its receipt", async () => {
+  const previous = session({ isHistory: true, isCurrent: false });
+  const h = harness([previous]); await h.settle();
+  assert.equal(h.elements.get("count").textContent, "0 件");
+  assert.equal(h.elements.get("empty").hidden, false);
+  await h.refresh({ ...h.state, selectedSessionId: previous.id, selectionRevision: 1 });
+  assert.equal(h.elements.get("history").open, true);
+  assert.equal(h.historyCard().scrolls.length, 1);
+  h.elements.get("history").open = false;
+  await h.refresh();
+  assert.equal(h.elements.get("history").open, false, "Live refresh preserves the user's collapsed state");
+  assert.equal(h.calls.length, 0);
+});
+
+test("route metadata refresh updates the title and preview while preserving IME composition and name drafts", async () => {
+  const first = session({ isCurrent: true, conversationTitle: "最初の会話", displayTitle: "最初の会話", requestPreview: "最初の依頼" });
+  const h = harness([first]); await h.settle();
+  const card = h.card(), input = byClass(card, "session-label-input");
+  h.document.activeElement = input;
+  await input.fire("compositionstart");
+  input.value = "へんかんちゅう"; input.selectionStart = 4; input.selectionEnd = 4;
+  await h.refresh({ ...h.state, sessions: [{ ...first, conversationTitle: "切り替え先の会話", displayTitle: "切り替え先の会話", requestPreview: "切り替え後の依頼" }] });
+  assert.equal(byClass(card, "session-name").textContent, "切り替え先の会話");
+  assert.match(byClass(card, "session-request-preview").textContent, /切り替え後の依頼/);
+  assert.equal(input.value, "へんかんちゅう");
+  assert.equal(input.selectionStart, 4);
+  await byClass(card, "session-label-editor").fire("submit");
+  assert.equal(h.calls.length, 0, "IME Enter must not prematurely save the label");
+  await input.fire("compositionend"); await h.settle();
+  await h.refresh({ ...h.state, sessions: [{ ...h.state.sessions[0], conversationTitle: "", displayTitle: first.label, requestPreview: "" }] });
+  assert.equal(input.value, "へんかんちゅう");
+  assert.match(byClass(card, "session-source").textContent, /会話名は未取得/);
+  assert.equal(byClass(card, "session-request-preview").textContent, "直近の依頼は未取得です。");
+});
+
+test("moving an edited session into history waits until the editor loses focus", async () => {
+  const current = session({ isCurrent: true, isHistory: false });
+  const h = harness([current]); await h.settle();
+  const card = h.card(), input = byClass(card, "session-label-input");
+  h.document.activeElement = input; input.value = "保存前の表示名"; await input.fire("input");
+  await h.refresh({ ...h.state, sessions: [{ ...current, isCurrent: false, isHistory: true }] });
+  assert.equal(h.card(), card, "Disconnect cannot detach the focused DOM node");
+  assert.equal(input.value, "保存前の表示名");
+  assert.equal(h.elements.get("count").textContent, "0 件");
+  h.document.activeElement = null; await input.fire("blur"); await h.settle();
+  assert.equal(h.historyCard(), card);
+  assert.equal(input.value, "保存前の表示名");
+  assert.equal(h.calls.length, 0);
 });

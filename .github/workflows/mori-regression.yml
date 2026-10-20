@@ -45,7 +45,7 @@ jobs:
           if errorlevel 1 exit /b 1
           "%MORI_NODE_EXE%" scripts\run.js test
           if errorlevel 1 exit /b 1
-          "%MORI_NODE_EXE%" --test --test-reporter=spec .runtime/test/session-hud.test.js .runtime/test/settings-window.test.js .runtime/test/shortcut-actions.test.js .runtime/test/shortcut-runtime.test.js
+          "%MORI_NODE_EXE%" --test --test-reporter=spec .runtime/test/session-hud.test.js .runtime/test/session-hud-style.test.js .runtime/test/settings-window.test.js .runtime/test/shortcut-actions.test.js .runtime/test/shortcut-runtime.test.js
           if errorlevel 1 exit /b 1
           "%MORI_NODE_EXE%" scripts\smoke-windows-ui.js
           if errorlevel 1 exit /b 1

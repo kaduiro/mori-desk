@@ -11,6 +11,8 @@ const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
 });
 
 function noticeSequence(row) { return row.pendingNotice?.noticeSequence ?? row.noticeSequence ?? null; }
+function isHistory(row) { return row.isHistory === true || row.isCurrent === false; }
+function unreadCount(row) { return Number.isSafeInteger(row.unreadCount) ? Math.max(0, row.unreadCount) : (row.pendingNotice || row.requiresCompletionAck ? 1 : 0); }
 function statusLabel(row) {
   if (row.statusLabel) return row.statusLabel;
   if (row.observation === "closed") return "タブを閉じました";
@@ -54,6 +56,7 @@ function createSessionView(row) {
   const unread = document.createElement("span"); unread.className = "session-unread";
   top.append(heading, state, unread);
   const detail = document.createElement("p"); detail.className = "session-detail";
+  const preview = document.createElement("p"); preview.className = "session-request-preview";
   const recovery = document.createElement("p"); recovery.className = "session-recovery";
   const metadata = document.createElement("dl"); metadata.className = "session-metadata";
   const fields = new Map();
@@ -69,7 +72,7 @@ function createSessionView(row) {
     item.append(term, value); metadata.append(item);
   }
   const actions = document.createElement("div"); actions.className = "session-actions";
-  const view = { row, card, name, sourceName, state, unread, detail, recovery, fields, draftDirty: false, savedLabel: "" };
+  const view = { row, card, name, sourceName, state, unread, detail, preview, recovery, fields, draftDirty: false, composing: false, savedLabel: "" };
   view.focusButton = actionButton("タブへ戻る", row, "focus", () => {
     const current = view.row;
     if (current.canFocus !== true) return { ok: false, message: current.focusUnavailableReason || "このタブへ戻れる接続がありません。" };
@@ -87,11 +90,15 @@ function createSessionView(row) {
   input.type = "text"; input.maxLength = 80; input.autocomplete = "off"; input.spellcheck = false;
   input.placeholder = "例：議事録の整理（80 文字以内）";
   input.addEventListener("input", () => { view.draftDirty = input.value !== view.savedLabel; });
+  input.addEventListener("compositionstart", () => { view.composing = true; });
+  input.addEventListener("compositionend", () => { view.composing = false; view.draftDirty = input.value !== view.savedLabel; refresh(); });
+  input.addEventListener("blur", () => { if (!view.composing) refresh(); });
   label.append(labelText, input); view.input = input;
   const saveButton = document.createElement("button"); saveButton.type = "submit"; saveButton.textContent = "表示名を保存";
   view.saveButton = saveButton;
   editor.addEventListener("submit", event => {
     event.preventDefault();
+    if (view.composing) return;
     const draft = input.value;
     act(`${view.row.id}/label`, saveButton, async () => {
       const result = await window.mori.setLabel(view.row.id, draft);
@@ -102,21 +109,25 @@ function createSessionView(row) {
   });
   editor.append(label, saveButton);
   const editorHint = document.createElement("p"); editorHint.className = "session-label-hint";
-  editorHint.textContent = "空欄で保存すると自動名に戻ります。会話の内容から名前を自動取得することはありません。";
-  card.append(top, detail, recovery, metadata, actions, view.navigationHint, editor, editorHint);
+  editorHint.textContent = "入力した表示名を優先します。空欄で保存すると会話名に戻り、未取得の場合はサービス名と番号を表示します。";
+  card.append(top, preview, detail, recovery, metadata, actions, view.navigationHint, editor, editorHint);
   return view;
 }
 
 function updateSessionView(view, row) {
   view.row = row;
   view.name.textContent = row.displayTitle || row.label || row.provider || "ブラウザ";
-  view.sourceName.textContent = row.customLabel ? `自動名：${row.label || "ブラウザ"}` : "";
-  view.sourceName.hidden = !row.customLabel;
+  view.sourceName.textContent = [row.label || row.provider || "ブラウザ",
+    row.conversationTitle ? (row.customLabel ? `会話名：${row.conversationTitle}` : "") : "会話名は未取得"].filter(Boolean).join(" · ");
+  view.sourceName.hidden = false;
+  view.preview.textContent = row.requestPreview ? `直近の依頼：${row.requestPreview}` : "直近の依頼は未取得です。";
+  view.preview.classList.toggle("preview-unavailable", !row.requestPreview);
   view.state.textContent = statusLabel(row);
   view.card.dataset.status = row.status || "unknown";
+  view.card.dataset.history = String(isHistory(row));
   view.detail.textContent = row.statusDetail || "現在の状態は、タブへ戻って確認してください。";
   view.recovery.textContent = row.recoveryHint || ""; view.recovery.hidden = !row.recoveryHint;
-  const unread = Number.isSafeInteger(row.unreadCount) ? row.unreadCount : (row.requiresCompletionAck ? 1 : 0);
+  const unread = unreadCount(row);
   view.unread.textContent = `未確認 ${unread} 件`; view.unread.hidden = unread === 0;
   view.fields.get("lastState").textContent = lastObservedState(row);
   view.fields.get("generation").textContent = Number.isSafeInteger(row.generation) ? `${row.generation} 回` : "未取得";
@@ -134,35 +145,41 @@ function updateSessionView(view, row) {
   view.navigationHint.hidden = row.canFocus === true;
   view.navigationHint.textContent = row.canFocus === true ? "" : row.focusUnavailableReason || "このタブへ戻れる接続がありません。上の案内を確認してください。";
   view.savedLabel = row.customLabel || "";
-  if (!view.draftDirty) view.input.value = view.savedLabel;
+  if (!view.draftDirty && !view.composing) view.input.value = view.savedLabel;
   else if (view.input.value === view.savedLabel) view.draftDirty = false;
   view.saveButton.disabled = pending.has(`${row.id}/label`);
 }
 
 function renderSessions(rows, selectedSessionId, selectionRevision) {
   const container = $("sessions");
+  const historyContainer = $("history-sessions");
   const ids = new Set(rows.map(row => row.id));
   for (const [id, view] of sessionViews) {
     if (!ids.has(id)) { view.card.remove(); sessionViews.delete(id); }
   }
-  const editing = Array.from(sessionViews.values()).some(view => view.input === document.activeElement);
+  const editing = Array.from(sessionViews.values()).some(view => view.input === document.activeElement || view.composing);
   for (const row of rows) {
     let view = sessionViews.get(row.id);
     if (!view) {
-      view = createSessionView(row); sessionViews.set(row.id, view); container.append(view.card);
+      view = createSessionView(row); sessionViews.set(row.id, view);
+      (isHistory(row) ? historyContainer : container).append(view.card);
     }
     updateSessionView(view, row);
     view.card.classList.toggle("session-selected", row.id === selectedSessionId);
   }
   // Moving a focused input may interrupt IME composition. Keep its DOM position
   // until the next non-editing refresh; new sessions can still be appended.
-  if (!editing) rows.forEach((row, index) => {
+  if (!editing) for (const [target, subset] of [
+    [container, rows.filter(row => !isHistory(row))], [historyContainer, rows.filter(isHistory)],
+  ]) subset.forEach((row, index) => {
     const card = sessionViews.get(row.id).card;
-    if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null);
+    if (target.children[index] !== card) target.insertBefore(card, target.children[index] || null);
   });
   if (Number.isSafeInteger(selectionRevision) && selectionRevision !== lastSelectionRevision) {
     lastSelectionRevision = selectionRevision;
-    if (selectedSessionId) sessionViews.get(selectedSessionId)?.card.scrollIntoView({ block: "start", behavior: "instant" });
+    const selected = sessionViews.get(selectedSessionId);
+    if (selected && isHistory(selected.row)) $("history").open = true;
+    if (selected) selected.card.scrollIntoView({ block: "start", behavior: "instant" });
   }
 }
 async function refresh() {
@@ -194,9 +211,16 @@ async function refresh() {
       const button = actionButton("接続と履歴を解除", { id: profile.clientId }, "revoke", () => window.mori.revoke(profile.clientId), "接続とブラウザの履歴を解除しました。再利用にはペアリングしてください。");
       line.append(label, button); $("profiles").append(line);
     }
-    $("count").textContent = `${rows.length} 件`;
-    $("empty").hidden = rows.length > 0;
-    $("empty").textContent = connection.emptyText || "生成状態を待っています。";
+    const currentRows = rows.filter(row => !isHistory(row));
+    const historyRows = rows.filter(isHistory);
+    const historyUnread = historyRows.reduce((sum, row) => sum + unreadCount(row), 0);
+    $("count").textContent = `${currentRows.length} 件`;
+    $("empty").hidden = currentRows.length > 0;
+    $("empty").textContent = historyRows.length ? "現在のタブはありません。以前の記録と未確認通知は下の一覧から確認できます。" : connection.emptyText || "生成状態を待っています。";
+    $("history").hidden = historyRows.length === 0;
+    $("history-count").textContent = `${historyRows.length} 件`;
+    $("history-unread").textContent = `未確認 ${historyUnread} 件`;
+    $("history-unread").hidden = historyUnread === 0;
     renderSessions(rows, value.selectedSessionId, value.selectionRevision);
   } catch { feedback("アプリの状態を読み込めませんでした。接続画面を開き直してください。"); }
   finally { refreshing = false; if (dirty) { dirty = false; refresh(); } }
