@@ -8,10 +8,16 @@ function fixture() {
   const tabs = new Map([[7, { id: 7, url: 'https://chatgpt.com/c/test', status: 'complete',
     documentId: 'document-a', pageInstanceId: 'page-a', listener: 'missing' }]]);
   const calls = [];
-  let block = null, time = 1000, bundleNumber = 0;
+  let block = null, time = 1000, bundleNumber = 0, attemptNumber = 0;
+  const attempts = new Map();
   let afterSnapshot = () => {}, beforeBundle = () => {}, afterBundle = () => {}, duringProbe = () => {};
+  let beforeStart = () => {}, afterStart = () => {};
+  // A stand-in for the public registration boundary only. This does not claim
+  // that either provider currently supplies confirmed DOM binding evidence.
+  const leaseFor = tab => tab.admitted === false ? null : { workerEpoch: 'worker-test',
+    leaseId: `lease-${tab.documentId}`, bindingEpoch: tab.bindingEpoch || 'binding-a' };
   const chrome = {
-    runtime: { getManifest: () => ({ version: '0.1.6' }) },
+    runtime: { getManifest: () => ({ version: '0.1.7' }) },
     permissions: { contains: async () => true },
     tabs: {
       get: async id => { if (!tabs.has(id)) throw new Error('PRIVATE_TAB_URL'); return { ...tabs.get(id) }; },
@@ -19,22 +25,22 @@ function fixture() {
         const tab = tabs.get(id);
         calls.push({ type: 'message', message, options });
         if (!tab || (options.documentId && options.documentId !== tab.documentId)) throw new Error('PRIVATE_MISSING_DOCUMENT');
-        if (message.type === 'mori.focus.check') {
+        assert.notEqual(message.type, 'mori.focus.check', 'bootstrap is never a business focus check');
+        if (message.type === 'mori.observer.identity' && message.pageInstanceId) {
           if (tab.focusError) throw new Error('PRIVATE_RUNTIME_ERROR https://chatgpt.com/c/private');
-          return { ok: message.pageInstanceId === tab.pageInstanceId, pageInstanceId: tab.pageInstanceId,
-            conversationRef: utils.routeForUrl(tab.url)?.conversationRef };
         }
         await duringProbe(tab);
         if (tab.listener === 'timeout') throw new Error('tab_unavailable');
         if (tab.listener === 'missing') throw new Error('PRIVATE_NO_RECEIVER');
         if (tab.listener === 'invalid') return { ok: false, data: 'PRIVATE_INVALID_RESPONSE' };
         if (tab.listener === 'legacy') return { ok: true };
-        return { ok: true, v: 1, observerVersion: '0.1.6', pageInstanceId: tab.pageInstanceId,
-          route: utils.routeForUrl(tab.url) };
+        return { ok: true, v: 1, observerVersion: tab.observerVersion || '0.1.7', pageInstanceId: tab.pageInstanceId,
+          route: utils.routeForUrl(tab.url), binding: { state: tab.bindingState || 'confirmed',
+            epoch: tab.bindingEpoch || 'binding-a' }, lease: tab.bindingState === 'unconfirmed' ? null : leaseFor(tab) };
       },
     },
     scripting: { executeScript: async options => {
-      calls.push({ type: options.files ? 'bundle' : 'snapshot', options });
+      calls.push({ type: options.files ? 'bundle' : options.args ? 'start' : 'snapshot', options });
       const tab = tabs.get(options.target.tabId);
       assert.equal(options.world, 'ISOLATED');
       assert.equal(options.injectImmediately, true);
@@ -45,11 +51,31 @@ function fixture() {
         assert.equal(options.target.frameIds, undefined);
         assert.deepEqual(options.files, [...recoveryApi.FILES]);
         if (options.target.documentIds[0] !== tab.documentId) throw new Error('PRIVATE_WRONG_DOCUMENT');
-        if (!tab.noop) {
-          tab.listener = 'modern'; tab.pageInstanceId = `recovered-${++bundleNumber}`;
-        }
+        tab.installed = true;
         await afterBundle(tab);
         return [{ frameId: 0, documentId: options.target.documentIds[0] }];
+      }
+      if (options.args) {
+        await beforeStart(tab, options);
+        assert.equal(options.target.frameIds, undefined);
+        assert.deepEqual(options.target.documentIds, [tab.documentId]);
+        const context = vm.createContext({ MoriBrowserObserver: { start: async ({ attemptId }) => {
+          calls.push({ type: 'register', attemptId, documentId: tab.documentId });
+          const attempt = attempts.get(attemptId);
+          if (!attempt || attempt.expiresAt <= time || block) return { ok: false, reason: 'attempt_expired' };
+          if (tab.noop) return { ok: false, reason: 'registration_failed' };
+          if (tab.listener !== 'modern' || (tab.observerVersion && tab.observerVersion !== '0.1.7')) {
+            tab.listener = 'modern'; tab.pageInstanceId = `recovered-${++bundleNumber}`;
+            tab.observerVersion = '0.1.7';
+          }
+          if (tab.bindingState === 'unconfirmed') return { ok: false, reason: 'binding_unconfirmed' };
+          tab.admitted = true;
+          return { ok: true, v: 1, pageInstanceId: tab.pageInstanceId, ...leaseFor(tab) };
+        } } });
+        const response = { frameId: 0, documentId: tab.documentId,
+          result: await vm.runInContext(`(${options.func.toString()})(...${JSON.stringify(options.args)})`, context) };
+        await afterStart(tab, options);
+        return [response];
       }
       assert.deepEqual(options.target.frameIds, [0]);
       assert.equal(options.target.documentIds, undefined);
@@ -66,11 +92,20 @@ function fixture() {
     } },
   };
   const manager = recoveryApi.createRecovery({ chrome, within: value => Promise.resolve(value),
-    getBlockReason: () => block, now: () => time });
+    getBlockReason: () => block, now: () => time,
+    beginAttempt(target) {
+      const attemptId = `attempt-${++attemptNumber}`;
+      attempts.set(attemptId, target); calls.push({ type: 'begin', attemptId, target }); return attemptId;
+    },
+    endAttempt(attemptId, options) { attempts.delete(attemptId); calls.push({ type: 'end', attemptId, options }); },
+    isAdmitted({ tabId, identity }) {
+      return !!leaseFor(tabs.get(tabId)) && identity.lease?.workerEpoch === 'worker-test';
+    } });
   return { tabs, calls, chrome, manager, ensure: (id = 7) => manager.ensure({ ...tabs.get(id) }),
     block: reason => { block = reason; }, advance: ms => { time += ms; },
     afterSnapshot: callback => { afterSnapshot = callback; }, beforeBundle: callback => { beforeBundle = callback; },
-    afterBundle: callback => { afterBundle = callback; }, duringProbe: callback => { duringProbe = callback; } };
+    afterBundle: callback => { afterBundle = callback; }, duringProbe: callback => { duringProbe = callback; },
+    beforeStart: callback => { beforeStart = callback; }, afterStart: callback => { afterStart = callback; }, attempts };
 }
 
 test('missing or malformed observers recover through a fixed top-frame probe and exact-document packaged bundle', async () => {
@@ -88,14 +123,24 @@ test('missing or malformed observers recover through a fixed top-frame probe and
   }
 });
 
-test('healthy current and legacy observers are not injected, and liveness timeouts remain deferred', async () => {
-  for (const listener of ['modern', 'legacy', 'timeout']) {
+test('admitted current observers are not injected, and liveness timeouts remain deferred', async () => {
+  for (const listener of ['modern', 'timeout']) {
     const f = fixture(); f.tabs.get(7).listener = listener;
     const result = await f.ensure();
     assert.equal(result.disposition, listener === 'timeout' ? 'deferred' : 'healthy');
     assert.equal(result.reason, listener === 'timeout' ? 'probe_timeout' : null);
     assert.equal(result.attempted, false);
     assert.equal(f.calls.filter(call => call.type !== 'message').length, 0);
+  }
+});
+
+test('legacy and version-mismatched observers are replaced by the packaged installer and registered start', async () => {
+  for (const patch of [{ listener: 'legacy' }, { listener: 'modern', observerVersion: '0.1.6' }]) {
+    const f = fixture(); Object.assign(f.tabs.get(7), patch);
+    assert.equal((await f.ensure()).disposition, 'recovered');
+    assert.equal(f.calls.filter(call => call.type === 'bundle').length, 1);
+    assert.equal(f.calls.filter(call => call.type === 'start').length, 1);
+    assert.equal(f.calls.filter(call => call.type === 'register').length, 1);
   }
 });
 
@@ -208,5 +253,74 @@ test('missing scripting support and a bundle that cannot restore messaging are e
   const noop = fixture(); noop.tabs.get(7).noop = true;
   const result = await noop.ensure();
   assert.equal(result.disposition, 'failed');
-  assert.equal(result.reason, 'observer_unavailable');
+  assert.equal(result.reason, 'lease_invalid');
+});
+
+test('a live but unconfirmed binding is deferred and never counted as observer recovery success', async () => {
+  for (const listener of ['modern', 'missing']) {
+    const f = fixture(); const tab = f.tabs.get(7);
+    tab.listener = listener; tab.bindingState = 'unconfirmed';
+    const result = await f.ensure();
+    assert.equal(result.ok, false);
+    assert.equal(result.disposition, 'deferred');
+    assert.equal(result.reason, 'binding_unconfirmed');
+    assert.equal(f.calls.some(call => call.type === 'message' && call.message.type === 'mori.observe.now'), false);
+    assert.equal(f.calls.some(call => call.type === 'message' && call.message.type === 'mori.focus.check'), false);
+    if (listener === 'modern') assert.equal(f.calls.some(call => call.type === 'bundle' || call.type === 'start'), false);
+    else {
+      assert.equal(f.calls.filter(call => call.type === 'register').length, 1);
+      assert.equal(f.calls.at(-1).type, 'end');
+      assert.equal(f.calls.at(-1).options.retainLease, false);
+    }
+  }
+});
+
+test('worker restart renews the existing confirmed owner without loading a second bundle', async () => {
+  const f = fixture(); const tab = f.tabs.get(7);
+  tab.listener = 'modern'; tab.admitted = false;
+  const result = await f.ensure();
+  assert.equal(result.disposition, 'recovered');
+  assert.equal(tab.pageInstanceId, 'page-a');
+  assert.equal(f.calls.some(call => call.type === 'bundle'), false);
+  const start = f.calls.find(call => call.type === 'start');
+  const begin = f.calls.find(call => call.type === 'begin');
+  assert.deepEqual(start.options.args, [begin.attemptId]);
+  assert.equal(begin.target.pageInstanceId, 'page-a');
+  assert.equal(begin.target.documentId, 'document-a');
+  assert.equal(f.calls.at(-1).options.retainLease, true);
+  assert.equal(f.attempts.size, 0, 'successful attempt IDs themselves are not revived for future starts');
+});
+
+test('installer loading is passive and the separately serialized start carries the exact attempt ticket', async () => {
+  const f = fixture();
+  f.afterBundle(tab => {
+    assert.equal(tab.listener, 'missing');
+    assert.equal(f.calls.some(call => call.type === 'register'), false);
+  });
+  const result = await f.ensure();
+  assert.equal(result.disposition, 'recovered');
+  const bundle = f.calls.findIndex(call => call.type === 'bundle');
+  const start = f.calls.findIndex(call => call.type === 'start');
+  const registration = f.calls.findIndex(call => call.type === 'register');
+  assert.ok(bundle < start && start < registration);
+  assert.equal(recoveryApi.FILES.includes('content-start.js'), false);
+  assert.equal(recoveryApi.FILES.includes('conversation-binding.js'), true);
+  const attempt = f.calls.find(call => call.type === 'begin');
+  assert.equal(f.calls[registration].attemptId, attempt.attemptId);
+});
+
+test('an elapsed attempt or invalidation before start cannot restore the observer', async () => {
+  for (const expire of ['deadline', 'navigation']) {
+    const f = fixture();
+    f.beforeStart(() => {
+      if (expire === 'deadline') f.advance(recoveryApi.ATTEMPT_TTL_MS);
+      else f.manager.invalidate(7);
+    });
+    const result = await f.ensure();
+    assert.equal(result.ok, false);
+    assert.equal(result.disposition, 'deferred');
+    assert.equal(result.reason, expire === 'deadline' ? 'attempt_expired' : 'navigation_changed');
+    assert.equal(f.calls.some(call => call.type === 'message' && call.message.type === 'mori.observe.now'), false);
+    assert.equal(f.calls.at(-1).options.retainLease, false);
+  }
 });

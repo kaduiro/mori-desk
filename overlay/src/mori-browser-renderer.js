@@ -12,6 +12,7 @@ const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
 
 function noticeSequence(row) { return row.pendingNotice?.noticeSequence ?? row.noticeSequence ?? null; }
 function isHistory(row) { return row.isHistory === true || row.isCurrent === false; }
+function isEditing(view) { return view.input === document.activeElement || view.composing; }
 function unreadCount(row) { return Number.isSafeInteger(row.unreadCount) ? Math.max(0, row.unreadCount) : (row.pendingNotice || row.requiresCompletionAck ? 1 : 0); }
 function statusLabel(row) {
   if (row.statusLabel) return row.statusLabel;
@@ -157,7 +158,7 @@ function renderSessions(rows, selectedSessionId, selectionRevision) {
   for (const [id, view] of sessionViews) {
     if (!ids.has(id)) { view.card.remove(); sessionViews.delete(id); }
   }
-  const editing = Array.from(sessionViews.values()).some(view => view.input === document.activeElement || view.composing);
+  const editing = Array.from(sessionViews.values()).some(isEditing);
   for (const row of rows) {
     let view = sessionViews.get(row.id);
     if (!view) {
@@ -166,6 +167,10 @@ function renderSessions(rows, selectedSessionId, selectionRevision) {
     }
     updateSessionView(view, row);
     view.card.classList.toggle("session-selected", row.id === selectedSessionId);
+    // Only the active editor needs to stay in its old group. Another row's
+    // reconnect/disconnect must not be delayed by this input's composition.
+    const target = isHistory(row) ? historyContainer : container;
+    if (!isEditing(view) && view.card.parentNode !== target) target.append(view.card);
   }
   // Moving a focused input may interrupt IME composition. Keep its DOM position
   // until the next non-editing refresh; new sessions can still be appended.
@@ -175,12 +180,18 @@ function renderSessions(rows, selectedSessionId, selectionRevision) {
     const card = sessionViews.get(row.id).card;
     if (target.children[index] !== card) target.insertBefore(card, target.children[index] || null);
   });
+  // A row can already be current in the snapshot while its focused editor is
+  // still inside history. Hide the group only after its actual cards moved.
+  $("history").hidden = historyContainer.children.length === 0;
   if (Number.isSafeInteger(selectionRevision) && selectionRevision !== lastSelectionRevision) {
     lastSelectionRevision = selectionRevision;
     const selected = sessionViews.get(selectedSessionId);
-    if (selected && isHistory(selected.row)) $("history").open = true;
+    if (selected?.card.parentNode === historyContainer) $("history").open = true;
     if (selected) selected.card.scrollIntoView({ block: "start", behavior: "instant" });
   }
+  return { visibleCurrentCount: container.children.length,
+    heldCurrentCount: rows.filter(row => !isHistory(row)
+      && sessionViews.get(row.id).card.parentNode === historyContainer).length };
 }
 async function refresh() {
   if (refreshing) { dirty = true; return; }
@@ -214,14 +225,14 @@ async function refresh() {
     const currentRows = rows.filter(row => !isHistory(row));
     const historyRows = rows.filter(isHistory);
     const historyUnread = historyRows.reduce((sum, row) => sum + unreadCount(row), 0);
+    const placement = renderSessions(rows, value.selectedSessionId, value.selectionRevision);
     $("count").textContent = `${currentRows.length} 件`;
-    $("empty").hidden = currentRows.length > 0;
-    $("empty").textContent = historyRows.length ? "現在のタブはありません。以前の記録と未確認通知は下の一覧から確認できます。" : connection.emptyText || "生成状態を待っています。";
-    $("history").hidden = historyRows.length === 0;
-    $("history-count").textContent = `${historyRows.length} 件`;
+    $("empty").hidden = placement.visibleCurrentCount > 0;
+    $("empty").textContent = placement.heldCurrentCount ? "再接続したタブの表示名は、下の一覧で編集を続けられます。"
+      : historyRows.length ? "現在のタブはありません。以前の記録と未確認通知は下の一覧から確認できます。" : connection.emptyText || "生成状態を待っています。";
+    $("history-count").textContent = `${historyRows.length} 件${placement.heldCurrentCount ? ` · 再接続した ${placement.heldCurrentCount} 件を編集中` : ""}`;
     $("history-unread").textContent = `未確認 ${historyUnread} 件`;
     $("history-unread").hidden = historyUnread === 0;
-    renderSessions(rows, value.selectedSessionId, value.selectionRevision);
   } catch { feedback("アプリの状態を読み込めませんでした。接続画面を開き直してください。"); }
   finally { refreshing = false; if (dirty) { dirty = false; refresh(); } }
 }

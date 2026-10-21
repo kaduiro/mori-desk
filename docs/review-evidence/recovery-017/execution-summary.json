@@ -1,0 +1,34 @@
+{
+  "recordedAtUtc": "2026-10-21T09:49:53.676582+00:00",
+  "baselineCommit": "3b1d39d178896d07ae36941518049f0bbef22c85",
+  "node": "24.19.0",
+  "electron": "41.10.4",
+  "platform": "linux",
+  "runtimeFilesMatched": 70,
+  "regression": {
+    "tests": 304,
+    "pass": 303,
+    "fail": 0,
+    "skip": 0,
+    "todo": 1,
+    "todoMeaning": "I-B8 real-provider useful recovery is not implemented"
+  },
+  "chrome": {
+    "version": "156.0.8078.47",
+    "exitCode": 2,
+    "safety": "PASS",
+    "business": "FAIL-no-recovery",
+    "naturalWorkerStop": "NOT_RUN",
+    "fixture": "synthetic provider page; isolated Chrome profile and safeStorage double"
+  },
+  "githubUpload": "BLOCKED: automatic approval review requires explicit authorization to disclose these changes in public kaduiro/mori-desk",
+  "windowsCI": "NOT_RUN for these changes",
+  "files": {
+    "overlay/test/browser-extension-chrome-smoke.js": "27c5203f40a9f23aa5d0c86dec2ea9b6f9522016ba7c1c183d484589d12de4e6",
+    "overlay/test/browser-chrome-smoke-ledger.test.js": "f40be627189151eeb5719eac4627b0a7b46a4fd120de84d08c49d7f75cecba4d",
+    "docs/review-evidence/recovery-017/regression-final.log": "eb86a1b0e288665bb70786e5fbd21962a94b8fa437927ecd8977e28e3e9c8ef0",
+    "docs/review-evidence/recovery-017/chrome-recovery-results.json": "517e948ebc65b90a5daaa90a1fe113447ba5352d495c2ebd43ddc9d9fcb2172d",
+    "docs/review-evidence/recovery-017/chrome-recovery-options.png": "8f414a2d220dfdf61b56407c796c2981398ecf273a929d4c0f736231f138a9cd",
+    "docs/review-evidence/recovery-017/runtime-reconstruction.json": "664a1ea32d54f11bc4d65a85d7da9546aa7a40fcfe2fa8dac04e2b3620e9e29d"
+  }
+}

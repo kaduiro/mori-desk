@@ -1,0 +1,52 @@
+{
+  "recordedAtUtc": "2026-10-21T09:36:53.350500+00:00",
+  "gitHead": "3b1d39d178896d07ae36941518049f0bbef22c85",
+  "workingTreeDirty": true,
+  "baselineCommit": "3b1d39d178896d07ae36941518049f0bbef22c85",
+  "nodeVersion": "v24.19.0",
+  "platform": "Linux; Node VM and reviewer-owned synthetic API/DOM models only",
+  "initialPlanSha256": "d727ec27d7cd0d67dfdc208deb5f5daa6a7515b19d06563c2397b3cf8ba7b3c8",
+  "initialInvariantSha256": "0db49a746d100d45efac8fdd071d88dc0725767aec49af9739a60cc527eb2a19",
+  "bSupplementSha256": "0a93c4fbbf725c0ddad7281f2f7eb8170a7a90e29667ec2cefe3ccfb474f91ed",
+  "productSourceSha256": {
+    "overlay/src/mori-browser-renderer.js": "b8d4ca0d91ae62b5c97bf9c86bf47966c4f3106c7b5590d995fb821c1fc37694",
+    "overlay/extensions/browser-bridge/service-worker.js": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+    "overlay/extensions/browser-bridge/content-script.js": "bbca446fa121a577e1fd00e6b0e66fed9eeb7d4a08b7923526a64c99996620c1",
+    "overlay/extensions/browser-bridge/observer-recovery.js": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc",
+    "overlay/extensions/browser-bridge/provider-utils.js": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1",
+    "overlay/extensions/browser-bridge/session-coordinator.js": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5",
+    "overlay/extensions/browser-bridge/outbox.js": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262",
+    "overlay/extensions/browser-bridge/transport.js": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b",
+    "overlay/extensions/browser-bridge/observation-controller.js": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b",
+    "overlay/extensions/browser-bridge/conversation-binding.js": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c",
+    "overlay/extensions/browser-bridge/content-start.js": "a9ac6f2d1f23cf562a1bde5a6bdbe5bcca24dd64c91ede0416b99bbd92bcfeb7",
+    "overlay/extensions/browser-bridge/manifest.json": "4fbccebb3257fdd515d4c111d2de005607e7dbedb070fa0fe81496c048ba3e99"
+  },
+  "finalResults": [
+    {
+      "file": "renderer-results.json",
+      "scenarios": 4,
+      "allPass": true
+    },
+    {
+      "file": "worker-a-results.json",
+      "scenarios": 20,
+      "allPass": true
+    },
+    {
+      "file": "content-results.json",
+      "scenarios": 4,
+      "allPass": true
+    },
+    {
+      "file": "recovery-results.json",
+      "scenarios": 1,
+      "allPass": true
+    }
+  ],
+  "portableScriptsExecuted": true,
+  "portableResultsIdenticalToArchivedFinalResults": true,
+  "countsAreNotFullRecoveryPlanAcceptance": true,
+  "implementationTestsOrOtherAgentsFixturesRead": false,
+  "productOrRepositoryTestFilesWrittenByReviewer": false
+}

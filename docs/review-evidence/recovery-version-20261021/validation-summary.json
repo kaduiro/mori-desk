@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "recordedAtJst": "2026-10-21T20:35:32.513080+09:00",
+  "environment": {
+    "os": "Linux",
+    "node": "24.19.0",
+    "electronInstallVerified": "41.10.4",
+    "realProvider": "NOT_RUN",
+    "realWindows": "NOT_RUN"
+  },
+  "fullRegression": {
+    "command": "node --test --test-isolation=none --test-reporter=tap test/browser-*.test.js test/mori-*.test.js ../test/runtime-source.test.js ../test/prepare-publication.test.js",
+    "cwd": ".runtime",
+    "exitCode": 0,
+    "tests": 328,
+    "pass": 327,
+    "fail": 0,
+    "todo": 1,
+    "skip": 0,
+    "todoReason": "I-B8 real ChatGPT/Claude binding remains unimplemented/unverified",
+    "artifact": "full-regression.tap",
+    "sha256": "9847caad061fd0def262f840c6a8de402880c11adcfe83013be5e3ea24bfbae8",
+    "qualification": "Publication CLI received path/prefix-only fixes after this full run. The unchanged product/source group has 319 tests (318 pass, 1 TODO). The publication group was rerun below; do not double-count its 9 cases."
+  },
+  "finalPublicationRegression": {
+    "artifact": "publication-regression.tap",
+    "sha256": "34eee1cd5c0a84ccb9e778ef8f937e8db1ba6fc90e44232c122d9b194650faeb",
+    "exitCode": 0,
+    "tests": 9,
+    "pass": 9,
+    "fail": 0,
+    "todo": 0,
+    "skip": 0,
+    "cliSha256": "3d59c4924e3de02a1bb7bc3da0887cfc5bfca2a755cd1bb725e658316ded1789",
+    "testSha256": "eacd86f170ff92a25167b62ff60b2a6ec52d1c63c77a007b5bfb796a525e4004"
+  },
+  "independentAcceptance": {
+    "transport": {
+      "pass": 12,
+      "fail": 0,
+      "artifact": "independent-transport-results.json"
+    },
+    "sourceDoctor": {
+      "pass": 33,
+      "fail": 0,
+      "artifact": "independent-source-results.json"
+    },
+    "mutants": {
+      "startupRefusalDisabled": {
+        "tests": 33,
+        "failAtIntendedAssertions": 8
+      },
+      "byteDifferenceIgnored": {
+        "tests": 33,
+        "failAtIntendedAssertions": 3
+      }
+    },
+    "notIncludedInFullRegressionCount": true
+  },
+  "reconstruction": {
+    "overlayChecked": 70,
+    "overlayMatches": 70,
+    "extensionFilesChecked": 18,
+    "diskDoctorExitCode": 0,
+    "browserLoadedExtension": "NOT_CHECKED",
+    "runtimeRunningDesktop": "NOT_CHECKED",
+    "automaticRecovery": "NOT_CHECKED"
+  },
+  "retainedGates": {
+    "providerBinding": "UNIMPLEMENTED",
+    "oldSyntheticChromeAcceptance": "FAIL-no-recovery not resolved by this run",
+    "windowsTrial": "NO-GO",
+    "employeeDistribution": "NO-GO",
+    "candidateWindowsCI": "NOT_RUN"
+  },
+  "sourceManifestSha256": "b38c0aa47d763b0fb8641c6e659bf5369053a39353fbbedabb2d0148417fa03d"
+}

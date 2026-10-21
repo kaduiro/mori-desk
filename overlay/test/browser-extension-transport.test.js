@@ -219,3 +219,191 @@ test('resumption still finds a moved desktop port and authenticates its saved ke
   assert.equal(f.getCredential().port, f.port);
   assert.equal(f.getCredential().key, saved.key);
 });
+
+// No browser or provider fixture is involved here. The socket implements the
+// documented HMAC exchange, and the test controls only when a credential-save
+// callback completes. Status, wire messages and heartbeat installation are the
+// observable effects; the transport's internal stage is not the oracle.
+function delayedAuthenticationFixture(t) {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const statuses = [], wire = [], saves = [], sockets = [];
+  let readyCalls = 0, heartbeatStarts = 0;
+  const interval = global.setInterval;
+  t.mock.method(global, 'setInterval', (...args) => { heartbeatStarts++; return interval(...args); });
+  let credential = { clientId: 'race-profile', instanceId: 'race-desktop', port: 23333,
+    key: Buffer.alloc(32, 17).toString('base64url') };
+  let enterSave, releaseSave;
+  const saveEntered = new Promise(resolve => { enterSave = resolve; });
+  const saveBarrier = new Promise(resolve => { releaseSave = resolve; });
+  const proof = (label, challenge) => crypto.createHmac('sha256', Buffer.from(credential.key, 'base64url'))
+    .update(JSON.stringify(['mori-desk/browser/v1', label, 1, challenge.mode,
+      challenge.credentialId, challenge.clientId, challenge.productId, challenge.instanceId,
+      challenge.serverRunId, challenge.port, challenge.clientNonce, challenge.serverNonce]))
+    .digest('base64url');
+  class SignedSocket {
+    constructor(url) {
+      this.port = Number(new URL(url).port); this.closed = false;
+      sockets.push(this); queueMicrotask(() => this.onopen?.());
+    }
+    send(text) {
+      const message = JSON.parse(text);
+      wire.push({ port: this.port, closed: this.closed, type: message.type });
+      if (this.closed) throw new Error('socket_closed');
+      if (message.type === 'hello') {
+        this.challenge = { type: 'challenge', v: 1, mode: 'resume',
+          credentialId: message.credentialId, clientId: message.clientId, productId: 'mori-desk',
+          instanceId: message.instanceId, serverRunId: `server-${this.port}`, port: this.port,
+          clientNonce: message.clientNonce, serverNonce: Buffer.alloc(32, this.port % 256).toString('base64url') };
+        this.challenge.proof = proof('server-proof', this.challenge);
+        queueMicrotask(() => this.onmessage?.({ data: JSON.stringify(this.challenge) }));
+      } else if (message.type === 'authenticate') {
+        assert.equal(message.proof, proof('client-proof', this.challenge));
+        queueMicrotask(() => this.onmessage?.({ data: JSON.stringify({ type: 'ready', v: 1,
+          clientId: credential.clientId, instanceId: credential.instanceId,
+          serverRunId: this.challenge.serverRunId, port: this.port }) }));
+      }
+    }
+    close() { this.closed = true; }
+  }
+  const transport = new Transport({ clientId: credential.clientId, browserRunId: 'race-browser',
+    getCredential: () => credential,
+    saveCredential: async value => {
+      // Model a persisted write whose completion reply has not yet arrived.
+      // Do not introduce a reverse-write race owned by the worker's queue.
+      credential = value; saves.push(value);
+      if (saves.length === 1) { enterSave(); await saveBarrier; }
+    },
+    onStatus: value => statuses.push(value), onReady: () => { readyCalls++; },
+    cryptoApi: crypto.webcrypto, WebSocketClass: SignedSocket });
+  t.after(() => { transport.setEnabled(false); releaseSave(); });
+  const settle = async () => { for (let index = 0; index < 8; index++) await new Promise(resolve => setImmediate(resolve)); };
+  const connect = port => {
+    // Capture rejection immediately: invalidation intentionally settles this
+    // promise before the old asynchronous save is released.
+    const result = transport.connectOne(port).then(() => ({ ok: true }), error => ({ ok: false, reason: error.message }));
+    return result;
+  };
+  return { transport, connect, saveEntered, releaseSave, settle, statuses, wire, saves, sockets,
+    effects: () => ({ readyCalls, heartbeatStarts }) };
+}
+
+test('a late credential-save completion cannot report connected after monitoring is paused', async t => {
+  const f = delayedAuthenticationFixture(t);
+  const pending = f.connect(23334);
+  await f.saveEntered;
+  f.transport.setEnabled(false);
+  const countAtPause = f.statuses.length;
+  assert.equal(f.statuses.at(-1).state, 'paused');
+  f.releaseSave(); await f.settle();
+  assert.deepEqual(await pending, { ok: false, reason: 'paused' });
+  assert.equal(f.transport.isReady(), false);
+  assert.equal(f.statuses.length, countAtPause, 'the closed socket must not overwrite paused status');
+  assert.deepEqual(f.effects(), { readyCalls: 0, heartbeatStarts: 0 });
+  assert.equal(f.wire.some(item => item.closed), false);
+});
+
+test('an expired authentication cannot become ready when its delayed save completes', async t => {
+  const f = delayedAuthenticationFixture(t);
+  const pending = f.connect(23334);
+  await f.saveEntered;
+  t.mock.timers.tick(5000);
+  assert.deepEqual(await pending, { ok: false, reason: 'authentication_timeout' });
+  f.releaseSave(); await f.settle();
+  assert.equal(f.transport.isReady(), false);
+  assert.equal(f.statuses.some(item => item.state === 'connected'), false);
+  assert.deepEqual(f.effects(), { readyCalls: 0, heartbeatStarts: 0 });
+});
+
+test('a replaced socket cannot publish ready over its authenticated replacement', async t => {
+  const f = delayedAuthenticationFixture(t);
+  const old = f.connect(23334);
+  await f.saveEntered;
+  f.transport.disconnect('replacement');
+  assert.deepEqual(await old, { ok: false, reason: 'replacement' });
+  assert.deepEqual(await f.connect(23335), { ok: true });
+  assert.equal(f.transport.isReady(), true);
+  assert.deepEqual(f.effects(), { readyCalls: 1, heartbeatStarts: 1 });
+  const statusCount = f.statuses.length;
+  f.releaseSave(); await f.settle();
+  assert.equal(f.transport.isReady(), true);
+  assert.equal(f.statuses.length, statusCount, 'late old ready must not replace the new connection status');
+  assert.equal(f.statuses.at(-1).port, 23335);
+  assert.deepEqual(f.effects(), { readyCalls: 1, heartbeatStarts: 1 });
+  assert.equal(f.wire.some(item => item.closed), false);
+});
+
+test('a current delayed credential save still completes authentication exactly once', async t => {
+  const f = delayedAuthenticationFixture(t);
+  const pending = f.connect(23334);
+  await f.saveEntered;
+  assert.equal(f.transport.isReady(), false);
+  assert.deepEqual(f.effects(), { readyCalls: 0, heartbeatStarts: 0 });
+  f.releaseSave();
+  assert.deepEqual(await pending, { ok: true });
+  assert.equal(f.transport.isReady(), true);
+  assert.equal(f.statuses.filter(item => item.state === 'connected').length, 1);
+  assert.equal(f.statuses.at(-1).port, 23334);
+  assert.deepEqual(f.effects(), { readyCalls: 1, heartbeatStarts: 1 });
+});
+
+test('pausing from the connected status callback stops readiness and still permits a later connection', async t => {
+  const f = delayedAuthenticationFixture(t);
+  const recordStatus = f.transport.onStatus;
+  let pauseOnce = true;
+  f.transport.onStatus = status => {
+    recordStatus(status);
+    if (status.state === 'connected' && pauseOnce) {
+      pauseOnce = false;
+      f.transport.setEnabled(false);
+    }
+  };
+  const result = await f.connect(23333);
+  await f.settle();
+  assert.deepEqual(f.effects(), { readyCalls: 0, heartbeatStarts: 0 });
+  assert.deepEqual(result, { ok: false, reason: 'paused' }, 'the interrupted authentication promise must settle');
+  assert.equal(f.transport.isReady(), false);
+  assert.equal(f.statuses.at(-1).state, 'paused');
+
+  f.transport.setEnabled(true);
+  await f.transport.connecting;
+  assert.equal(f.transport.isReady(), true);
+  assert.deepEqual(f.effects(), { readyCalls: 1, heartbeatStarts: 1 });
+});
+
+test('an obsolete pair completion cannot release the current pair exclusion', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const sockets = [];
+  const credential = { clientId: 'pair-profile', instanceId: 'pair-desktop', port: 23333,
+    key: Buffer.alloc(32, 23).toString('base64url') };
+  class PendingSocket {
+    constructor(url) { this.url = url; sockets.push(this); }
+    close() { this.closed = true; }
+  }
+  const transport = new Transport({ clientId: credential.clientId, browserRunId: 'pair-browser',
+    getCredential: () => credential, saveCredential: async () => {},
+    cryptoApi: crypto.webcrypto, WebSocketClass: PendingSocket });
+  t.after(() => {
+    transport.setEnabled(false);
+    for (const socket of sockets) socket.onclose?.();
+  });
+  const begin = pairingId => transport.pair('mori1:' + Buffer.from(JSON.stringify({
+    v: 1, productId: 'mori-desk', instanceId: credential.instanceId, pairingId,
+    port: 23333, secret: credential.key, expiresAt: Date.now() + 120000,
+  })).toString('base64url')).then(() => ({ ok: true }), error => ({ ok: false, reason: error.message }));
+  const old = begin('pair-first');
+  const current = begin('pair-second');
+  assert.deepEqual(await old, { ok: false, reason: 'pairing' });
+  assert.equal(sockets.length, 2);
+  const retry = transport.ensureConnected({ immediate: true });
+  retry.catch(() => {});
+  assert.equal(sockets.length, 2, 'retry must not open a resume socket while the replacement pair is pending');
+  await retry;
+  assert.equal(sockets[1].closed, undefined);
+
+  sockets[1].onerror();
+  assert.deepEqual(await current, { ok: false, reason: 'connection_failed' });
+  const resumed = transport.ensureConnected({ immediate: true });
+  assert.equal(sockets.length, 3, 'the current pair completion must release its own exclusion');
+  transport.setEnabled(false);
+  await resumed;
+});

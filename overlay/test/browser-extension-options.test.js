@@ -212,3 +212,27 @@ test('a pending diagnostic cannot be duplicated and retry or pairing does not cl
     { type: 'mori.options.health' }, { type: 'mori.options.retry' }, { type: 'mori.options.pair', code: 'mori1:test-code' },
   ]);
 });
+
+test('query faults remain distinct from storage faults and keep permitted recovery actions available', async () => {
+  for (const [reason, expected] of [['tab_query_failed', /タブ一覧を取得できません/],
+    ['tab_query_timeout', /タブ一覧の応答が遅れています/], ['alarm_failed', /定期確認を準備できません/],
+    ['recovery_failed', /復旧を完了できません/], ['initialization_failed', /保存障害かどうかは確認できていません/]]) {
+    const f = await fixture();
+    f.status.diagnostic = reason;
+    await f.poll();
+    assert.match(f.elements.get('diagnostic').textContent, expected);
+    assert.doesNotMatch(f.elements.get('diagnostic').textContent, /データの保存に失敗/);
+    assert.equal(f.elements.get('check-tabs').disabled, false);
+    assert.equal(f.elements.get('retry').disabled, false);
+  }
+});
+
+test('unconfirmed conversation binding is not a recovered observer or an invitation to repeat F5', async () => {
+  const f = await fixture(health({ counts: { idle: 0, unknown: 1 }, observationDelivery: { accepted: 0 },
+    observerRecovery: { deferred: 1, reasons: { binding_unconfirmed: 1 } } }));
+  await f.click('check-tabs');
+  assert.match(f.diagnostic, /復旧 0 件・待機 1 件/);
+  assert.match(f.diagnostic, /会話の所属確認が未実装/);
+  assert.match(f.diagnostic, /再接続や F5 では解消しません/);
+  assert.doesNotMatch(f.diagnostic, /復旧が必要なタブは見つかりません|復旧したタブの観測/);
+});

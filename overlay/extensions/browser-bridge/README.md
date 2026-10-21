@@ -1,5 +1,11 @@
 # MORI Browser Bridge — 実験用 Chrome 拡張機能
 
+**現在の `0.1.7` は通常利用へ配布できない修正候補です。**
+実サービスの会話の所属を確かめる処理が未実装のため、新しい観測を保留します。
+設定画面に「会話の所属確認が未実装」と出た場合、再接続や F5 では解消しません。
+初期化・再配置・登録・編集中カードの修正と独立試験は
+[実行結果](../../../docs/recovery-execution-ja.md) を参照してください。以下は従来の機能と開発用の手順です。
+
 MORI Desk と同じ PC で動く Chrome の ChatGPT / Claude 通常テキスト会話を、デスクトップ HUD に表示します。このディレクトリを Chrome に「パッケージ化されていない拡張機能を読み込む」で指定できます。ビルド、npm install、API キーは拡張機能側では不要です。
 
 配布リポジトリを取得した直後の場所は **`overlay/extensions/browser-bridge`** です。デスクトップ用ソースを組み立てた後には **`.runtime/extensions/browser-bridge`** にも同じ拡張機能が配置されます。Chrome に読み込むのは、`manifest.json` が直接入っている方のディレクトリです。
@@ -85,7 +91,7 @@ MORI Desk 側の仕様は [ブラウザ接続プロトコル](https://github.com
 
 ## Chrome での最初の接続確認
 
-0.1.6ではLinuxのChrome for Testing 155.0.8059.84へ実際の拡張機能を読み込み、合成の会話ページとMoriのローカルWebSocketを使って、拡張の更新・再読み込み後にページを開き直さず監視が復旧することを確認しました。未送信文と既存の未確認通知も保持しています。実際のChatGPT / ClaudeのDOM、利用者のChrome設定、Windows / macOSのサイト許可や組織ポリシーを確認した結果ではありません。詳細は[検証状況](../../../docs/verification-ja.md#ページ内の監視の自動復旧拡張機能016)を参照してください。
+0.1.6ではLinuxのChrome for Testing 155.0.8059.84へ実際の拡張機能を読み込み、合成の会話ページとMoriのローカルWebSocketを使って、拡張の更新・再読み込み後にページを開き直さず監視が復旧することを確認しました。ただし、その試験は復旧も起動する診断を繰り返し呼んでおり、自動処理だけで復旧した証拠にはなりません。未送信文と既存の未確認通知の保持は確認しています。実際のChatGPT / ClaudeのDOM、利用者のChrome設定、Windows / macOSのサイト許可や組織ポリシーを確認した結果ではありません。詳細は[検証状況](../../../docs/verification-ja.md#ページ内の監視の自動復旧拡張機能016)を参照してください。
 
 Service Worker は同梱スクリプトだけを `importScripts` で読み込み、CSP の `connect-src` に明記した 5 つの localhost WebSocket 接続先だけを使います。Chrome 公式の WebSocket サンプルも WebSocket 専用の host permission を宣言していませんが、localhost / loopback の扱いは Chrome のバージョンや管理ポリシーでも確認が必要です。
 

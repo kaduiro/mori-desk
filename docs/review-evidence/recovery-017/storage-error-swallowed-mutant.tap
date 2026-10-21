@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: I-A2 independent actual local.access failure remains fatal before observation ACK
+not ok 1 - I-A2 independent actual local.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 15.378136
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:103:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    a real mandatory storage failure must not be masked as successful initialization
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:110:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 34.976736

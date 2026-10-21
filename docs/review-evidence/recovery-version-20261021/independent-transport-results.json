@@ -1,0 +1,143 @@
+{
+  "sourcePath": "/workspace/scratch/71b181da6eca/mori-desk/overlay/extensions/browser-bridge/transport.js",
+  "sourceHash": "7fa68a88ab5cb480596bb6b067f4414f65b806983e84f6e8c37c4c6a0ef4121b",
+  "criteriaHash": "3879ccaa0d1f952e23decbfa22ebc1f62cfdbe5bfacbfa29a28861f163b21fcc",
+  "node": "v24.19.0",
+  "method": "Independent VM socket/clock/crypto gates; real HMAC peer; no product test fixtures",
+  "results": [
+    {
+      "name": "T10 current connection proves authentication and event ACK",
+      "result": "PASS",
+      "details": {
+        "readyCalls": 1,
+        "sent": [
+          "hello",
+          "authenticate",
+          "event"
+        ]
+      }
+    },
+    {
+      "name": "T01/T03 server-proof delayed across pause",
+      "result": "PASS",
+      "details": {
+        "oldSent": [
+          "hello"
+        ],
+        "readyCalls": 0
+      }
+    },
+    {
+      "name": "T01/T03 server-proof delayed across replace",
+      "result": "PASS",
+      "details": {
+        "oldSent": [
+          "hello"
+        ],
+        "readyCalls": 1
+      }
+    },
+    {
+      "name": "T01/T03 client-proof delayed across pause",
+      "result": "PASS",
+      "details": {
+        "oldSent": [
+          "hello"
+        ],
+        "readyCalls": 0
+      }
+    },
+    {
+      "name": "T01/T03 client-proof delayed across replace",
+      "result": "PASS",
+      "details": {
+        "oldSent": [
+          "hello"
+        ],
+        "readyCalls": 1
+      }
+    },
+    {
+      "name": "T07 delayed rejected cryptography cannot close current connection",
+      "result": "PASS",
+      "details": {
+        "currentOpen": true
+      }
+    },
+    {
+      "name": "T01 ready credential persistence delayed across pause",
+      "result": "PASS",
+      "details": {
+        "readyCalls": 0
+      }
+    },
+    {
+      "name": "T06 old close and error leave current socket usable",
+      "result": "PASS",
+      "details": {
+        "currentOpen": true
+      }
+    },
+    {
+      "name": "T04 old focus response cannot be sent on a replacement connection",
+      "result": "PASS",
+      "details": {
+        "currentOpen": true
+      }
+    },
+    {
+      "name": "T09 connected status callback pauses transport before readiness continuation",
+      "result": "PASS",
+      "details": {
+        "readyCalls": 0,
+        "intervals": 0,
+        "actions": [
+          [
+            "socket",
+            1
+          ],
+          [
+            "send",
+            1,
+            "hello"
+          ],
+          [
+            "send",
+            1,
+            "authenticate"
+          ],
+          [
+            "status",
+            "connected"
+          ],
+          [
+            "close",
+            1
+          ],
+          [
+            "status",
+            "paused"
+          ],
+          [
+            "status",
+            "paused"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "T08 stopped old crypto does not regain authority after explicit resume",
+      "result": "PASS",
+      "details": {
+        "readyCalls": 1
+      }
+    },
+    {
+      "name": "T02/T06 superseded pair completion must not enable resume during new pairing",
+      "result": "PASS",
+      "details": {
+        "socketCount": 2
+      }
+    }
+  ]
+}

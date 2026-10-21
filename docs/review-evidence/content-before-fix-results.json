@@ -1,0 +1,23 @@
+{
+  "scope": "Independent event ledger; actual content/controller/coordinator; controlled confirmed binding only to exercise protocol; production binding tested separately; not real provider evidence",
+  "sourceSha256": "7382a8f1011c7995de59e669f536aab72085f0589eed3a049814bf5170aba127",
+  "results": [
+    {
+      "name": "production binding remains unconfirmed at all entry paths",
+      "status": "PASS"
+    },
+    {
+      "name": "late registration for old route cannot publish or focus",
+      "status": "PASS"
+    },
+    {
+      "name": "worker-only registration preserves an uninterrupted running generation",
+      "status": "PASS"
+    },
+    {
+      "name": "no terminal may be inferred after a lease-gated unsampled pause",
+      "status": "FAIL",
+      "reason": "running before unsampled pause + idle after resume must not create terminal\n\n1 !== 0\n"
+    }
+  ]
+}

@@ -1,0 +1,328 @@
+TAP version 13
+# Subtest: independent acceptance oracle remains the pre-source frozen version
+ok 1 - independent acceptance oracle remains the pre-source frozen version
+  ---
+  duration_ms: 2.114804
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 2 - I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 14.754074
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:40:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 3 - I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 4.68078
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:40:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 4 - I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 3.643974
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a new current-document report must arrive by 45 seconds after the query fault is released'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:42:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+ok 5 - I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 9.541481
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+ok 6 - I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 4.655101
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+not ok 7 - I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.879139
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+not ok 8 - I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 2.668961
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+not ok 9 - I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.345243
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A3 independent stale enumeration cannot close a later accepted physical tab
+not ok 10 - I-A3 independent stale enumeration cannot close a later accepted physical tab
+  ---
+  duration_ms: 9.094766
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:77:1'
+  failureType: 'testCodeFailure'
+  error: 'I-A3: an old enumeration must not emit a close event for a tab introduced after it began'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:96:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A2 independent actual local.access failure remains fatal before observation ACK
+ok 11 - I-A2 independent actual local.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 3.181165
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.access failure remains fatal before observation ACK
+ok 12 - I-A2 independent actual session.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.324862
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.get failure remains fatal before observation ACK
+ok 13 - I-A2 independent actual local.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.320525
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.get failure remains fatal before observation ACK
+ok 14 - I-A2 independent actual session.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.37031
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.set failure remains fatal before observation ACK
+ok 15 - I-A2 independent actual local.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 3.913871
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.set failure remains fatal before observation ACK
+ok 16 - I-A2 independent actual session.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.290759
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+ok 17 - I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 4.882624
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+ok 18 - I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 4.514448
+  type: 'test'
+  ...
+# Subtest: I-B1 independent cold injection with route B / central A never attributes A to B
+not ok 19 - I-B1 independent cold injection with route B / central A never attributes A to B
+  ---
+  duration_ms: 30.454166
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:144:1'
+  failureType: 'testCodeFailure'
+  error: 'I-B1: route B must never acquire the submitted text belonging to central conversation A'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:165:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+not ok 20 - I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+  ---
+  duration_ms: 13.655184
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:178:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    I-B2: current document/route identity alone cannot authorize focus-and-ACK
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:187:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+not ok 21 - I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+  ---
+  duration_ms: 4.81406
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:190:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    I-B2: the worker must reject the current granted observer after binding is lost, even if identity-only focus says yes
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:204:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+not ok 22 - I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+  ---
+  duration_ms: 9.287437
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:208:1'
+  failureType: 'testCodeFailure'
+  error: 'I-B2: no alternate observation entry point may bypass the conversation gate'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:219:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+not ok 23 - I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+  ---
+  duration_ms: 4.294906
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:224:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    I-B3: an old observation must not regain authority merely because monitoring resumes
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:240:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+ok 24 - I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+  ---
+  duration_ms: 21.954719
+  type: 'test'
+  ...
+# Subtest: I-U13 independent successful focus preserves the exact later R2 receipt
+ok 25 - I-U13 independent successful focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 17.754875
+  type: 'test'
+  ...
+# Subtest: I-U13 independent failed focus preserves the exact later R2 receipt
+ok 26 - I-U13 independent failed focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 14.037812
+  type: 'test'
+  ...
+# Subtest: I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient
+ok 27 - I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient # TODO
+  ---
+  duration_ms: 0.117277
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 14
+# fail 12
+# cancelled 0
+# skipped 0
+# todo 1
+# duration_ms 226.973897

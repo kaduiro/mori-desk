@@ -12,7 +12,8 @@
       <span class="brand" aria-hidden="true">mori</span>
       <div><p class="eyebrow">BROWSER BRIDGE · プレビュー</p><h1>回答を待つ時間に、別の仕事を。</h1></div>
     </header>
-    <p class="intro">ChatGPT と Claude の状態と会話の目印を、デスクトップのキャラクターに届けます。</p>
+    <p class="intro">ChatGPT と Claude の状態と会話の目印を、デスクトップで確認するための開発候補です。</p>
+    <p class="notice"><strong>この版のページ監視は未完成です。</strong>会話の所属を確認する処理が未実装のため、新しいページの監視結果を受け付けません。本体との接続は確認できますが、再接続やページの再読み込みでは監視は有効になりません。</p>
 
     <section class="status-card" aria-labelledby="status-heading">
       <div class="status-heading"><h2 id="status-heading">本体との接続</h2><span id="connection" class="pill">読み込み中</span></div>
@@ -46,8 +47,8 @@
     </section>
 
     <section class="preview-note" aria-labelledby="preview-heading">
-      <h2 id="preview-heading">プレビュー版で確認できること</h2>
-      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も、通常の入力欄と生成の停止ボタンを読み取れる画面で扱います。拡張機能の追加・更新後は、すでに開いているタブの監視も自動で復旧を試みます。表示されない場合は「タブの監視を確認・復旧」を押してください。対応する会話は待機中でも、1 つのタブが HUD の 1 行として表示されます。開いただけで完了通知は出しません。同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
+      <h2 id="preview-heading">実装・検証の対象</h2>
+      <p><strong>以下は目標とする動作です。実サービスでの動作確認は完了していません。</strong>対象は ChatGPT と Claude の通常のテキスト会話です。ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も対象にします。拡張機能の追加・更新後は、すでに開いているタブの監視の復旧を試みます。1 つのタブが HUD の 1 行に対応し、同じタブの中で表示していない複数の会話を同時には観測しません。同じ会話を 2 タブで開いた場合は別々に表示し、最大 20 タブを扱います。開いただけで完了通知は出しません。</p>
       <p>この版の DOM 判定は、実際の利用環境での確認が必要です。生成の停止を検出したときは <strong>「回答を確認」</strong> と表示します。正常終了の保証や、回答内容の評価は行いません。読み取れない画面、タブの破棄、スリープ中は状態が不明になります。</p>
       <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。URL のプロジェクト名・GPT 名の部分は保存せず、会話 ID に正規化します。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
     </section>

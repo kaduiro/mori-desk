@@ -1,0 +1,79 @@
+{
+  "scope": "Actual frozen worker/coordinator/outbox at persistence and Chrome API boundaries; reviewer-owned API doubles; not real Chrome or recovery completion",
+  "sourceSha256": "3af8c6db5982337e1436ff53aa6346116d633e5332d40fe7fe6851bb651c2c86",
+  "results": [
+    {
+      "name": "pending initial query does not block readiness; deadline invalidates late empty reply",
+      "status": "PASS"
+    },
+    {
+      "name": "sync query failure remains nonfatal; alarm can request fresh observation",
+      "status": "PASS"
+    },
+    {
+      "name": "reject query failure remains nonfatal; alarm can request fresh observation",
+      "status": "PASS"
+    },
+    {
+      "name": "old enumeration does not close newly admitted B",
+      "status": "PASS"
+    },
+    {
+      "name": "old enumeration does not close replaced A document/route",
+      "status": "PASS"
+    },
+    {
+      "name": "URL-redacted live tab is not closed",
+      "status": "PASS"
+    },
+    {
+      "name": "local.access still fails closed",
+      "status": "PASS"
+    },
+    {
+      "name": "session.access still fails closed",
+      "status": "PASS"
+    },
+    {
+      "name": "local.get still fails closed",
+      "status": "PASS"
+    },
+    {
+      "name": "session.get still fails closed",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid credential is local_data_invalid",
+      "status": "PASS"
+    },
+    {
+      "name": "close commit failure preserves durable receipt and raises storage_failed",
+      "status": "PASS"
+    },
+    {
+      "name": "alarm failure has separate category",
+      "status": "PASS"
+    },
+    {
+      "name": "pause waits for admitted close, immediately blocks new observations, and stops remaining query candidates",
+      "status": "PASS"
+    },
+    {
+      "name": "reconcile pause sensitivity: removing between-record gate fails on later B closure",
+      "status": "PASS"
+    },
+    {
+      "name": "pause after durable terminal journal waits for session persistence and preserves receipt",
+      "status": "PASS"
+    },
+    {
+      "name": "final focus response cannot accept a route changed while its response was in flight",
+      "status": "FAIL",
+      "reason": "current route B must not yield focus success for A\n\ntrue !== false\n"
+    },
+    {
+      "name": "baseline sensitivity: query throw incorrectly becomes storage failure",
+      "status": "PASS"
+    }
+  ]
+}

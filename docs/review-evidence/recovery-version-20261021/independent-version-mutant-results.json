@@ -1,0 +1,199 @@
+{
+  "node": "v24.19.0",
+  "criteriaHash": "3879ccaa0d1f952e23decbfa22ebc1f62cfdbe5bfacbfa29a28861f163b21fcc",
+  "sourceHashes": {
+    "prepare-runtime.js": "7effe040a687c7bdae55360c7616e5008c7a5cf77bb23bfa343c476c547a8085",
+    "doctor.js": "397530b5b78c0347ed181666e075e383f43c6331a508f600335a27e2d12e2481",
+    "run.js": "3f942edb3daeebf5d423ee332e31571121de8dc180919e849b2b8ed6fae7c08b"
+  },
+  "method": "Independent temporary source trees; real filesystem comparisons; read-only fs enforcement; Git commands captured and never executed; launch intercepted",
+  "results": [
+    {
+      "name": "S01/L01 consistent disk fixture permits launch without claiming live acceptance",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "live": "NOT_CHECKED"
+      }
+    },
+    {
+      "name": "S02/S03 changed pin is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S02/S03 changed patch is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S02/S03 changed overlay-modify is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S02/S03 changed overlay-add is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S02/S03 changed overlay-delete is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S04 invalid fingerprint undefined fails closed",
+      "result": "PASS"
+    },
+    {
+      "name": "S04 invalid fingerprint invalid fails closed",
+      "result": "PASS"
+    },
+    {
+      "name": "S04 invalid fingerprint 123 fails closed",
+      "result": "PASS"
+    },
+    {
+      "name": "S04 unreadable ownership/invalid JSON fails closed",
+      "result": "PASS"
+    },
+    {
+      "name": "S05 documentation-only changes preserve startup eligibility",
+      "result": "PASS"
+    },
+    {
+      "name": "S07/L05 runtime extension byte change is detected despite a matching stamp",
+      "result": "FAIL",
+      "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'matches_source'\n- 'mismatch'\n",
+      "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'matches_source'\n- 'mismatch'\n\n    at /tmp/mori-next-independent-source.js:104:246\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:103:3"
+    },
+    {
+      "name": "S07 inherited runtime mutation remains explicitly outside reported coverage",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "scope": "NOT_CHECKED"
+      }
+    },
+    {
+      "name": "L02 same extension version with different bytes is mismatch",
+      "result": "FAIL",
+      "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'matches_source'\n- 'mismatch'\n",
+      "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'matches_source'\n- 'mismatch'\n\n    at /tmp/mori-next-independent-source.js:111:195\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:110:3"
+    },
+    {
+      "name": "L04 missing selected file is not silently accepted",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 missing selected directory is unavailable",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 omitted selected directory cannot imply it was inspected",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "selected": null
+      }
+    },
+    {
+      "name": "L06 matching different folder is disk-only identity",
+      "result": "PASS"
+    },
+    {
+      "name": "L08/L09 doctor does not mutate files, execute git, or read profile content",
+      "result": "PASS",
+      "details": {
+        "capturedReadOnlyGitRequests": 3,
+        "actualSubprocesses": 0,
+        "writeAttempts": 0
+      }
+    },
+    {
+      "name": "L10 JSON status and CLI exit agree on same-version mismatch",
+      "result": "FAIL",
+      "message": "Expected values to be strictly equal:\n\n0 !== 2\n",
+      "stack": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 2\n\n    at /tmp/mori-next-independent-source.js:130:228\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:129:3"
+    },
+    {
+      "name": "L10 human report preserves live and inherited-code limitations",
+      "result": "PASS"
+    },
+    {
+      "name": "A07 target extras are outside fingerprint coverage and must be disclosed",
+      "result": "PASS",
+      "details": {
+        "status": "matches_source",
+        "fingerprintEquals": true,
+        "coverage": "expected_source_files_only"
+      }
+    },
+    {
+      "name": "L09 symlink to unrelated content is not read as a code file",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 nonregular selected-extension/manifest.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular .runtime/package.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular upstream.lock.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular patches/mori.patch is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 manifest symlink to a FIFO is not dereferenced",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation name cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation appId cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation publish cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "A02 Git identity belongs to the actual root only",
+      "result": "PASS"
+    },
+    {
+      "name": "A02 parent Git identity cannot be attributed to a nested ZIP checkout",
+      "result": "PASS"
+    }
+  ]
+}

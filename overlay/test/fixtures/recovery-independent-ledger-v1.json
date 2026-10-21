@@ -1,0 +1,104 @@
+{
+  "schema": "mori-independent-recovery-ledger-v1",
+  "frozenBeforeProductSourceRead": true,
+  "createdAt": "2026-10-21",
+  "baselineCommit": "3b1d39d178896d07ae36941518049f0bbef22c85",
+  "authority": [
+    "AGENTS.md",
+    "README.md",
+    "overlay/extensions/browser-bridge/README.md",
+    "docs/recovery-fix-test-plan-ja.md"
+  ],
+  "method": {
+    "expectedValues": "The physical-tab and conversation ledger below is the oracle. Product reducer, metadata reader, recovery status and opaque identifiers may be observed, but never generate expected results.",
+    "automationWindow": "After faults are released, advance only the independent clock and ordinary product alarms/page events. Do not invoke diagnostics, manual observe, retry, pairing, monitor toggles, reload or focus to make recovery succeed.",
+    "automaticRecoveryDeadlineMs": 45000,
+    "normalDisplayDeadlineMs": 5000,
+    "limits": "A controlled API/DOM substitute is synthetic evidence only. Real Chrome lifecycle, actual provider DOM binding, Windows/macOS focus and Japanese IME remain unverified unless separately exercised in those environments.",
+    "positiveBinding": "Do not invent a provider selector or a page attribute to make automatic approval pass. If a researched binding cannot be supplied, real-provider useful recovery is UNKNOWN; passing safe quarantine is insufficient. Any protocol-only positive control must be labelled separately."
+  },
+  "conversations": {
+    "A": {
+      "physicalTabAlias": "desk-left",
+      "browserRunAlias": "first-run",
+      "provider": "chatgpt",
+      "route": "/c/independent-alpha",
+      "title": "Independent Alpha Conversation",
+      "submittedText": "ALPHA_SUBMITTED_1",
+      "draftText": "ALPHA_PRIVATE_DRAFT"
+    },
+    "B": {
+      "physicalTabAlias": "desk-left",
+      "browserRunAlias": "first-run",
+      "provider": "chatgpt",
+      "route": "/c/independent-beta",
+      "title": "Independent Beta Conversation",
+      "submittedText": "BETA_SUBMITTED_1",
+      "draftText": "BETA_PRIVATE_DRAFT"
+    },
+    "C": {
+      "physicalTabAlias": "desk-right",
+      "browserRunAlias": "first-run",
+      "provider": "claude",
+      "route": "/chat/independent-gamma",
+      "title": "Independent Gamma Conversation",
+      "submittedText": "GAMMA_SUBMITTED_1",
+      "draftText": "GAMMA_PRIVATE_DRAFT"
+    }
+  },
+  "cases": [
+    {
+      "id": "I-A1",
+      "steps": ["Start with valid saved pairing and no broken storage", "Make the first tab query throw synchronously, reject, or remain pending beyond its deadline in separate runs", "Release the enumeration fault", "Permit ordinary automatic triggers only"],
+      "expected": ["The pairing remains intact", "The failure is not classified as storage_failed", "No prior tab is treated as closed on an unknown tab list", "A fresh observation is delivered within 45000 ms without a diagnostic or manual recovery request"]
+    },
+    {
+      "id": "I-A2",
+      "steps": ["Start with a real failing storage boundary in separate local/session read and write runs", "Request startup or submit an observation that needs that write"],
+      "expected": ["The product fails closed", "No success ACK is given for an undurable observation", "No ready/connected success is asserted on failed mandatory initialization"]
+    },
+    {
+      "id": "I-A3",
+      "steps": ["Start a tab enumeration while only desk-left exists", "Introduce desk-right and durably record a new observation before the old query resolves", "Resolve the old query without desk-right"],
+      "expected": ["desk-right remains current", "Its route, notification set and focus target are unchanged", "A stale enumeration cannot fabricate a close event"]
+    },
+    {
+      "id": "I-B1",
+      "steps": ["Create an unread notification R1 for A", "Observe a later generation in A", "Invalidate its observer", "Change only the route to B and expose B's navigation title while central submitted text and generation controls still belong to A", "Start a new observer with no old storage.session route history", "Keep A's central DOM stable past 100 ms, 2000 ms and 10000 ms, including a new-node copy", "Replace the central region with B's existing idle screen"],
+      "expected": ["At no point is ALPHA_SUBMITTED_1 recorded under B", "At no point is A's running or terminal event recorded under B", "No new B notification is created from the existing idle screen", "R1 is retained", "Neither private draft token reaches persisted browser metadata or diagnostics", "A title proven by B's exact navigation link may be separate from unproven central content"]
+    },
+    {
+      "id": "I-B2",
+      "steps": ["While the current observer has route B but central DOM A, request ordinary health, immediate observation, visibility and pageshow through separate trials", "Attempt focus-and-ACK for B using the current observer identity"],
+      "expected": ["No alternate entry bypasses quarantine", "Focus success is denied while conversation binding is unproven", "The captured unread set is unchanged even if the physical tab was activated"]
+    },
+    {
+      "id": "I-B3",
+      "steps": ["Hold an injection until after its timeout", "Pause or unpair before allowing the old injection to run", "Release delayed page work and messages"],
+      "expected": ["The expired attempt creates no accepted metadata, generation or terminal event", "No state is written back after successful unpair", "Already saved desktop unread notifications are retained"]
+    },
+    {
+      "id": "I-U12",
+      "steps": ["Deliver a generation-stop event R1 for one physical tab", "Start another generation", "Deliver its distinct stop event R2", "Replay R2"],
+      "expected": ["After the new start the unread set is exactly {R1}", "After the new stop the unread set is exactly {R1,R2}", "After replay the unread set is still exactly {R1,R2}"]
+    },
+    {
+      "id": "I-U13",
+      "steps": ["Start focus while R1 is the only unread notification and hold focus completion", "Deliver R2 during focus", "Complete focus to the verified requested physical tab and conversation"],
+      "expected": ["The click captures only R1", "After successful focus the unread set is exactly {R2}", "If final focus validation fails the unread set is exactly {R1,R2}"]
+    },
+    {
+      "id": "I-B8",
+      "steps": ["Use independently researched real-provider binding evidence for B", "Recover without diagnostics", "Submit BETA_SUBMITTED_1", "Observe generation and then stop", "Focus the corresponding row"],
+      "expected": ["Within the fixed deadlines B's title, latest submission, status and physical focus destination agree", "Exactly one notification belongs to the new B stop", "An implementation returning permanent unknown or blank metadata fails useful recovery", "Without provider evidence this case is UNKNOWN, never promoted from a safe-quarantine pass"]
+    }
+  ],
+  "mutationRequirements": [
+    "A query-to-storage_failed mutation must fail I-A1 on misclassification or loss of automatic recovery, not startup syntax errors.",
+    "A bypass of storage failure must fail I-A2 on an improper ready/ACK result.",
+    "Removing automatic triggers while retaining manual recovery must fail diagnostic-free recovery.",
+    "Removing the binding gate or using time alone must fail I-B1 on wrong conversation data or generation.",
+    "Acknowledging all unread notifications after focus must fail I-U13 because R2 disappears.",
+    "Each mutation must activate, and its unchanged control must pass the same executable case."
+  ]
+}

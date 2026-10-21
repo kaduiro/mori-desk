@@ -1,0 +1,119 @@
+{
+  "browser": "156.0.8078.47",
+  "platform": "linux",
+  "headless": true,
+  "providerPage": "fixed synthetic ChatGPT HTML; provider requests intercepted; no live service/account",
+  "desktopStorage": "isolated synthetic safeStorage test double; no OS encryption validation",
+  "baselineExtension": "0.1.6",
+  "currentExtension": "0.1.7",
+  "baselineSources": {
+    "adapters/chatgpt.js": "4d35484e3ba246c37adadbdd881724a69735e0977e7740462237d96495bf8167",
+    "adapters/claude.js": "b7d8b1d8dacd4f27d8a4a910d7fa25afce7e330120ed3995293d088786f11ddd",
+    "content-script.js": "a88c4b0ae963cffa32a0f20372c8c8beb34f497813376b9ce2d9fed181a70b96",
+    "conversation-metadata.js": "85b7d62378822332bb508b92a2243cf1aeb1253a53e97f71e83212b9d1d0d796",
+    "manifest.json": "fc40d09f1d0cd44fbe182162539e154fe965ea22983e23d2fe4e9f9383b76571",
+    "observation-controller.js": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b",
+    "observer-recovery.js": "7c218fbbf820d9418b5addf2f94c345243e963bdc02d82b5b780ea835bef459a",
+    "options.css": "1ad57736300fb951f03597a3f5a9b057bf612bac8c77270fbd2856bf9be7f65a",
+    "options.html": "9743d01d5322d7c29585f5176a06b8c6e0f622f39bfb137cf9249ae1b0a522ad",
+    "options.js": "8dbd3b1b0e0051bd47e502e3abfbed583f5e15d43472c1898e6fcf4c0c10f235",
+    "outbox.js": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262",
+    "provider-utils.js": "2a8b5acc47babc6d8c93df2929fce432a840299472cff052cdeddfc477d61051",
+    "service-worker.js": "c18f10ad0ccf2fadcba46beeb12e94242e1b62bb94d168531c95e7da5b4da637",
+    "session-coordinator.js": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5",
+    "transport.js": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b"
+  },
+  "currentSources": {
+    "adapters/chatgpt.js": "4d35484e3ba246c37adadbdd881724a69735e0977e7740462237d96495bf8167",
+    "adapters/claude.js": "b7d8b1d8dacd4f27d8a4a910d7fa25afce7e330120ed3995293d088786f11ddd",
+    "content-script.js": "bbca446fa121a577e1fd00e6b0e66fed9eeb7d4a08b7923526a64c99996620c1",
+    "content-start.js": "a9ac6f2d1f23cf562a1bde5a6bdbe5bcca24dd64c91ede0416b99bbd92bcfeb7",
+    "conversation-binding.js": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c",
+    "conversation-metadata.js": "85b7d62378822332bb508b92a2243cf1aeb1253a53e97f71e83212b9d1d0d796",
+    "manifest.json": "4fbccebb3257fdd515d4c111d2de005607e7dbedb070fa0fe81496c048ba3e99",
+    "observation-controller.js": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b",
+    "observer-recovery.js": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc",
+    "options.css": "1ad57736300fb951f03597a3f5a9b057bf612bac8c77270fbd2856bf9be7f65a",
+    "options.html": "9743d01d5322d7c29585f5176a06b8c6e0f622f39bfb137cf9249ae1b0a522ad",
+    "options.js": "b9e439f7f2c81c93624f977be326f8afa0945b17eff7b53bfa200431641c68ed",
+    "outbox.js": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262",
+    "provider-utils.js": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1",
+    "service-worker.js": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+    "session-coordinator.js": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5",
+    "transport.js": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b"
+  },
+  "phases": [
+    {
+      "phase": "passive production update recovery",
+      "deadlineMs": 45000,
+      "observationCutoffMs": 120000,
+      "firstAcceptedObservationMs": null,
+      "firstUsefulObservationMs": null,
+      "receiptSetChangedAtMs": null,
+      "verdict": "FAIL-no-recovery",
+      "driverHealthCalls": 0,
+      "driverRetryCalls": 0,
+      "driverTargetActivations": 0,
+      "unreadPreserved": true,
+      "limitation": "synthetic page; no verified production conversation binding"
+    },
+    {
+      "phase": "post-verdict quarantine diagnostic",
+      "counts": {
+        "needsReload": 0,
+        "unsupportedRoute": 0,
+        "unknown": 1,
+        "idle": 0,
+        "running": 0,
+        "settled": 0
+      },
+      "recovery": {
+        "attempted": 0,
+        "recovered": 0,
+        "deferred": 1,
+        "failed": 0,
+        "reasons": {
+          "binding_unconfirmed": 1
+        }
+      },
+      "observationDelivery": {
+        "accepted": 0,
+        "rejected": 0,
+        "unconfirmed": 0,
+        "runningAccepted": 0,
+        "reasons": {}
+      },
+      "pageReloaded": false,
+      "draftPreserved": true,
+      "unreadPreserved": true
+    },
+    {
+      "phase": "second reload remains quarantined; explicit diagnostic outside passive gate",
+      "counts": {
+        "needsReload": 0,
+        "unsupportedRoute": 0,
+        "unknown": 1,
+        "idle": 0,
+        "running": 0,
+        "settled": 0
+      },
+      "recovery": {
+        "attempted": 0,
+        "recovered": 0,
+        "deferred": 1,
+        "failed": 0,
+        "reasons": {
+          "binding_unconfirmed": 1
+        }
+      },
+      "pageReloaded": false,
+      "draftPreserved": true,
+      "unreadPreserved": true
+    }
+  ],
+  "success": false,
+  "safetyChecksPass": true,
+  "businessAcceptance": "FAIL-no-recovery",
+  "naturalWorkerStop": "NOT_RUN: inspected lifecycle, not natural termination",
+  "temporaryDataRemoved": true
+}

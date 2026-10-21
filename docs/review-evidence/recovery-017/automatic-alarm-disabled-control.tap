@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+ok 1 - I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 19.677019
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+ok 2 - I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 8.138221
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+ok 3 - I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 5.101685
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+ok 4 - I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 6.214987
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+ok 5 - I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.61472
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+ok 6 - I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 4.615741
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+ok 7 - I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.450561
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+ok 8 - I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 5.179363
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 78.018234

@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: a late credential-save completion cannot report connected after monitoring is paused
+ok 1 - a late credential-save completion cannot report connected after monitoring is paused
+  ---
+  duration_ms: 12.404801
+  type: 'test'
+  ...
+# Subtest: an expired authentication cannot become ready when its delayed save completes
+ok 2 - an expired authentication cannot become ready when its delayed save completes
+  ---
+  duration_ms: 5.203544
+  type: 'test'
+  ...
+# Subtest: a replaced socket cannot publish ready over its authenticated replacement
+ok 3 - a replaced socket cannot publish ready over its authenticated replacement
+  ---
+  duration_ms: 3.336032
+  type: 'test'
+  ...
+# Subtest: a current delayed credential save still completes authentication exactly once
+ok 4 - a current delayed credential save still completes authentication exactly once
+  ---
+  duration_ms: 1.942726
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 59.445919

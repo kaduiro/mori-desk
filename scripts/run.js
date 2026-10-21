@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { requireRuntime, run } = require("./prepare-runtime");
+const { ROOT, requireRuntime, run } = require("./prepare-runtime");
 const { checkNodeVersion, runNpm } = require("./setup");
 
 function testFiles(runtime) {
@@ -25,8 +25,8 @@ async function main(args = process.argv.slice(2)) {
     if (launchArgs.includes("--enable-cli")) console.log("CLI mode: close the original Clawd on Desk first. This preview does not automatically migrate its settings.");
     await run(process.execPath, [path.join(runtime, "launch.js"), ...launchArgs], { cwd: runtime, capture: false });
   } else if (command === "test") {
-    const files = testFiles(runtime);
-    console.log(`Running ${files.length} browser/Mori test files.`);
+    const files = [...testFiles(runtime), ...["runtime-source.test.js", "prepare-publication.test.js"].map(name => path.join(ROOT, "test", name))];
+    console.log(`Running ${files.length} browser/Mori and source verification test files.`);
     await run(process.execPath, ["--test", ...files], { cwd: runtime, capture: false });
   } else if (command === "verify:electron") {
     await run(process.execPath, ["scripts/verify-electron-install.js", "--context", "verify"], { cwd: runtime, capture: false });

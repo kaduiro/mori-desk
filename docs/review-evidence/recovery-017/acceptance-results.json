@@ -1,0 +1,229 @@
+{
+  "createdAt": "2026-10-21T09:34:59.209Z",
+  "nodeVersion": "v24.19.0",
+  "platform": "linux",
+  "baselineHead": "3b1d39d178896d07ae36941518049f0bbef22c85",
+  "frozenLedgerSha256": "00e4efc143ee2bda402a5e50b6669baadba33ab66eac31bc2e88fb11df2e90b5",
+  "oraclePolicy": "Expectation ledger frozen before product source inspection. New dedicated harness; no pre-existing test helpers copied. Expected receipt sets and page ownership come from external scenario inputs, never reducer or metadata-reader output.",
+  "interfacePolicy": "Registration and identity API contracts were shared for driver compatibility. Positive observer protocol pages are explicit boundary stand-ins, not provider DOM evidence.",
+  "ownedFiles": [
+    {
+      "file": "overlay/test/browser-recovery-independent.test.js",
+      "sha256": "8faec94b107ebd174e2a3298cff57c453f713ad98e65d357d29c0e21949a4c88"
+    },
+    {
+      "file": "overlay/test/fixtures/recovery-independent-ledger-v1.json",
+      "sha256": "00e4efc143ee2bda402a5e50b6669baadba33ab66eac31bc2e88fb11df2e90b5"
+    },
+    {
+      "file": "overlay/test/fixtures/recovery-independent-harness.js",
+      "sha256": "a6a00190c12bf77cf61b58a211bc1854ea4993b9b0c46688c8b251d0411f22af"
+    },
+    {
+      "file": "overlay/test/fixtures/recovery-independent-mutations.js",
+      "sha256": "9681ad445c10dde54a69c6bfc41399e42319cb400ec6f3c8863b346aa1403bd8"
+    }
+  ],
+  "baseline": {
+    "sourceRoot": "/tmp/mori-recovery-baseline-3b1d39d",
+    "processExitCode": 1,
+    "tap": "/tmp/mori-independent-mutant-evidence-v4/baseline-suite.tap",
+    "tapSha256": "6e361797207b5d2840ac040c88b915317900e65309a6247998b4e5d84c0e528a",
+    "counts": {
+      "tests": 27,
+      "pass": 14,
+      "fail": 12,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 1
+    },
+    "failingSubtests": [
+      "I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance",
+      "I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance",
+      "I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance",
+      "I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary",
+      "I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary",
+      "I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary",
+      "I-A3 independent stale enumeration cannot close a later accepted physical tab",
+      "I-B1 independent cold injection with route B / central A never attributes A to B",
+      "I-B2 independent current page identity cannot turn unbound route B / central A into focus success",
+      "I-B2 independent worker rejects focus after its current granted observer loses conversation binding",
+      "I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A",
+      "I-B3 independent pause/resume cannot revive an old observation without a new worker grant"
+    ]
+  },
+  "corrected": {
+    "sourceRoot": "/workspace/scratch/71b181da6eca/mori-desk",
+    "processExitCode": 0,
+    "tap": "/tmp/mori-independent-mutant-evidence-v4/corrected-suite.tap",
+    "tapSha256": "d66c86aceb1c8ac0f97d40692223366293d4c4ee8b1e9f69d0ef7427f2c94764",
+    "counts": {
+      "tests": 27,
+      "pass": 26,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 1
+    },
+    "failingSubtests": []
+  },
+  "mutationReport": "/tmp/mori-independent-mutant-evidence-v4/mutation-results.json",
+  "mutationReportSha256": "2938abe3a55cf45cdcda19b5405af15c58efb91aebcf219d5b701039b03d34be",
+  "mutationCount": 7,
+  "mutationsDetectedForIntendedRequirement": 7,
+  "fixedSourceSnapshot": "/tmp/mori-independent-mutant-evidence-v4/control/overlay",
+  "sourceSnapshotMatchesCurrentProduct": true,
+  "sourceFiles": [
+    {
+      "file": "extensions/browser-bridge/adapters/chatgpt.js",
+      "sha256": "4d35484e3ba246c37adadbdd881724a69735e0977e7740462237d96495bf8167"
+    },
+    {
+      "file": "extensions/browser-bridge/adapters/claude.js",
+      "sha256": "b7d8b1d8dacd4f27d8a4a910d7fa25afce7e330120ed3995293d088786f11ddd"
+    },
+    {
+      "file": "extensions/browser-bridge/content-script.js",
+      "sha256": "bbca446fa121a577e1fd00e6b0e66fed9eeb7d4a08b7923526a64c99996620c1"
+    },
+    {
+      "file": "extensions/browser-bridge/content-start.js",
+      "sha256": "a9ac6f2d1f23cf562a1bde5a6bdbe5bcca24dd64c91ede0416b99bbd92bcfeb7"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-binding.js",
+      "sha256": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-metadata.js",
+      "sha256": "85b7d62378822332bb508b92a2243cf1aeb1253a53e97f71e83212b9d1d0d796"
+    },
+    {
+      "file": "extensions/browser-bridge/manifest.json",
+      "sha256": "4fbccebb3257fdd515d4c111d2de005607e7dbedb070fa0fe81496c048ba3e99"
+    },
+    {
+      "file": "extensions/browser-bridge/observation-controller.js",
+      "sha256": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b"
+    },
+    {
+      "file": "extensions/browser-bridge/observer-recovery.js",
+      "sha256": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc"
+    },
+    {
+      "file": "extensions/browser-bridge/options.css",
+      "sha256": "1ad57736300fb951f03597a3f5a9b057bf612bac8c77270fbd2856bf9be7f65a"
+    },
+    {
+      "file": "extensions/browser-bridge/options.html",
+      "sha256": "9743d01d5322d7c29585f5176a06b8c6e0f622f39bfb137cf9249ae1b0a522ad"
+    },
+    {
+      "file": "extensions/browser-bridge/options.js",
+      "sha256": "b9e439f7f2c81c93624f977be326f8afa0945b17eff7b53bfa200431641c68ed"
+    },
+    {
+      "file": "extensions/browser-bridge/outbox.js",
+      "sha256": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262"
+    },
+    {
+      "file": "extensions/browser-bridge/provider-utils.js",
+      "sha256": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1"
+    },
+    {
+      "file": "extensions/browser-bridge/README.md",
+      "sha256": "6afc6074e47fa8bb214a5520822de19756442ebf92fdc4daea087722a23c65db"
+    },
+    {
+      "file": "extensions/browser-bridge/service-worker.js",
+      "sha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d"
+    },
+    {
+      "file": "extensions/browser-bridge/session-coordinator.js",
+      "sha256": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5"
+    },
+    {
+      "file": "extensions/browser-bridge/transport.js",
+      "sha256": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b"
+    },
+    {
+      "file": "src/browser-bridge-auth.js",
+      "sha256": "32c0c53d4b62765a80d09f54795e010ee892a7f326468ecb643b2b3081732fcc"
+    },
+    {
+      "file": "src/browser-bridge-persistence.js",
+      "sha256": "aeb91b8c4d625a8b9d8f9aad3dfc16be43a6bb72268bdcb199c8ac1648ce4ee0"
+    },
+    {
+      "file": "src/browser-bridge-protocol.js",
+      "sha256": "c718a59b0f92e07cb6213e3e5a062aaa69d16c30b27745825274070bba1f5c72"
+    },
+    {
+      "file": "src/browser-bridge-server.js",
+      "sha256": "8dce54bf9003d0516f4e0d84d4edfbb32c159c48611326ed214f44ce42224a62"
+    },
+    {
+      "file": "src/browser-session-store.js",
+      "sha256": "c635534531328ec8617875ed2c21d8fdbcc33ca408d6867e676871bf27a37e5f"
+    },
+    {
+      "file": "src/mori-browser-renderer.js",
+      "sha256": "b8d4ca0d91ae62b5c97bf9c86bf47966c4f3106c7b5590d995fb821c1fc37694"
+    },
+    {
+      "file": "src/mori-browser-status.js",
+      "sha256": "0e9007a3fc1b45d16101838d216f2e94b95bd8572ec602387bcb2feb555818ed"
+    },
+    {
+      "file": "src/mori-browser-window.js",
+      "sha256": "7915ce44e0fdfedeb3349ae9f19b538f3c39aca50f8699d047fa4ba54f335f84"
+    },
+    {
+      "file": "src/mori-browser.css",
+      "sha256": "f4a09e5189b886d444bc0d45fd32302dd37aa1cdf4214e1627817465e054fb7c"
+    },
+    {
+      "file": "src/mori-browser.html",
+      "sha256": "e68a6d823ff0a3a0f6467375ad3af85576fcddd1a4b04060332a23e04090150f"
+    },
+    {
+      "file": "src/mori-desktop-snapshot.js",
+      "sha256": "8f4817e71026c49127062cd65289ed018c61e5fea425f89fef5c37335efbe66b"
+    },
+    {
+      "file": "src/mori-hud-status.js",
+      "sha256": "ea042a75941ae9a6e41017c1c95b5b9bbf4970ca5459fc805a02d228bea78b6e"
+    },
+    {
+      "file": "src/mori-local-themes.js",
+      "sha256": "49955dcb1027ed174bf4f7aed2a7145bbc9a119627a0128180a677a5c2462c58"
+    },
+    {
+      "file": "src/mori-manual-updater.js",
+      "sha256": "e58ac34bdcb8c90a46548516fbd0fa772925785731367fc40c1e0545fcbfba96"
+    },
+    {
+      "file": "src/mori-product.js",
+      "sha256": "e23b43451ae7e8ce9e0cd9a5acfc114ba4c50b4b970806b250a4373264ef1dea"
+    },
+    {
+      "file": "src/mori-session-navigation.js",
+      "sha256": "bd541cd1252b3703299341821e346b2ce6a1f8be4edf1ea002045f8a612d17fb"
+    },
+    {
+      "file": "src/preload-mori-browser.js",
+      "sha256": "12e03393dd72d11187a436ab39a89bb499dd9fedf9bf8e04028179df12aa83f4"
+    }
+  ],
+  "usefulRealProviderRecovery": {
+    "scenario": "I-B8",
+    "status": "UNKNOWN",
+    "releaseVerdict": "NO-GO until independently verified real provider binding and useful recovery evidence exist"
+  },
+  "limitations": [
+    "Synthetic Chrome API/DOM clocks do not prove real Chrome scheduling or permissions.",
+    "Protocol-positive observers do not prove actual ChatGPT or Claude conversation binding.",
+    "In-memory WebSocket boundary and reversible safeStorage codec do not prove OS encryption.",
+    "No real service, actual browser, or Windows IME evidence is claimed."
+  ]
+}

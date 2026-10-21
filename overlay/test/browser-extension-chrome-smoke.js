@@ -11,9 +11,10 @@ const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
-const BASELINE_VERSION = "0.1.5";
-const CURRENT_VERSION = "0.1.6";
+const BASELINE_VERSION = "0.1.6";
+const CURRENT_VERSION = "0.1.7";
 const FIXTURE_URL = "https://chatgpt.com/c/fixture-recovery";
 const PORTS = [23333, 23334, 23335, 23336, 23337];
 const ARGUMENTS = {
@@ -26,7 +27,7 @@ const HELP = `Usage (after npm run setup):
   node .runtime/test/browser-extension-chrome-smoke.js \\
     --chrome /path/to/chrome \\
     --playwright /path/to/node_modules/playwright \\
-    --baseline-extension /path/to/0.1.5/browser-bridge \\
+    --baseline-extension /path/to/0.1.6/browser-bridge \\
     --output-dir /path/to/smoke-results
 
 Each option can instead be supplied through its environment variable:
@@ -38,7 +39,7 @@ Each option can instead be supplied through its environment variable:
 All four paths are required. CLI options override environment variables.
 Playwright may be a package directory or its module entry file. The current
 extension and bridge are resolved relative to this reconstructed test file.
-The baseline must be an unmodified 0.1.5 extension directory; it is copied,
+The baseline must be an unmodified 0.1.6 extension directory; it is copied,
 never changed. Chrome runs headless with an isolated temporary profile.
 Developer mode is enabled through chrome://extensions in that new profile;
 managed browser restrictions are not bypassed. Chrome inherits the environment
@@ -48,6 +49,11 @@ Outputs: chrome-recovery-results.json and chrome-recovery-options.png.
 Only this run's mkdtemp directory is removed; the requested output is retained.
 This checks synthetic DOM and a safeStorage test double, not live provider DOM
 or the operating system's credential encryption.
+The production 0.1.7 candidate currently cannot confirm provider binding.
+This test expects quarantine safety but records the useful-recovery gate as
+FAIL-no-recovery after a passive 120-second observation (45-second deadline).
+Exit 2 means safety checks passed while business acceptance remains blocked;
+it must not be treated as an installation/release success.
 `;
 
 class SmokeError extends Error {}
@@ -91,6 +97,21 @@ function readManifest(directory, version, description) {
   return manifest;
 }
 
+function sourceHashes(directory) {
+  const hashes = {};
+  function visit(folder, prefix = "") {
+    for (const entry of fs.readdirSync(folder, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const relative = prefix + entry.name;
+      if (entry.isDirectory()) visit(path.join(folder, entry.name), relative + "/");
+      else if (/\.(?:js|json|html|css)$/.test(entry.name)) {
+        hashes[relative] = crypto.createHash("sha256").update(fs.readFileSync(path.join(folder, entry.name))).digest("hex");
+      }
+    }
+  }
+  visit(directory);
+  return hashes;
+}
+
 // Avoid raw Playwright call logs, page text, pairing codes, keys, or storage
 // dumps on failure. A fixed stage plus a small error category is sufficient.
 function failureDescription(error) {
@@ -131,6 +152,41 @@ const HTML = `<!doctype html><html lang="ja"><meta charset="utf-8"><title>Recove
 <form><textarea id="prompt-textarea" style="width:300px;height:80px"></textarea></form>
 <script>window.fixtureDocumentToken=crypto.randomUUID();</script></body></html>`;
 
+// Desktop-side truth capture. It never asks the extension/page to do work and
+// latches even a transient idle/unknown acceptance that later disappears.
+function createPassiveLedger({ baselineRows, startedAt, now = Date.now }) {
+  const baselineRuns = new Set(baselineRows.map(row => row.browserRunId));
+  const lastObservation = Math.max(0, ...baselineRows.map(row => row.lastObservationAt || 0));
+  function receiptSet(rows) {
+    const receipts = rows.filter(row => (row.unreadCount || 0) > 0)
+      .map(row => [row.id, row.unreadCount, row.pendingNotice?.noticeSequence,
+        row.pendingNotice?.turnId, row.pendingNotice?.outcome]);
+    receipts.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    return JSON.stringify(receipts);
+  }
+  const capturedReceipts = receiptSet(baselineRows);
+  let firstAcceptedObservationMs = null;
+  let firstUsefulObservationMs = null;
+  let receiptSetChangedAtMs = null;
+  function capture(rows) {
+    const elapsed = now() - startedAt;
+    if (elapsed < 0 || elapsed > 120000) return;
+    if (receiptSet(rows) !== capturedReceipts) receiptSetChangedAtMs ??= elapsed;
+    // Only ingest can create a row. Do not require lastObservationAt: an
+    // unsupported report may durably carry metadata while that field is zero.
+    const newReports = rows.filter(row => !baselineRuns.has(row.browserRunId));
+    if (newReports.length) firstAcceptedObservationMs ??= elapsed;
+    if (newReports.some(row => row.isCurrent && row.phase === "running" && row.observation === "fresh"
+      && row.lastObservationAt > lastObservation)) firstUsefulObservationMs ??= elapsed;
+  }
+  function snapshot() {
+    return { firstAcceptedObservationMs, firstUsefulObservationMs, receiptSetChangedAtMs,
+      verdict: firstUsefulObservationMs === null ? "FAIL-no-recovery"
+        : firstUsefulObservationMs <= 45000 ? "PASS" : "FAIL-late" };
+  }
+  return { capture, snapshot };
+}
+
 async function run(config) {
   let chromium;
   try { ({ chromium } = require(config.playwright)); }
@@ -154,7 +210,9 @@ async function run(config) {
     providerPage: "fixed synthetic ChatGPT HTML; provider requests intercepted; no live service/account",
     desktopStorage: "isolated synthetic safeStorage test double; no OS encryption validation",
     baselineExtension: BASELINE_VERSION, currentExtension: CURRENT_VERSION,
-    phases: [], success: false,
+    baselineSources: sourceHashes(config.baselineExtension), currentSources: sourceHashes(currentExtension),
+    phases: [], success: false, safetyChecksPass: false,
+    businessAcceptance: "NOT_RUN", naturalWorkerStop: "NOT_RUN: inspected lifecycle, not natural termination",
   };
   let stage = "prepare-isolated-fixture";
   let bridge;
@@ -164,6 +222,7 @@ async function run(config) {
   let worker;
   let page;
   let pageLoads = 0;
+  let passiveLedger = null;
   const option = message => options.evaluate(value => chrome.runtime.sendMessage(value), message);
   const documentState = () => page.evaluate(() => ({
     token: window.fixtureDocumentToken, draft: document.querySelector("#prompt-textarea").value,
@@ -203,7 +262,8 @@ async function run(config) {
       encryptString: value => Buffer.from(prefix + value),
       decryptString: value => value.toString().slice(prefix.length),
     };
-    bridge = createBrowserBridge({ dataDir: path.join(ownedDirectory, "desktop-fixture"), safeStorage });
+    bridge = createBrowserBridge({ dataDir: path.join(ownedDirectory, "desktop-fixture"), safeStorage,
+      onChange: rows => passiveLedger?.capture(rows) });
     server = http.createServer((_request, response) => { response.writeHead(404); response.end(); });
     bridge.attach(server);
     stage = "listen-on-permitted-loopback-port";
@@ -262,58 +322,68 @@ async function run(config) {
     const before = await documentState();
     const baselineLoads = pageLoads;
 
-    stage = "reproduce-0.1.5-reload-failure";
-    await refreshWorker(BASELINE_VERSION);
-    const broken = await option({ type: "mori.options.health" });
-    assert.equal(broken.counts.needsReload, 1);
-    assert.deepEqual(broken.observationDelivery, { accepted: 0, rejected: 0, unconfirmed: 0, runningAccepted: 0, reasons: {} });
-    assert.equal(pageLoads, baselineLoads);
-    assert.deepEqual(await documentState(), before);
-    assert.equal(unreadCount(), 1);
-    result.phases.push({ phase: "0.1.5 extension reload reproduces reported failure", counts: broken.counts,
-      observationDelivery: broken.observationDelivery, pageReloaded: false, draftPreserved: true, unreadPreserved: true });
-
-    stage = "update-to-0.1.6-without-page-reload";
-    // Both copies are under this run's mkdtemp root. The supplied baseline and
-    // current source directories are read-only inputs throughout the smoke.
+    stage = "update-to-0.1.7-without-page-reload";
     fs.rmSync(extensionPath, { recursive: true, force: true });
     fs.cpSync(currentExtension, extensionPath, { recursive: true, dereference: true });
-    await refreshWorker(CURRENT_VERSION);
-    const recovered = await until(async () => {
-      const health = await option({ type: "mori.options.health" });
-      return health.counts.running === 1 && health.observationDelivery.accepted === 1 ? health : null;
-    }, "0.1.6 current observer recovery");
-    assert.equal(recovered.counts.needsReload, 0);
+    const previousWorker = worker;
+    const baselineRows = bridge.getSnapshot();
+    assert.ok(baselineRows.some(row => row.isCurrent));
+    const interventionAt = Date.now();
+    passiveLedger = createPassiveLedger({ baselineRows, startedAt: interventionAt });
+    // This is the final driver action before the passive window. No options
+    // health/retry/status, page inspection, tab activation or pairing occurs
+    // inside it. Desktop onChange only records facts; product retries remain.
+    await worker.evaluate(() => chrome.runtime.reload()).catch(() => {});
+    while (Date.now() - interventionAt < 120000) await sleep(100);
+    const passive = passiveLedger.snapshot();
+    passiveLedger = null;
+    result.businessAcceptance = passive.verdict;
+    result.phases.push({ phase: "passive production update recovery", deadlineMs: 45000,
+      observationCutoffMs: 120000, ...passive,
+      driverHealthCalls: 0, driverRetryCalls: 0, driverTargetActivations: 0,
+      unreadPreserved: passive.receiptSetChangedAtMs === null,
+      limitation: "synthetic page; no verified production conversation binding" });
+    // The current production candidate must not silently promote a synthetic
+    // URL/markup fixture to verified ownership. Positive binding needs its
+    // own actual-provider evidence before this expectation may change.
+    assert.equal(passive.firstAcceptedObservationMs, null,
+      "unverified production binding cannot admit any fixture observation, including transient idle metadata");
+    assert.equal(passive.receiptSetChangedAtMs, null, "the captured receipt set must survive every desktop transition");
+    worker = await until(() => context.serviceWorkers().find(candidate => candidate !== previousWorker
+      && candidate.url() === workerUrl), "replacement extension worker after passive verdict");
+    assert.equal(await worker.evaluate(() => chrome.runtime.getManifest().version), CURRENT_VERSION);
+    options = await context.newPage();
+    await options.goto(optionsUrl);
+    const quarantined = await option({ type: "mori.options.health" });
+    assert.equal(quarantined.observationDelivery.accepted, 0);
+    assert.equal(quarantined.observerRecovery.recovered, 0);
+    assert.equal(quarantined.observerRecovery.reasons.binding_unconfirmed, 1);
     assert.equal(pageLoads, baselineLoads);
     assert.deepEqual(await documentState(), before);
     assert.equal(unreadCount(), 1);
-    await until(() => bridge.getSnapshot().some(row => row.isCurrent && row.phase === "running"), "recovered state reaches bridge");
-    result.phases.push({ phase: "0.1.5 -> 0.1.6 update automatically recovers existing document", counts: recovered.counts,
-      recovery: recovered.observerRecovery, observationDelivery: recovered.observationDelivery, siteAccess: recovered.siteAccess,
+    result.phases.push({ phase: "post-verdict quarantine diagnostic", counts: quarantined.counts,
+      recovery: quarantined.observerRecovery, observationDelivery: quarantined.observationDelivery,
       pageReloaded: false, draftPreserved: true, unreadPreserved: true });
 
-    stage = "avoid-duplicate-recovery-for-healthy-observer";
-    const repeat = await option({ type: "mori.options.health" });
-    assert.equal(repeat.counts.running, 1);
-    assert.equal(repeat.observerRecovery.attempted, 0);
-    stage = "recover-after-second-0.1.6-extension-reload";
+    stage = "repeat-0.1.7-reload-quarantine";
     await refreshWorker(CURRENT_VERSION);
-    const again = await until(async () => {
-      const health = await option({ type: "mori.options.health" });
-      return health.counts.running === 1 && health.observationDelivery.accepted === 1 ? health : null;
-    }, "0.1.6 extension reload recovery");
-    assert.equal(again.counts.needsReload, 0);
+    const again = await option({ type: "mori.options.health" });
+    assert.equal(again.observationDelivery.accepted, 0);
+    assert.equal(again.observerRecovery.recovered, 0);
+    assert.equal(again.observerRecovery.reasons.binding_unconfirmed, 1);
     assert.equal(pageLoads, baselineLoads);
     assert.deepEqual(await documentState(), before);
     assert.equal(unreadCount(), 1);
-    result.phases.push({ phase: "0.1.6 extension reload automatically recovers again", counts: again.counts,
-      observationDelivery: again.observationDelivery, pageReloaded: false, draftPreserved: true, unreadPreserved: true });
+    result.phases.push({ phase: "second reload remains quarantined; explicit diagnostic outside passive gate",
+      counts: again.counts, recovery: again.observerRecovery, pageReloaded: false,
+      draftPreserved: true, unreadPreserved: true });
 
     stage = "capture-options-diagnostic";
     await options.locator("#check-tabs").click();
-    await until(() => options.locator("#tab-health").textContent().then(text => text.includes("生成中 1 件")), "options diagnostic render");
+    await until(() => options.locator("#tab-health").textContent().then(text => text.includes("会話の所属確認が未実装")), "options diagnostic render");
     await options.screenshot({ path: path.join(config.outputDirectory, "chrome-recovery-options.png"), fullPage: true });
-    result.success = true;
+    result.safetyChecksPass = true;
+    result.success = result.businessAcceptance === "PASS";
   } catch (error) {
     result.failure = { stage, error: failureDescription(error) };
   } finally {
@@ -322,7 +392,7 @@ async function run(config) {
     const cleanup = async (label, operation) => {
       try { await operation(); }
       catch (error) {
-        result.success = false;
+        result.success = false; result.safetyChecksPass = false;
         result.failure ||= { stage: label, error: failureDescription(error) };
       }
     };
@@ -338,17 +408,19 @@ async function run(config) {
     result.temporaryDataRemoved = !fs.existsSync(ownedDirectory);
   }
   fs.writeFileSync(path.join(config.outputDirectory, "chrome-recovery-results.json"), JSON.stringify(result, null, 2) + "\n");
-  if (result.success) {
-    console.log(`PASS: Chrome ${result.browser}; 0.1.5 failure reproduced, 0.1.6 update/reload recovered without F5.`);
-    console.log("PASS: the same document, draft and unread receipt survived; healthy observers were not reinjected.");
+  if (result.safetyChecksPass) {
+    console.log(`SAFETY PASS: Chrome ${result.browser}; production quarantine, document, draft and unread preservation checked.`);
+    console.log(`BUSINESS ACCEPTANCE: ${result.businessAcceptance}; actual provider binding remains unverified.`);
     console.log(`Results: ${path.join(config.outputDirectory, "chrome-recovery-results.json")}`);
+    if (!result.success) process.exitCode = 2;
   } else {
     process.exitCode = 1;
     console.error(JSON.stringify({ success: false, ...result.failure }));
   }
 }
 
-(async () => {
+module.exports = { createPassiveLedger };
+if (require.main === module) (async () => {
   const config = configuration();
   if (config) await run(config);
 })().catch(error => {

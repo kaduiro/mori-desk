@@ -1,0 +1,68 @@
+✔ unchanged pinned inputs and overlay can start; unrelated documentation does not invalidate the build (6.44142ms)
+✖ pulling changed overlay with the same app/extension version blocks the old runtime without modifying it (3.669942ms)
+✖ a changed patch and a missing legacy fingerprint both require a rebuild (4.224853ms)
+✖ a valid input stamp cannot hide a changed or missing runtime overlay file (2.778639ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 1
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 35.528026
+
+✖ failing tests:
+
+test at test/runtime-source.test.js:50:1
+✖ pulling changed overlay with the same app/extension version blocks the old runtime without modifying it (3.669942ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (/tmp/mori-source-before-cggm6euh/test/runtime-source.test.js:54:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /MORI_RUNTIME_SOURCE_MISMATCH.*setup-windows\.bat/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at test/runtime-source.test.js:59:1
+✖ a changed patch and a missing legacy fingerprint both require a rebuild (4.224853ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (/tmp/mori-source-before-cggm6euh/test/runtime-source.test.js:62:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /MORI_RUNTIME_SOURCE_MISMATCH/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at test/runtime-source.test.js:69:1
+✖ a valid input stamp cannot hide a changed or missing runtime overlay file (2.778639ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (/tmp/mori-source-before-cggm6euh/test/runtime-source.test.js:72:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /MORI_RUNTIME_SOURCE_MISMATCH/,
+    operator: 'throws',
+    diff: 'simple'
+  }

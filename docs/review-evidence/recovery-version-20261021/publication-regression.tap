@@ -1,0 +1,65 @@
+TAP version 13
+# Subtest: publication packets use exact Git blobs and preserve the disclosure boundary
+    # Subtest: replays binary/add/delete/mode changes into the exact tree without reading the dirty worktree
+    ok 1 - replays binary/add/delete/mode changes into the exact tree without reading the dirty worktree
+      ---
+      duration_ms: 202.941156
+      type: 'test'
+      ...
+    # Subtest: composes selected blobs from a private descendant without including its document changes or history
+    ok 2 - composes selected blobs from a private descendant without including its document changes or history
+      ---
+      duration_ms: 130.658346
+      type: 'test'
+      ...
+    # Subtest: rejects changed bytes, blob IDs, modes, mutable revisions, and a different expected tree
+    ok 3 - rejects changed bytes, blob IDs, modes, mutable revisions, and a different expected tree
+      ---
+      duration_ms: 504.076669
+      type: 'test'
+      ...
+    # Subtest: keeps known internal documents excluded even when the spec omits exclusions
+    ok 4 - keeps known internal documents excluded even when the spec omits exclusions
+      ---
+      duration_ms: 195.951344
+      type: 'test'
+      ...
+    # Subtest: uses the named Git objects even when the local repository has replace refs
+    ok 5 - uses the named Git objects even when the local repository has replace refs
+      ---
+      duration_ms: 126.846276
+      type: 'test'
+      ...
+    # Subtest: does not accept a self-declared approval or a different remote destination
+    ok 6 - does not accept a self-declared approval or a different remote destination
+      ---
+      duration_ms: 93.654047
+      type: 'test'
+      ...
+    # Subtest: preserves existing packets and rejects output inside the source repository
+    ok 7 - preserves existing packets and rejects output inside the source repository
+      ---
+      duration_ms: 79.735268
+      type: 'test'
+      ...
+    # Subtest: cannot write into Git metadata through a subdirectory or a linked worktree
+    ok 8 - cannot write into Git metadata through a subdirectory or a linked worktree
+      ---
+      duration_ms: 108.996209
+      type: 'test'
+      ...
+    1..8
+ok 1 - publication packets use exact Git blobs and preserve the disclosure boundary
+  ---
+  duration_ms: 1556.560662
+  type: 'test'
+  ...
+1..1
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1623.456835

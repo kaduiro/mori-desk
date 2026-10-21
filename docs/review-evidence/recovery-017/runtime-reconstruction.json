@@ -1,0 +1,357 @@
+{
+  "files": 70,
+  "matched": 70,
+  "mismatches": [],
+  "entries": [
+    {
+      "file": "MORI-NOTICE.md",
+      "matches": true,
+      "sha256": "6668e36912e2faeed35b3173b0ebe0ffa92c7ea7714a7ee71f644ed4ed51c89c"
+    },
+    {
+      "file": "extensions/browser-bridge/README.md",
+      "matches": true,
+      "sha256": "6afc6074e47fa8bb214a5520822de19756442ebf92fdc4daea087722a23c65db"
+    },
+    {
+      "file": "extensions/browser-bridge/adapters/chatgpt.js",
+      "matches": true,
+      "sha256": "4d35484e3ba246c37adadbdd881724a69735e0977e7740462237d96495bf8167"
+    },
+    {
+      "file": "extensions/browser-bridge/adapters/claude.js",
+      "matches": true,
+      "sha256": "b7d8b1d8dacd4f27d8a4a910d7fa25afce7e330120ed3995293d088786f11ddd"
+    },
+    {
+      "file": "extensions/browser-bridge/content-script.js",
+      "matches": true,
+      "sha256": "bbca446fa121a577e1fd00e6b0e66fed9eeb7d4a08b7923526a64c99996620c1"
+    },
+    {
+      "file": "extensions/browser-bridge/content-start.js",
+      "matches": true,
+      "sha256": "a9ac6f2d1f23cf562a1bde5a6bdbe5bcca24dd64c91ede0416b99bbd92bcfeb7"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-binding.js",
+      "matches": true,
+      "sha256": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-metadata.js",
+      "matches": true,
+      "sha256": "85b7d62378822332bb508b92a2243cf1aeb1253a53e97f71e83212b9d1d0d796"
+    },
+    {
+      "file": "extensions/browser-bridge/manifest.json",
+      "matches": true,
+      "sha256": "4fbccebb3257fdd515d4c111d2de005607e7dbedb070fa0fe81496c048ba3e99"
+    },
+    {
+      "file": "extensions/browser-bridge/observation-controller.js",
+      "matches": true,
+      "sha256": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b"
+    },
+    {
+      "file": "extensions/browser-bridge/observer-recovery.js",
+      "matches": true,
+      "sha256": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc"
+    },
+    {
+      "file": "extensions/browser-bridge/options.css",
+      "matches": true,
+      "sha256": "1ad57736300fb951f03597a3f5a9b057bf612bac8c77270fbd2856bf9be7f65a"
+    },
+    {
+      "file": "extensions/browser-bridge/options.html",
+      "matches": true,
+      "sha256": "9743d01d5322d7c29585f5176a06b8c6e0f622f39bfb137cf9249ae1b0a522ad"
+    },
+    {
+      "file": "extensions/browser-bridge/options.js",
+      "matches": true,
+      "sha256": "b9e439f7f2c81c93624f977be326f8afa0945b17eff7b53bfa200431641c68ed"
+    },
+    {
+      "file": "extensions/browser-bridge/outbox.js",
+      "matches": true,
+      "sha256": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262"
+    },
+    {
+      "file": "extensions/browser-bridge/provider-utils.js",
+      "matches": true,
+      "sha256": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1"
+    },
+    {
+      "file": "extensions/browser-bridge/service-worker.js",
+      "matches": true,
+      "sha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d"
+    },
+    {
+      "file": "extensions/browser-bridge/session-coordinator.js",
+      "matches": true,
+      "sha256": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5"
+    },
+    {
+      "file": "extensions/browser-bridge/transport.js",
+      "matches": true,
+      "sha256": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b"
+    },
+    {
+      "file": "scripts/generate-mori-assets.js",
+      "matches": true,
+      "sha256": "0e8c0d80956b31e1857d760b0e1d4287aa79e26821523c72618ccef3db856c5d"
+    },
+    {
+      "file": "src/browser-bridge-auth.js",
+      "matches": true,
+      "sha256": "32c0c53d4b62765a80d09f54795e010ee892a7f326468ecb643b2b3081732fcc"
+    },
+    {
+      "file": "src/browser-bridge-persistence.js",
+      "matches": true,
+      "sha256": "aeb91b8c4d625a8b9d8f9aad3dfc16be43a6bb72268bdcb199c8ac1648ce4ee0"
+    },
+    {
+      "file": "src/browser-bridge-protocol.js",
+      "matches": true,
+      "sha256": "c718a59b0f92e07cb6213e3e5a062aaa69d16c30b27745825274070bba1f5c72"
+    },
+    {
+      "file": "src/browser-bridge-server.js",
+      "matches": true,
+      "sha256": "8dce54bf9003d0516f4e0d84d4edfbb32c159c48611326ed214f44ce42224a62"
+    },
+    {
+      "file": "src/browser-session-store.js",
+      "matches": true,
+      "sha256": "c635534531328ec8617875ed2c21d8fdbcc33ca408d6867e676871bf27a37e5f"
+    },
+    {
+      "file": "src/mori-browser-renderer.js",
+      "matches": true,
+      "sha256": "b8d4ca0d91ae62b5c97bf9c86bf47966c4f3106c7b5590d995fb821c1fc37694"
+    },
+    {
+      "file": "src/mori-browser-status.js",
+      "matches": true,
+      "sha256": "0e9007a3fc1b45d16101838d216f2e94b95bd8572ec602387bcb2feb555818ed"
+    },
+    {
+      "file": "src/mori-browser-window.js",
+      "matches": true,
+      "sha256": "7915ce44e0fdfedeb3349ae9f19b538f3c39aca50f8699d047fa4ba54f335f84"
+    },
+    {
+      "file": "src/mori-browser.css",
+      "matches": true,
+      "sha256": "f4a09e5189b886d444bc0d45fd32302dd37aa1cdf4214e1627817465e054fb7c"
+    },
+    {
+      "file": "src/mori-browser.html",
+      "matches": true,
+      "sha256": "e68a6d823ff0a3a0f6467375ad3af85576fcddd1a4b04060332a23e04090150f"
+    },
+    {
+      "file": "src/mori-desktop-snapshot.js",
+      "matches": true,
+      "sha256": "8f4817e71026c49127062cd65289ed018c61e5fea425f89fef5c37335efbe66b"
+    },
+    {
+      "file": "src/mori-hud-status.js",
+      "matches": true,
+      "sha256": "ea042a75941ae9a6e41017c1c95b5b9bbf4970ca5459fc805a02d228bea78b6e"
+    },
+    {
+      "file": "src/mori-local-themes.js",
+      "matches": true,
+      "sha256": "49955dcb1027ed174bf4f7aed2a7145bbc9a119627a0128180a677a5c2462c58"
+    },
+    {
+      "file": "src/mori-manual-updater.js",
+      "matches": true,
+      "sha256": "e58ac34bdcb8c90a46548516fbd0fa772925785731367fc40c1e0545fcbfba96"
+    },
+    {
+      "file": "src/mori-product.js",
+      "matches": true,
+      "sha256": "e23b43451ae7e8ce9e0cd9a5acfc114ba4c50b4b970806b250a4373264ef1dea"
+    },
+    {
+      "file": "src/mori-session-navigation.js",
+      "matches": true,
+      "sha256": "bd541cd1252b3703299341821e346b2ce6a1f8be4edf1ea002045f8a612d17fb"
+    },
+    {
+      "file": "src/preload-mori-browser.js",
+      "matches": true,
+      "sha256": "12e03393dd72d11187a436ab39a89bb499dd9fedf9bf8e04028179df12aa83f4"
+    },
+    {
+      "file": "test/browser-bridge-auth.test.js",
+      "matches": true,
+      "sha256": "142e170dbe8826ebec34e9f6d4654d5268d05aac6b86fbcc795b95b863672c89"
+    },
+    {
+      "file": "test/browser-bridge-server.test.js",
+      "matches": true,
+      "sha256": "ae788de4b3e2699ace41fecea5ae9c416d59b95a671358f4c3fed17cb2e2c021"
+    },
+    {
+      "file": "test/browser-chrome-smoke-ledger.test.js",
+      "matches": true,
+      "sha256": "f40be627189151eeb5719eac4627b0a7b46a4fd120de84d08c49d7f75cecba4d"
+    },
+    {
+      "file": "test/browser-extension-alternate-layout.test.js",
+      "matches": true,
+      "sha256": "d610b4fc5beea86eeabf3f99ec8b298dc34a84f9b1a69a20e11c81d8de261802"
+    },
+    {
+      "file": "test/browser-extension-chrome-smoke.js",
+      "matches": true,
+      "sha256": "27c5203f40a9f23aa5d0c86dec2ea9b6f9522016ba7c1c183d484589d12de4e6"
+    },
+    {
+      "file": "test/browser-extension-core.test.js",
+      "matches": true,
+      "sha256": "9b3b233b3176b4fe7a8413cc07e5fb2c6463ada6752eb46505c749c19b37abae"
+    },
+    {
+      "file": "test/browser-extension-fixtures.test.js",
+      "matches": true,
+      "sha256": "8af17634e72926fc001f8dbc439a5685faf4fc698862d3f44e251eb26863da1e"
+    },
+    {
+      "file": "test/browser-extension-metadata.test.js",
+      "matches": true,
+      "sha256": "53077755ca9e8710a175d877e33f57d25b6e4b270e5e81fe06d7fb8c8170be8d"
+    },
+    {
+      "file": "test/browser-extension-options.test.js",
+      "matches": true,
+      "sha256": "d03f899fda3dceadf1d242e4b1f98e25b2b722cc503abb69bf988994202325ad"
+    },
+    {
+      "file": "test/browser-extension-recovery.test.js",
+      "matches": true,
+      "sha256": "bd7e8926e544afd348a25693da23a801ac7eb93f70cea260150fd9904989d67a"
+    },
+    {
+      "file": "test/browser-extension-transport.test.js",
+      "matches": true,
+      "sha256": "ac84b112922e00ec9b5ec145c19e873eac177f33470505ade8bd7e2f2987bfda"
+    },
+    {
+      "file": "test/browser-extension-worker.test.js",
+      "matches": true,
+      "sha256": "b19a5101c1544d49e4886dc2e4dd23d17ab39c37be34e4ebfac2485b2dc4f742"
+    },
+    {
+      "file": "test/browser-observer-admission.test.js",
+      "matches": true,
+      "sha256": "e9986c1d7f186d029df9cf731a4e4e60409afae00a1a8207dfbf646324b513c4"
+    },
+    {
+      "file": "test/browser-recovery-independent.test.js",
+      "matches": true,
+      "sha256": "8faec94b107ebd174e2a3298cff57c453f713ad98e65d357d29c0e21949a4c88"
+    },
+    {
+      "file": "test/browser-session-store.test.js",
+      "matches": true,
+      "sha256": "3f1cc1465eb14100c40a5a45754e451cd5014b10a0a32a2031abb42ea89abf4d"
+    },
+    {
+      "file": "test/fixtures/mori-renderer-smoke-preload.js",
+      "matches": true,
+      "sha256": "8662cc2e78d664e9346ad299f103277a062c50fe8263fd8fd1520dc8452b0bd1"
+    },
+    {
+      "file": "test/fixtures/recovery-independent-harness.js",
+      "matches": true,
+      "sha256": "a6a00190c12bf77cf61b58a211bc1854ea4993b9b0c46688c8b251d0411f22af"
+    },
+    {
+      "file": "test/fixtures/recovery-independent-ledger-v1.json",
+      "matches": true,
+      "sha256": "00e4efc143ee2bda402a5e50b6669baadba33ab66eac31bc2e88fb11df2e90b5"
+    },
+    {
+      "file": "test/fixtures/recovery-independent-mutations.js",
+      "matches": true,
+      "sha256": "9681ad445c10dde54a69c6bfc41399e42319cb400ec6f3c8863b346aa1403bd8"
+    },
+    {
+      "file": "test/mori-browser-panel.test.js",
+      "matches": true,
+      "sha256": "115862d53e7b7530946922d00c61cecaf0eec3c7644647bab136ac83b3814fc1"
+    },
+    {
+      "file": "test/mori-browser-status.test.js",
+      "matches": true,
+      "sha256": "82e13c6ea790471784c9e6d92771224ec90ed3164454fe087baeb265a9fadc54"
+    },
+    {
+      "file": "test/mori-desktop-snapshot.test.js",
+      "matches": true,
+      "sha256": "936c9b44e23e1f7e42a4d25437a4fc1d71c7416f9f75854a89c64bdaa8f5321c"
+    },
+    {
+      "file": "test/mori-hud-navigation.test.js",
+      "matches": true,
+      "sha256": "16cae2fa8d2b315d8123f5892cb845303e198ffd7a37a3630c6543a8efd5931d"
+    },
+    {
+      "file": "test/mori-hud-status.test.js",
+      "matches": true,
+      "sha256": "b5abb4f1973102107e93f8722fe3fa9b4f74f652409dfc1d2f0cd0b8d349176f"
+    },
+    {
+      "file": "test/mori-native-window-smoke.js",
+      "matches": true,
+      "sha256": "2f13ca7c083c72ada0f5c8f5f3fe7fc869dd2d5b31f9c76d2dd5c846e4dc7a8f"
+    },
+    {
+      "file": "test/mori-product.test.js",
+      "matches": true,
+      "sha256": "37275bac48520dcb2e09194ccda739ed3cb278ab05311e260d463831fe79103e"
+    },
+    {
+      "file": "test/mori-renderer-smoke.js",
+      "matches": true,
+      "sha256": "0b67dd6215d8d56d8a8196c2a41b87f5607e25c56099ecdfe3ee59be7aa9cb44"
+    },
+    {
+      "file": "test/mori-server-isolation.test.js",
+      "matches": true,
+      "sha256": "db1cc8b4b90767909a9838554114c27dcc0291e4ef0b12468d2bdafb2a0304d3"
+    },
+    {
+      "file": "test/mori-settings-diagnostics.test.js",
+      "matches": true,
+      "sha256": "447a2f1c17e777299b8deaa2b158bf757434259d65466963f15bbe73b5874a64"
+    },
+    {
+      "file": "test/mori-shortcut-navigation.test.js",
+      "matches": true,
+      "sha256": "8b1a0864dcd66b7779bb9e9f4658354762de89a34321c539663e21fdaaa8cce1"
+    },
+    {
+      "file": "themes/mori/LICENSE",
+      "matches": true,
+      "sha256": "572d5b6d7f7331a70b13c7e2c4473b49b1b652d385d093a93d1268ae5f3c5995"
+    },
+    {
+      "file": "themes/mori/README.md",
+      "matches": true,
+      "sha256": "257fac8036faa0d8999c8a020d2cfd4b41db38aa5873748b740543139fa36a01"
+    },
+    {
+      "file": "themes/mori/theme.json",
+      "matches": true,
+      "sha256": "51bdcba241c407374c2ce10d7a6189fe58840825f2faec33adc87119fa45c669"
+    }
+  ]
+}

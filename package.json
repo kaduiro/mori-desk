@@ -10,6 +10,9 @@
     "start": "node scripts/run.js start",
     "start:cli": "node scripts/run.js start --enable-cli",
     "test": "node scripts/run.js test",
+    "doctor": "node scripts/doctor.js",
+    "test:source": "node --test test/runtime-source.test.js",
+    "test:publication": "node --test test/prepare-publication.test.js",
     "test:windows-node": "node --test test/check-windows-node.test.js test/windows-node-bootstrap.test.js",
     "verify:electron": "node scripts/run.js verify:electron",
     "build:win:x64": "node scripts/run.js build:win:x64"
