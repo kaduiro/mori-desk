@@ -90,12 +90,12 @@ test("publication packets use exact Git blobs and preserve the disclosure bounda
   t.after(() => { env.GIT_CONFIG_GLOBAL = previousConfig; fs.rmSync(root, { recursive: true, force: true }); });
   const f = fixture(root);
   let attempt = 0;
-  function prepare(spec, output = path.join(root, `packet-${++attempt}`), observation = f.observation, repo = f.repo) {
+  function prepare(spec, output = path.join(root, `packet-${++attempt}`), observation = f.observation, repo = f.repo, nodeArgs = []) {
     const specFile = path.join(root, `spec-${++attempt}.json`);
     const observationFile = path.join(root, `observation-${attempt}.json`);
     fs.writeFileSync(specFile, JSON.stringify(spec));
     fs.writeFileSync(observationFile, JSON.stringify(observation));
-    const result = spawnSync(process.execPath, [cli, "--repo", repo, "--spec", specFile, "--remote-observation", observationFile, "--output", output], { env, encoding: "utf8" });
+    const result = spawnSync(process.execPath, [...nodeArgs, cli, "--repo", repo, "--spec", specFile, "--remote-observation", observationFile, "--output", output], { env, encoding: "utf8" });
     assert.equal(result.error, undefined, "CLI must actually start");
     return { ...result, output };
   }
@@ -258,5 +258,34 @@ test("publication packets use exact Git blobs and preserve the disclosure bounda
     assert.notEqual(shared.status, 0);
     assert.match(shared.stderr, /outside repository Git metadata/);
     assert.equal(fs.existsSync(output), false);
+  });
+
+  await t.test("rejects output inside source and shared Git metadata through additional physical aliases", () => {
+    const sourceAlias = path.join(root, "source-alias");
+    const outputAlias = path.join(root, "output-alias");
+    const metadataAlias = path.join(root, "metadata-alias");
+    const aliases = [sourceAlias, outputAlias, metadataAlias];
+    for (const [alias, target] of [[sourceAlias, f.repo], [outputAlias, f.repo], [metadataAlias, path.join(f.repo, ".git")]]) {
+      fs.symlinkSync(target, alias, process.platform === "win32" ? "junction" : "dir");
+    }
+    // Model realpath preserving alternate spellings. Directory lookup/stat,
+    // Git, and all attempted writes still use the real fixture filesystem.
+    const preload = path.join(root, "preserve-alias-spelling.cjs");
+    fs.writeFileSync(preload, `const fs = require('node:fs');\nconst path = require('node:path');\nconst original = fs.realpathSync;\nconst aliases = ${JSON.stringify(aliases)};\nfs.realpathSync = function(value, options) {\n  const canonical = original(value, options);\n  const spelled = path.resolve(String(value));\n  return aliases.some(alias => spelled === alias || spelled.startsWith(alias + path.sep)) ? spelled : canonical;\n};\nfs.realpathSync.native = original.native;\n`);
+    const linked = path.join(root, "physical-alias-worktree");
+    git(f.repo, "worktree", "add", "--quiet", "--detach", linked, f.base);
+    const indexBefore = fs.readFileSync(path.join(f.repo, ".git", "index"));
+    const cases = [
+      { repo: sourceAlias, output: path.join(outputAlias, "release", "a", "before", "new-packet"), reason: /outside the source repository/ },
+      { repo: sourceAlias, output: path.join(metadataAlias, "objects", "new-packet"), reason: /outside repository Git metadata/ },
+      { repo: linked, output: path.join(metadataAlias, "objects", "shared-packet"), reason: /outside repository Git metadata/ }
+    ];
+    for (const example of cases) {
+      const result = prepare(f.spec, example.output, f.observation, example.repo, ["--require", preload]);
+      assert.notEqual(result.status, 0, example.output);
+      assert.match(result.stderr, example.reason);
+      assert.equal(fs.existsSync(example.output), false, "rejected alias must not create a packet");
+    }
+    assert.deepEqual(fs.readFileSync(path.join(f.repo, ".git", "index")), indexBefore);
   });
 });

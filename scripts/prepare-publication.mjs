@@ -29,22 +29,42 @@ const gitEnv = { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS:
 for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) delete gitEnv[key];
 const git = (...a) => execFileSync('git', ['--no-optional-locks', '--literal-pathspecs', '-C', repo, ...a], { env: gitEnv, maxBuffer: 32 * 1024 * 1024 });
 const topLevel = fs.realpathSync(git('rev-parse', '--show-toplevel').toString().trim());
+const directoryIdentity = (directory, message) => {
+  const stat = fs.statSync(directory, { bigint: true });
+  if (!stat.isDirectory() || typeof stat.dev !== 'bigint' || typeof stat.ino !== 'bigint'
+      || stat.dev === 0n || stat.ino === 0n) throw new Error(message);
+  return { dev: stat.dev, ino: stat.ino };
+};
+const sameIdentity = (left, right) => left.dev === right.dev && left.ino === right.ino;
+const rootError = 'Use the actual repository top-level for --repo.';
+const repoIdentity = directoryIdentity(repo, rootError);
 if (repo !== topLevel) {
   // Git and Node can spell the same Windows directory differently. Compare
   // exact filesystem identities; case-folding paths could admit another root
   // on a case-sensitive filesystem. Unknown/zero identities remain rejected.
-  const requestedRoot = fs.statSync(repo, { bigint: true });
-  const actualRoot = fs.statSync(topLevel, { bigint: true });
-  if (!requestedRoot.isDirectory() || !actualRoot.isDirectory()
-      || requestedRoot.dev === 0n || actualRoot.dev === 0n
-      || requestedRoot.ino === 0n || actualRoot.ino === 0n
-      || requestedRoot.dev !== actualRoot.dev || requestedRoot.ino !== actualRoot.ino)
-    throw new Error('Use the actual repository top-level for --repo.');
+  if (!sameIdentity(repoIdentity, directoryIdentity(topLevel, rootError))) throw new Error(rootError);
 }
 const gitDirectories = ['--absolute-git-dir', '--git-common-dir'].map(option => fs.realpathSync(path.resolve(repo, git('rev-parse', option).toString().trim())));
+const metadataError = 'Output must be outside repository Git metadata, including shared worktree metadata.';
 for (const directory of gitDirectories) {
   const relative = path.relative(directory, output);
-  if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep))) throw new Error('Output must be outside repository Git metadata, including shared worktree metadata.');
+  if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep))) throw new Error(metadataError);
+}
+// A third spelling of an ancestor can bypass every lexical containment check.
+// Walk the existing output parent physically, including shared Git metadata.
+// The output itself must be new; all ancestors must have verifiable identities.
+const identityError = 'Could not verify physical output directory boundaries.';
+const protectedDirectories = [
+  { identity: repoIdentity, message: 'Output must be outside the source repository.' },
+  ...gitDirectories.map(directory => ({ identity: directoryIdentity(directory, identityError), message: metadataError }))
+];
+for (let ancestor = path.dirname(output);;) {
+  const identity = directoryIdentity(ancestor, identityError);
+  const forbidden = protectedDirectories.find(directory => sameIdentity(identity, directory.identity));
+  if (forbidden) throw new Error(forbidden.message);
+  const parent = path.dirname(ancestor);
+  if (parent === ancestor) break;
+  ancestor = parent;
 }
 const fullCommit = id => {
   if (typeof id !== 'string' || !/^[a-f0-9]{40}$/.test(id)) throw new Error('Use an immutable full commit SHA.');

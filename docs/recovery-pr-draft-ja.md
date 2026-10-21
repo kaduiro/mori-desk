@@ -51,12 +51,19 @@ Windows / macOS の IME・native focus・sleep、限定試用 2 時間と復帰 
 リポジトリの最上位ではないと拒否されました。ログには比較した文字列自体がないため、
 大小文字・区切り・短縮パスのどれが差を生んだかは断定しません。
 
-後続差分では、文字列が異なる場合も、実ディレクトリの識別情報が一致するかを確認します。
-子ディレクトリや別ディレクトリ、共有 Git 管理領域への出力を拒否する条件は維持します。
-同じ場所の別表記を使う正例と、別の場所を拒否する反例を追加して再検証します。
+後続 `2aa128d` では、実ディレクトリの識別情報を使うことで正常な root と
+Windows の別表記の正例が通過しました。一方で、linked worktree から共有 Git 管理領域内へ
+出力できる欠陥を実 Windows で検出しました。結果は 330 件中 326 PASS / 2 FAIL / 1 SKIP / 1 TODO です。
+2 FAIL はこの反例と親テスト、SKIP は当該ファイルシステムで作れない大小文字だけ異なる別実体の試験です。
+
+さらに出力先の既存親から祖先をたどり、ソース・Git dir・common Git dir の実体と照合して
+内部への出力を拒否する修正を加えます。同じ場所を指す別名を許可する正例と、別名でも
+ソース内や管理領域内への出力を拒否する反例を、それぞれ確認します。
 
 初回の失敗は [push run](https://github.com/kaduiro/mori-desk/actions/runs/39606044510) と
 [PR run](https://github.com/kaduiro/mori-desk/actions/runs/39606054268) に保持します。
+共有 Git 管理領域の反例は [後続 push run](https://github.com/kaduiro/mori-desk/actions/runs/39607556267) と
+[後続 PR run](https://github.com/kaduiro/mori-desk/actions/runs/39607563013) に保持します。
 修正版の CI 結果は、対象 commit・実 checkout・run ID を照合して PR 本文へ追記します。
 Windows CI の成功は、実 Chrome / ChatGPT / Claude や利用者環境の受入完了を意味しません。
 
