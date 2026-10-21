@@ -29,7 +29,18 @@ const gitEnv = { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_NO_REPLACE_OBJECTS:
 for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) delete gitEnv[key];
 const git = (...a) => execFileSync('git', ['--no-optional-locks', '--literal-pathspecs', '-C', repo, ...a], { env: gitEnv, maxBuffer: 32 * 1024 * 1024 });
 const topLevel = fs.realpathSync(git('rev-parse', '--show-toplevel').toString().trim());
-if (repo !== topLevel) throw new Error('Use the actual repository top-level for --repo.');
+if (repo !== topLevel) {
+  // Git and Node can spell the same Windows directory differently. Compare
+  // exact filesystem identities; case-folding paths could admit another root
+  // on a case-sensitive filesystem. Unknown/zero identities remain rejected.
+  const requestedRoot = fs.statSync(repo, { bigint: true });
+  const actualRoot = fs.statSync(topLevel, { bigint: true });
+  if (!requestedRoot.isDirectory() || !actualRoot.isDirectory()
+      || requestedRoot.dev === 0n || actualRoot.dev === 0n
+      || requestedRoot.ino === 0n || actualRoot.ino === 0n
+      || requestedRoot.dev !== actualRoot.dev || requestedRoot.ino !== actualRoot.ino)
+    throw new Error('Use the actual repository top-level for --repo.');
+}
 const gitDirectories = ['--absolute-git-dir', '--git-common-dir'].map(option => fs.realpathSync(path.resolve(repo, git('rev-parse', option).toString().trim())));
 for (const directory of gitDirectories) {
   const relative = path.relative(directory, output);

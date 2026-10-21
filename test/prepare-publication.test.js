@@ -158,6 +158,35 @@ test("publication packets use exact Git blobs and preserve the disclosure bounda
     assert.doesNotMatch(fs.readFileSync(path.join(result.output, "changes.patch"), "utf8"), /PRIVATE_CANARY|DIRTY_CANARY/);
   });
 
+  await t.test("accepts Windows drive and directory spelling aliases of the same physical repository", { skip: process.platform !== "win32" }, () => {
+    assert.match(f.repo, /^[A-Za-z]:/);
+    const driveAlias = f.repo.replace(/^[A-Za-z]/, drive => drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase());
+    const directoryAlias = path.join(path.dirname(f.repo), "SoUrCe").replace(/\\/g, "/");
+    for (const alias of [driveAlias, directoryAlias]) {
+      assert.notEqual(alias, f.repo);
+      assert.equal(fs.readFileSync(path.join(alias, "untracked.txt"), "utf8"), "DIRTY_CANARY: untracked file.\n");
+      const result = prepare(f.spec, undefined, f.observation, alias);
+      assert.equal(result.status, 0, result.stderr);
+      const manifest = JSON.parse(fs.readFileSync(path.join(result.output, "manifest.json")));
+      assert.equal(manifest.targetTreeSha, f.expectedTree);
+    }
+  });
+
+  await t.test("rejects a physically different root even when its name differs only by case", async t => {
+    const differentRoot = path.join(root, "SOURCE");
+    if (fs.existsSync(differentRoot)) { t.skip("The filesystem does not provide distinct case-sensitive directory names."); return; }
+    fs.mkdirSync(differentRoot);
+    write(differentRoot, ".git", `gitdir: ${path.join(f.repo, ".git")}\n`);
+    git(f.repo, "config", "core.worktree", f.repo);
+    try {
+      assert.equal(fs.realpathSync(git(differentRoot, "rev-parse", "--show-toplevel").toString().trim()), fs.realpathSync(f.repo));
+      const result = prepare(f.spec, undefined, f.observation, differentRoot);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /actual repository top-level/);
+      assert.equal(fs.existsSync(result.output), false);
+    } finally { git(f.repo, "config", "--unset", "core.worktree"); }
+  });
+
   await t.test("rejects changed bytes, blob IDs, modes, mutable revisions, and a different expected tree", () => {
     for (const [change, reason] of [
       [spec => { spec.files[0].sha256 = "0".repeat(64); }, /Content mismatch/],

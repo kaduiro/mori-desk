@@ -23,7 +23,7 @@ HMAC、Origin / Host、safeStorage fail-closed、永続化後 ACK、通知対象
 タイトル・送信済み依頼の抜粋それぞれ 160 UTF-16 単位までのローカル表示という境界を維持します。
 本文全体、下書き、AI 回答、Cookie、実利用者の鍵は収集しません。
 
-## 今回の検証
+## 公開前のローカル検証
 
 | 検証 | 結果と範囲 |
 |---|---|
@@ -44,6 +44,20 @@ Windows / macOS の IME・native focus・sleep、限定試用 2 時間と復帰 
 以前の固定合成 Chrome 試験の FAIL-no-recovery は解消した扱いにしません。
 機械試験の成功やディスク上の版の一致を、業務全体の完成保証にしません。
 
-今回候補そのものの Windows CI は未実施です。公開反映後、その候補の SHA と CI の対象を照合します。
+## 公開後の Windows CI と追加修正
+
+初回公開 `b228d003` の Windows 回帰は 328 件中 318 PASS / 9 FAIL / 1 TODO でした。
+失敗したのは公開候補の準備試験で、通常のリポジトリも、正規化後のパス文字列が違うため
+リポジトリの最上位ではないと拒否されました。ログには比較した文字列自体がないため、
+大小文字・区切り・短縮パスのどれが差を生んだかは断定しません。
+
+後続差分では、文字列が異なる場合も、実ディレクトリの識別情報が一致するかを確認します。
+子ディレクトリや別ディレクトリ、共有 Git 管理領域への出力を拒否する条件は維持します。
+同じ場所の別表記を使う正例と、別の場所を拒否する反例を追加して再検証します。
+
+初回の失敗は [push run](https://github.com/kaduiro/mori-desk/actions/runs/39606044510) と
+[PR run](https://github.com/kaduiro/mori-desk/actions/runs/39606054268) に保持します。
+修正版の CI 結果は、対象 commit・実 checkout・run ID を照合して PR 本文へ追記します。
+Windows CI の成功は、実 Chrome / ChatGPT / Claude や利用者環境の受入完了を意味しません。
 
 詳細: [追加修正・検証](https://github.com/kaduiro/mori-desk/blob/codex/browser-conversation-labels/docs/recovery-version-fix-ja.md) / [先行する修正と検証](https://github.com/kaduiro/mori-desk/blob/codex/browser-conversation-labels/docs/recovery-execution-ja.md)。
