@@ -528,7 +528,7 @@ test('reinjection preserves a healthy observer, its running identity, timers, an
   assert.equal(f.listenerCount, listeners);
   assert.equal(f.intervals.size, 1);
   const ready = f.ready();
-  assert.equal(ready.observerVersion, '0.1.7');
+  assert.equal(ready.observerVersion, '0.1.8');
   assert.equal(ready.pageInstanceId, original.pageInstanceId);
   assert.equal(f.messages.at(-1).generationToken, original.generationToken);
   assert.equal(f.document.activeElement, f.draft);

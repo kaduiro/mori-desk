@@ -253,11 +253,18 @@ index 1eabd64..485f808 100644
          "Hidden=false",
          "NoDisplay=false",
 diff --git a/src/main.js b/src/main.js
-index 6f84bbc..230e4cb 100644
 --- a/src/main.js
 +++ b/src/main.js
-@@ -1,4 +1,39 @@
+@@ -1,4 +1,49 @@
  const { app, BrowserWindow, Notification, screen, ipcMain, globalShortcut, nativeTheme, dialog, shell, nativeImage, powerSaveBlocker, powerMonitor, clipboard, safeStorage, net } = require("electron");
++const moriStartupHelpers = require("./mori-startup");
++let moriStartup;
++try { moriStartup = moriStartupHelpers.initializeStartup({ app }); }
++catch (error) {
++  void moriStartupHelpers.reportStartupFailure({ app, dialog, error });
++  return;
++}
++const moriBuildInfo = moriStartupHelpers.bridgeBuildInfo(moriStartup);
 +const moriProduct = require("./mori-product");
 +moriProduct.configureApp(app);
 +const { mergeHudSnapshot } = require("./mori-desktop-snapshot");
@@ -265,13 +272,15 @@ index 6f84bbc..230e4cb 100644
 +let moriBridge = null;
 +let moriBrowserWindow = null;
 +let moriBoundPort = null;
++let moriListenerStatus = null;
++let moriLoginStatus = { state: "unconfirmed", enabled: null, reason: "os_result_incomplete" };
 +let moriStartupError = "";
 +
 +function getMoriHudSnapshot(snapshot) {
 +  const merged = mergeHudSnapshot(snapshot || _state.buildSessionSnapshot(), moriBridge?.getSnapshot() || []);
 +  if (!moriProduct.cliEnabled) {
 +    const status = getBrowserStatus({ bridge: moriBridge?.getStatus() || null,
-+      port: moriBoundPort, error: moriStartupError });
++      port: moriBoundPort, error: moriStartupError, listener: moriListenerStatus });
 +    merged.moriBrowserStatus = { state: status.state, dnd: doNotDisturb };
 +  }
 +  return merged;
@@ -296,7 +305,18 @@ index 6f84bbc..230e4cb 100644
  const { maybeRunPackageKoffiSmoke } = require("./package-koffi-smoke");
  if (maybeRunPackageKoffiSmoke({ app, BrowserWindow })) {
    return;
-@@ -375,7 +410,10 @@ const _evaluateCodexAutoStartGate = createCodexAutoStartGateEvaluator({
+@@ -349,6 +394,10 @@
+   isAllBubblesHidden,
+ } = require("./bubble-policy");
+ const loginItemHelpers = require("./login-item");
++const moriLoginItems = require("./mori-login-item").createLoginItemController({
++  app, execPath: process.execPath, appPath: app.getAppPath(),
++  bootstrapPath: path.join(app.getAppPath(), "..", "bootstrap"),
++});
+ const { writeCodexAutoStartGate } = require("../hooks/server-config");
+ const { createCodexAutoStartGateEvaluator } = require("./agent-gate");
+ const PREFS_PATH = path.join(app.getPath("userData"), "clawd-prefs.json");
+@@ -375,7 +424,10 @@
  });
  
  function _persistCodexAutoStartGate(enabled) {
@@ -308,7 +328,7 @@ index 6f84bbc..230e4cb 100644
  }
  
  function _syncCodexAutoStartGate(snapshot, source) {
-@@ -393,12 +431,14 @@ function _syncCodexAutoStartGate(snapshot, source) {
+@@ -393,18 +445,19 @@
  // mutation must be serialized against the fs watcher, periodic health audit,
  // and other Settings actions (#657).
  function _installAutoStartHook() {
@@ -324,7 +344,58 @@ index 6f84bbc..230e4cb 100644
    return _server.uninstallClaudeHooks({ source: "settings", automatic: false });
  }
  
-@@ -523,14 +563,15 @@ const _settingsController = createSettingsController({
+-// Cross-platform "open at login" writer used by both the openAtLogin effect
+-// and the startup hydration helper. Throws on failure so the action layer can
+-// surface the error to the UI.
++// The explicit Settings action is the sole OS writer. Startup/status reads
++// never re-enable an OS-disabled item or silently migrate a legacy entry.
+ function _writeSystemOpenAtLogin(enabled) {
+   if (isLinux) {
+     const launchScript = path.join(__dirname, "..", "launch.js");
+@@ -412,22 +465,28 @@
+       ? `"${process.env.APPIMAGE || app.getPath("exe")}"`
+       : `node "${launchScript}"`;
+     loginItemHelpers.linuxSetOpenAtLogin(enabled, { execCmd });
++    _readMoriLoginStatus();
+     return;
+   }
+-  app.setLoginItemSettings(
+-    loginItemHelpers.getLoginItemSettings({
+-      isPackaged: app.isPackaged,
+-      openAtLogin: enabled,
+-      execPath: process.execPath,
+-      appPath: app.getAppPath(),
+-    })
+-  );
+-}
+-function _readSystemOpenAtLogin() {
+-  if (isLinux) return loginItemHelpers.linuxGetOpenAtLogin();
+-  return app.getLoginItemSettings(
+-    app.isPackaged ? {} : { path: process.execPath, args: [app.getAppPath()] }
+-  ).openAtLogin;
++  if (enabled && !app.isPackaged && isWin) {
++    // A checkout can change while Mori is open. Do not register a login target
++    // whose current source/runtime/entry point no longer passes the guard.
++    require(path.join(app.getAppPath(), "..", "scripts/startup-guard")).verifySourceStartup({
++      appPath: app.getAppPath(), execPath: process.execPath,
++    });
++  }
++  moriLoginStatus = moriLoginItems.setEnabled(enabled);
++  moriBrowserWindow?.notify();
++}
++function _readMoriLoginStatus() {
++  if (isLinux) {
++    try {
++      const enabled = !!loginItemHelpers.linuxGetOpenAtLogin();
++      moriLoginStatus = { state: enabled ? "legacy" : "disabled", enabled,
++        reason: enabled ? "migration_required" : "not_registered" };
++    } catch { moriLoginStatus = { state: "unavailable", enabled: null, reason: "os_read_failed" }; }
++  } else moriLoginStatus = moriLoginItems.getStatus();
++  return moriLoginStatus;
+ }
+
+ function _getAgentIntegrationOptions(agentId) {
+@@ -523,14 +582,15 @@
    prefsPath: PREFS_PATH,
    loadResult: _initialPrefsLoad,
    injectedDeps: {
@@ -343,7 +414,7 @@ index 6f84bbc..230e4cb 100644
        confirm: async () => {
          const parent = settingsWindowRuntime.getWindow();
          const options = {
-@@ -546,27 +587,32 @@ const _settingsController = createSettingsController({
+@@ -546,27 +606,32 @@
        },
      }),
      uninstallClaudeHooksNow: _uninstallClaudeHooksNow,
@@ -383,7 +454,35 @@ index 6f84bbc..230e4cb 100644
        // Claude hooks + statusline unregister as one queue task, awaited here so
        // it settles (and any in-flight repair drains) before the generic cleaner
        // runs. hooks/cleanup-integrations.js records this precomputed result
-@@ -848,7 +894,7 @@ function safeConsoleError(...args) {
+@@ -735,22 +800,17 @@
+ // the schema default (false), an upgrading user with login-startup already
+ // enabled would silently lose it the first time prefs is saved. So on first
+ // boot after this field exists in the schema, copy the system value INTO prefs
+-// and mark it hydrated. After that, prefs is the source of truth and the
+-// openAtLogin pre-commit gate handles future writes back to the system.
++// and mark it hydrated. Later reads refresh the separately displayed OS state
++// while preserving saved intent. Only the explicit pre-commit action writes.
+ //
+ // MUST run inside app.whenReady() — Electron's app.getLoginItemSettings() is
+ // only stable after the app is ready. MUST run before createWindow() so the
+ // first menu render reads the hydrated value.
+ function hydrateSystemBackedSettings() {
+-  if (_settingsController.get("openAtLoginHydrated")) return;
+-  let systemValue = false;
+-  try {
+-    systemValue = !!_readSystemOpenAtLogin();
+-  } catch (err) {
+-    console.warn("Clawd: failed to read system openAtLogin during hydration:", err && err.message);
+-  }
++  const current = _readMoriLoginStatus();
++  if (_settingsController.get("openAtLoginHydrated") || current.enabled === null) return;
+   const result = _settingsController.hydrate({
+-    openAtLogin: systemValue,
++    openAtLogin: current.enabled,
+     openAtLoginHydrated: true,
+   });
+   if (result && result.status === "error") {
+@@ -848,7 +908,7 @@
  // ── Theme loader ──
  const themeLoader = require("./theme-loader");
  const createCodexPetMain = require("./codex-pet-main");
@@ -392,7 +491,7 @@ index 6f84bbc..230e4cb 100644
  themeLoader.init(__dirname, app.getPath("userData"));
  themeRuntime = createThemeRuntime({
    themeLoader,
-@@ -902,6 +948,7 @@ const settingsWindowRuntime = createSettingsWindowRuntime({
+@@ -902,6 +962,7 @@
    nativeTheme,
    path,
    discordDefaultAppIdPresent: !!discordPresenceSettings.DEFAULT_CLAWD_DISCORD_APP_ID,
@@ -400,16 +499,21 @@ index 6f84bbc..230e4cb 100644
    getPetWindowBounds: () => getPetWindowBounds(),
    getNearestWorkArea: (cx, cy) => getNearestWorkArea(cx, cy),
    getTextScale: (bounds) => effectiveTextScaleForKey(
-@@ -909,7 +956,7 @@ const settingsWindowRuntime = createSettingsWindowRuntime({
+@@ -909,8 +970,11 @@
    ),
    getSavedBounds: () => _settingsController.get("settingsWindowBounds"),
    onSaveBounds: (bounds) => _settingsController.applyUpdate("settingsWindowBounds", bounds),
 -  getTitle: () => translate("settingsWindowTitle"),
+-  onBeforeCreate: () => bumpAnimationOverridePreviewPosterGeneration(),
 +  getTitle: () => translate("settingsWindowTitle").replace("Clawd", "Mori Desk"),
-   onBeforeCreate: () => bumpAnimationOverridePreviewPosterGeneration(),
++  onBeforeCreate: () => {
++    hydrateSystemBackedSettings();
++    bumpAnimationOverridePreviewPosterGeneration();
++  },
    // A replaced or crashed Settings page cannot send its preview-ending IPC.
    onRendererReset: () => { void settingsSizePreviewSession.cleanup(); },
-@@ -1029,12 +1076,12 @@ try {
+   onBeforeClosed: () => {
+@@ -1029,12 +1093,12 @@
  // load path, not activateTheme (which requires ready windows) and not the
  // setThemeSelection command (which goes through activateTheme). The runtime
  // switch path via UI goes through setThemeSelection post-window-ready.
@@ -424,7 +528,7 @@ index 6f84bbc..230e4cb 100644
  if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedThemeId)) {
    const orphanThemeId = _requestedThemeId;
    const nextVariantMap = { ...(_settingsController.get("themeVariant") || {}) };
-@@ -1042,7 +1089,7 @@ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedT
+@@ -1042,7 +1106,7 @@
    delete nextVariantMap[orphanThemeId];
    delete nextOverrides[orphanThemeId];
  
@@ -433,7 +537,7 @@ index 6f84bbc..230e4cb 100644
    _requestedVariantId = nextVariantMap[_requestedThemeId] || "default";
    _requestedThemeOverrides = nextOverrides[_requestedThemeId] || null;
    const result = _settingsController.hydrate({
-@@ -2075,7 +2122,7 @@ const _runtimeAgentGate = createRuntimeAgentGate({
+@@ -2075,7 +2139,7 @@
    // Both unreadable prefs and a writable recovered-defaults snapshot are
    // non-authoritative for this process. The latter may repair the primary file,
    // but only a clean load after restart can re-open agent paths.
@@ -442,7 +546,7 @@ index 6f84bbc..230e4cb 100644
  });
  const _permCtx = {
    get win() { return win; },
-@@ -2353,6 +2400,7 @@ function deliverRendererThemeConfig() {
+@@ -2353,6 +2417,7 @@
  }
  
  const recapRuntime = createRecapRuntime({
@@ -450,7 +554,7 @@ index 6f84bbc..230e4cb 100644
    // A default-filled snapshot is not user authority when prefs were unreadable,
    // recovered, or written by a future app version. Start paused in that case;
    // a later explicit, controller-accepted toggle may still call setEnabled().
-@@ -2368,13 +2416,13 @@ const _stateCtx = {
+@@ -2368,13 +2433,13 @@
    get win() { return win; },
    get hitWin() { return hitWin; },
    // Last-known account quota survives app restarts (state-account-quota.js).
@@ -466,7 +570,7 @@ index 6f84bbc..230e4cb 100644
    get miniMode() { return _mini.getMiniMode(); },
    get miniTransitioning() { return _mini.getMiniTransitioning(); },
    get mouseOverPet() { return mouseOverPet; },
-@@ -2422,7 +2470,7 @@ const _stateCtx = {
+@@ -2422,7 +2487,7 @@
      quotaAlertsRuntime?.observeQuota();
      reconcilePowerSaveBlocker();
      broadcastDashboardSessionSnapshot(snapshot);
@@ -475,7 +579,7 @@ index 6f84bbc..230e4cb 100644
      repositionFloatingBubbles();
      // R1a: best-effort completion notifications. Must never throw or block the
      // broadcast — the companion computes synchronously and fires sends async.
-@@ -2451,6 +2499,7 @@ const _stateCtx = {
+@@ -2451,6 +2516,7 @@
      }
      if (_lanWss) { try { _lanWss.onSnapshot(); } catch {} }
    },
@@ -483,7 +587,7 @@ index 6f84bbc..230e4cb 100644
    // Phase 3b: 读 prefs.themeOverrides 判断某个 oneshot state 是否被用户禁用。
    // state.js gate 调这个做 early-return。不做白名单校验——settings-actions
    // 负责写入合法性，这里只读。
-@@ -2810,10 +2859,8 @@ const _dashboard = require("./dashboard")({
+@@ -2810,10 +2876,8 @@
    onSaveBounds: (bounds) => _settingsController.applyUpdate("dashboardWindowBounds", bounds),
    iconPath: settingsWindowRuntime.getIconPath(),
  });
@@ -496,7 +600,7 @@ index 6f84bbc..230e4cb 100644
  broadcastDashboardSessionSnapshot = (snapshot) => {
    _dashboard.broadcastSessionSnapshot(snapshot);
  };
-@@ -2903,7 +2950,7 @@ function getTutorialDoneHeroSvg() {
+@@ -2903,7 +2967,7 @@
    if (_tutorialDoneHeroSvgCache != null) return _tutorialDoneHeroSvgCache;
    try {
      _tutorialDoneHeroSvgCache = fs.readFileSync(
@@ -505,7 +609,7 @@ index 6f84bbc..230e4cb 100644
        "utf8"
      );
    } catch (err) {
-@@ -2966,7 +3013,7 @@ const _sessionHud = require("./session-hud")({
+@@ -2966,7 +3030,7 @@
    get lowPowerIdleMode() { return lowPowerIdleMode; },
    getMiniMode: () => _mini.getMiniMode(),
    getMiniTransitioning: () => _mini.getMiniTransitioning(),
@@ -514,7 +618,7 @@ index 6f84bbc..230e4cb 100644
    getI18n: () => getDashboardI18nPayload(),
    getPetWindowBounds,
    getHitRectScreen,
-@@ -3007,8 +3054,11 @@ agentRuntime = createAgentRuntimeMain({
+@@ -3007,8 +3071,16 @@
  
  // ── HTTP server — delegated to src/server.js ──
  const _serverCtx = {
@@ -523,15 +627,23 @@ index 6f84bbc..230e4cb 100644
 +  ...moriProduct.privateRuntimeOptions(app.getPath("userData")),
 +  browserOnly: !moriProduct.cliEnabled,
 +  attachBrowserBridge: (httpServer) => moriBridge?.attach(httpServer),
++  onBrowserListenerChanged: (status) => {
++    moriListenerStatus = status;
++    moriBoundPort = status.state === "listening" ? status.port : null;
++    refreshMoriBrowserSnapshot();
++  },
 +  get manageClaudeHooksAutomatically() { return moriProduct.cliEnabled && manageClaudeHooksAutomatically; },
 +  get autoStartWithClaude() { return false; },
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3167,22 @@ const _serverCtx = {
+@@ -3117,6 +3189,28 @@
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
++function resumeMoriBrowserListener() {
++  if (!moriProduct.cliEnabled) void _server.ensureListening().catch(() => {});
++}
 +moriBrowserWindow = require("./mori-browser-window")({
 +  BrowserWindow, ipcMain, clipboard, shell,
 +  getBridge: () => moriBridge,
@@ -539,6 +651,9 @@ index 6f84bbc..230e4cb 100644
 +  getHudWindow: () => getSessionHudWindow(),
 +  cliEnabled: moriProduct.cliEnabled,
 +  getStartupError: () => moriStartupError,
++  getBuildInfo: () => moriBuildInfo,
++  getListenerStatus: () => moriListenerStatus,
++  getLoginStatus: _readMoriLoginStatus,
 +});
 +const moriSessionNavigation = require("./mori-session-navigation")({
 +  cliEnabled: moriProduct.cliEnabled,
@@ -551,7 +666,7 @@ index 6f84bbc..230e4cb 100644
  
  // ── LAN WebSocket bridge for PWA mobile clients (lazy-loaded) ──
  let _lanWss = null;
-@@ -4561,6 +4627,8 @@ function showResumeInput(t) {
+@@ -4561,6 +4655,8 @@
  }
  
  const _menuCtx = {
@@ -560,7 +675,7 @@ index 6f84bbc..230e4cb 100644
    get win() { return win; },
    get sessions() { return sessions; },
    cancelRoam: () => _roam.cancelRoam(),
-@@ -4739,7 +4807,7 @@ const _menuCtx = {
+@@ -4739,7 +4835,7 @@
    getSettingsWindow,
    getSystemVersion: () => process.getSystemVersion(),
    discoverThemes: () => themeLoader.discoverThemes(),
@@ -569,7 +684,7 @@ index 6f84bbc..230e4cb 100644
    getActiveThemeCapabilities: () => themeRuntime.getActiveThemeCapabilities(),
    ensureUserThemesDir: () => themeLoader.ensureUserThemesDir(),
    openSettingsWindow: (options) => settingsWindowRuntime.open(options),
-@@ -4990,7 +5058,7 @@ const _updaterCtx = {
+@@ -4990,7 +5086,7 @@
      try { _settingsController.applyUpdate(key, value); } catch {}
    },
  };
@@ -578,7 +693,7 @@ index 6f84bbc..230e4cb 100644
  const {
    setupAutoUpdater,
    checkForUpdates,
-@@ -5197,7 +5265,7 @@ const settingsIpcRuntime = registerSettingsIpc({
+@@ -5197,7 +5293,7 @@
      _tutorial.open();
      return { status: "ok" };
    },
@@ -587,7 +702,7 @@ index 6f84bbc..230e4cb 100644
    getLanWsServer: () => _lanWss,
  });
  
-@@ -5455,7 +5523,7 @@ function createWindow() {
+@@ -5455,7 +5551,7 @@
      updateBubble: _updateBubble,
    });
  
@@ -596,22 +711,20 @@ index 6f84bbc..230e4cb 100644
    startMainTick();
    // Silently connect any remote SSH profile flagged "connect on launch" once
    // the hook server is ACTUALLY listening and its real port is known.
-@@ -5467,7 +5535,14 @@ function createWindow() {
+@@ -5467,7 +5563,12 @@
    // Best-effort: failures fall back to the runtime's own reconnect/backoff and
    // never block startup.
    startHttpServer().then((port) => {
-+    moriBoundPort = port;
-+    if (port == null && !moriStartupError) {
-+      moriStartupError = "ブラウザ連携のローカルサーバーを開始できませんでした。端末のエラーを確認してください。";
-+      console.error(moriStartupError);
-+    }
++    // Browser listener ownership publishes every transition, including a
++    // later recovery. A temporary bind failure is not a bridge startup error.
++    if (moriProduct.cliEnabled) moriBoundPort = port;
 +    refreshMoriBrowserSnapshot();
      if (port == null) return;
 +    if (!moriProduct.cliEnabled) return;
      const restoredSessionIds = restoreSessionsFromRecoveryLeases(_state, {
        isAgentEnabled: (agentId) => (
          _runtimeAgentGate.isAgentEnabled(agentId)
-@@ -5478,7 +5553,7 @@ function createWindow() {
+@@ -5478,7 +5579,7 @@
        const recoveredSnapshot = _state.buildSessionSnapshot();
        reconcilePowerSaveBlocker();
        broadcastDashboardSessionSnapshot(recoveredSnapshot);
@@ -620,7 +733,7 @@ index 6f84bbc..230e4cb 100644
        // The Slack notifier is not on the broadcast above, so without this its
        // first snapshot would be some later event — which its priming branch
        // swallows, losing the first completion after a restart. Prime it with
-@@ -5638,7 +5713,7 @@ const _miniCtx = {
+@@ -5638,7 +5739,7 @@
    get win() { return win; },
    get currentSize() { return currentSize; },
    get doNotDisturb() { return doNotDisturb; },
@@ -629,7 +742,7 @@ index 6f84bbc..230e4cb 100644
    get currentState() { return _state.getCurrentState(); },
    get mouseOverPet() { return mouseOverPet; },
    get dragLocked() { return petWindowRuntime.isDragLocked(); },
-@@ -5835,15 +5910,11 @@ function installTerminalFocusExtension() {
+@@ -5835,17 +5936,14 @@
  // ── Single instance lock ──
  app.on("open-url", (event, url) => {
    event.preventDefault();
@@ -643,10 +756,15 @@ index 6f84bbc..230e4cb 100644
 -    const protocolRegistered = codexPetMain.registerProtocolClient();
 -    console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
 -  }
-   // Another instance is already running — quit silently
-   app.quit();
+-  // Another instance is already running — quit silently
+-  app.quit();
++  // The existing process may be an older build. Its readiness/version is not
++  // inferred from a successful single-instance redirect.
++  void moriStartup.report("redirected_unknown").finally(() => app.quit());
  } else {
-@@ -5858,8 +5929,18 @@ if (!gotTheLock) {
+   // Only the winning instance may publish the startup gate. A losing instance
+   // can have a stale/default prefs snapshot and must never become the final
+@@ -5858,8 +5956,19 @@
      || _initialPrefsLoad.recovered === true
      || _initialPrefsLoad.codexAutoStartAuthoritative === false
    ) ? null : _initialPrefsLoad.snapshot;
@@ -654,6 +772,7 @@ index 6f84bbc..230e4cb 100644
 +  catch (error) { console.error(error.message); app.exit(1); return; }
    _syncCodexAutoStartGate(startupGateSnapshot, "startup");
    app.on("second-instance", (_event, commandLine) => {
++    if (commandLine.includes("--mori-startup=login")) return;
 +    if (commandLine.includes("--enable-cli") !== moriProduct.cliEnabled) {
 +      void app.whenReady().then(() => dialog.showMessageBox({
 +        type: "info", title: "Mori Desk", buttons: ["OK"],
@@ -665,7 +784,7 @@ index 6f84bbc..230e4cb 100644
      if (petWindowRuntime.isPetEffectivelyHidden()) {
        prepManualPetVisibility();
        petWindowRuntime.setPetHidden(false);
-@@ -5880,7 +5961,7 @@ if (!gotTheLock) {
+@@ -5880,7 +5989,7 @@
      if (shouldOpenSettingsWindowFromArgv(commandLine)) {
        settingsWindowRuntime.openWhenReady();
      }
@@ -674,7 +793,7 @@ index 6f84bbc..230e4cb 100644
      reapplyMacVisibility();
    });
  
-@@ -5988,7 +6069,7 @@ if (!gotTheLock) {
+@@ -5988,7 +6097,7 @@
        installRuntimeIcon: installRuntimeDockIcon,
      });
  
@@ -683,7 +802,7 @@ index 6f84bbc..230e4cb 100644
      if (process.argv.includes(REGISTER_PROTOCOL_DEV_ARG)) {
        console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
        app.quit();
-@@ -6022,7 +6103,21 @@ if (!gotTheLock) {
+@@ -6022,7 +6131,30 @@
      try { syncDiscordPresence("startup"); }
      catch (err) { console.warn("Clawd: discord presence startup failed:", err && err.message); }
      queueFeishuApprovalSync("startup");
@@ -693,6 +812,7 @@ index 6f84bbc..230e4cb 100644
 +        dataDir: path.join(app.getPath("userData"), "browser-bridge"),
 +        safeStorage,
 +        extensionId: moriProduct.EXTENSION_ID,
++        buildInfo: moriBuildInfo,
 +        onChange: refreshMoriBrowserSnapshot,
 +      });
 +      if (moriBridge.ready) await moriBridge.ready;
@@ -700,12 +820,28 @@ index 6f84bbc..230e4cb 100644
 +      moriStartupError = `ブラウザ連携を開始できません: ${error.message}`;
 +      console.error(moriStartupError);
 +    }
++    try { moriStartup.recheck(); }
++    catch (error) {
++      await moriStartupHelpers.reportStartupFailure({ app, dialog, error, startup: moriStartup });
++      return;
++    }
      createWindow();
-+    moriBrowserWindow.open();
++    if (!moriStartup.isLogin) moriBrowserWindow.open();
++    // This acknowledges only the validated build and product lock. Listener,
++    // extension and observer readiness remain separate visible states.
++    await moriStartup.report("started");
      try { recapRuntime.start(); }
      catch (err) { console.warn("Clawd: local recap startup failed:", err && err.code ? err.code : "storage-error"); }
      // Reconcile the local quota binding only after the app has visible UI.
-@@ -6097,11 +6192,11 @@ if (!gotTheLock) {
+@@ -6064,6 +6196,7 @@
+       ),
+     });
+     systemWakeRecovery.start();
++    powerMonitor.on("resume", resumeMoriBrowserListener);
+     // #525: sleep/wake and lock/unlock are prime DWM-cloak moments. Hang the
+     // cloak recovery directly on powerMonitor rather than onRecovered above:
+     // onRecovered only fires after a renderer round-trip and is skipped on
+@@ -6097,11 +6230,11 @@
      // existing users who update also see it once on their next launch, then the
      // flag flips to true forever (any dismissal counts). See prefs.js SCHEMA.
      try {
@@ -719,7 +855,7 @@ index 6f84bbc..230e4cb 100644
      codexPetMain.flushPendingImportUrls().catch((err) => {
        console.warn("Clawd: Codex Pet import queue failed:", err && err.message);
      });
-@@ -6115,10 +6210,10 @@ if (!gotTheLock) {
+@@ -6115,10 +6248,10 @@
      // cost at click time. Whether we call .start() right now depends on the
      // agent-gate snapshot — a user who disabled Codex at last shutdown
      // shouldn't see its file watcher spin up on the next launch.
@@ -732,7 +868,7 @@ index 6f84bbc..230e4cb 100644
        console.warn("Clawd: failed to auto-install terminal-focus extension:", err.message);
      }
  
-@@ -6133,7 +6228,7 @@ if (!gotTheLock) {
+@@ -6133,7 +6266,7 @@
  
      // Deferred so any startup Codex hook sync has settled before we read the
      // on-disk hook state; unref'd so it never blocks a fast quit.
@@ -741,11 +877,12 @@ index 6f84bbc..230e4cb 100644
      if (codexHookNudgeTimer && typeof codexHookNudgeTimer.unref === "function") codexHookNudgeTimer.unref();
    });
  
-@@ -6153,6 +6248,8 @@ if (!gotTheLock) {
+@@ -6153,6 +6286,9 @@
      }
      if (quitCleanupStarted) return;
      quitCleanupStarted = true;
 +    moriBrowserWindow?.dispose();
++    powerMonitor.removeListener("resume", resumeMoriBrowserListener);
 +    moriBridge?.dispose();
      quotaAlertsRuntime?.dispose();
      quotaNotifications.dispose();
@@ -874,10 +1011,72 @@ index db1b879..d7a3e96 100644
    queryRecap: (period) => ipcRenderer.invoke("settings:recap-query", period),
    clearRecap: () => ipcRenderer.invoke("settings:recap-clear"),
 diff --git a/src/server.js b/src/server.js
-index 2aabd48..95ba664 100644
 --- a/src/server.js
 +++ b/src/server.js
-@@ -963,6 +963,13 @@ function rejectUnsafeLocalHookRequest(req, res, route) {
+@@ -4,6 +4,7 @@
+ const fs = require("fs");
+ const http = require("http");
+ const crypto = require("crypto");
++const { createBrowserListener } = require("./browser-listener");
+ const {
+   DEFAULT_SERVER_PORT,
+   defaultRuntimeConfigPath,
+@@ -151,6 +152,7 @@
+
+ let httpServer = null;
+ let activeServerPort = null;
++let browserListener = null;
+ let lastClaudeHookGuardNotice = null;
+ // Separate the persisted user authorization from short transactional tail
+ // suppression. During Settings OFF / integration uninstall the preference or
+@@ -245,7 +247,8 @@
+   const addressPort = address && typeof address === "object" && Number.isInteger(address.port)
+     ? address.port
+     : null;
+-  const port = activeServerPort || addressPort || null;
++  const listener = ctx.browserOnly === true ? getListenerStatus() : null;
++  const port = listener ? listener.port : activeServerPort || addressPort || null;
+   const runtimePort = readRuntimePortFn();
+   // #681: the runtime file is now the hook resolver's offline gate, so its
+   // identity — not just its port — decides whether hooks can report process
+@@ -255,7 +258,7 @@
+   const identity = readRuntimeIdentityFn();
+   const runtimeOwnerPid = identity && identity.ok ? identity.ownerPid : null;
+   return {
+-    listening: !!port && (!httpServer || httpServer.listening !== false),
++    listening: listener ? listener.state === "listening" : !!port && (!httpServer || httpServer.listening !== false),
+     port,
+     runtimePath: runtimeConfigFilePath(),
+     runtimePort,
+@@ -264,6 +267,7 @@
+     runtimeOwnerPid,
+     runtimeOwnerAlive: runtimeOwnerPid ? isProcessAliveFn(runtimeOwnerPid) : false,
+     runtimeIdentityValid: !!(identity && identity.ok),
++    ...(listener ? { listener } : {}),
+   };
+ }
+
+@@ -835,6 +839,19 @@
+ }
+
+ function repairRuntimeStatus() {
++  if (ctx.browserOnly === true) {
++    return ensureListening().then(port => {
++      // ensureListening can already be fulfilled when cleanup invalidates its
++      // listener. Never recreate runtime metadata from that queued result.
++      const current = getListenerStatus();
++      if (!port || current.state !== "listening" || current.port !== port) {
++        return { status: "error", message: "Browser listener is not available" };
++      }
++      let written = false;
++      try { written = writeCurrentRuntimeConfig(port) === true; } catch {}
++      return written ? { status: "ok" } : { status: "error", message: "Failed to write runtime config" };
++    });
++  }
+   const status = getRuntimeStatus();
+   if (status && status.listening && Number.isInteger(status.port)) {
+     const written = writeCurrentRuntimeConfig(status.port);
+@@ -963,6 +980,13 @@
  }
  
  function routeHttpRequest(req, res, remoteProfile = null) {
@@ -891,7 +1090,51 @@ index 2aabd48..95ba664 100644
      // Secure Remote SSH traffic must terminate at its profile-bound ingress,
      // never at the compatibility-oriented local main server. Rejecting the
      // nonce header here makes stale manual RemoteForward/proxy rules fail
-@@ -1027,6 +1034,8 @@ function startHttpServer() {
+@@ -1023,10 +1047,52 @@
+   });
+ }
+
++function getBrowserListener() {
++  if (!browserListener) {
++    browserListener = createBrowserListener({
++      createServer: () => {
++        httpServer = createHttpServer((req, res) => routeHttpRequest(req, res, null));
++        return httpServer;
++      },
++      // CLI remote markers must not alter the browser bridge's fixed local
++      // candidates. An explicit context override is only an internal seam.
++      ...(typeof ctx.getPortCandidates === "function" ? { getPortCandidates: ctx.getPortCandidates } : {}),
++      attach: server => typeof ctx.attachBrowserBridge === "function" ? ctx.attachBrowserBridge(server) : null,
++      onListening: port => writeCurrentRuntimeConfig(port) === true,
++      onChange: status => {
++        activeServerPort = status.port;
++        // Also clear a write whose listener was invalidated before it could
++        // publish listening. The existing file helper is owner-guarded.
++        if (status.state !== "listening") {
++          try { clearRuntimeConfigFn(); } catch {}
++        }
++        if (typeof ctx.onBrowserListenerChanged === "function") ctx.onBrowserListenerChanged(status);
++      },
++    });
++  }
++  return browserListener;
++}
++
++function getListenerStatus() {
++  if (ctx.browserOnly !== true) return null;
++  return browserListener ? browserListener.getStatus()
++    : { state: "idle", port: null, reason: null, retryAt: null, attempt: 0 };
++}
++
++function ensureListening() {
++  // This recovery owner is exclusively for the local browser-only listener.
++  // CLI startup, hook installation, and remote ingress keep their old contract.
++  if (ctx.browserOnly !== true) return Promise.resolve(activeServerPort);
++  return getBrowserListener().ensureListening();
++}
++
+ function startHttpServer() {
++  if (ctx.browserOnly === true) return ensureListening();
    httpServer = createHttpServer((req, res) => {
      routeHttpRequest(req, res, null);
    });
@@ -900,7 +1143,7 @@ index 2aabd48..95ba664 100644
  
    const listenPorts = getPortCandidatesFn();
    let listenIndex = 0;
-@@ -1104,7 +1113,7 @@ function startHttpServer() {
+@@ -1104,7 +1170,7 @@
        // and they operate on independent files for independent agents, so
        // none of them need to block the HTTP server from accepting traffic.
        setImmediateFn(() => {
@@ -909,6 +1152,31 @@ index 2aabd48..95ba664 100644
        });
        settle(activeServerPort);
      });
+@@ -1124,6 +1190,8 @@
+ }
+
+ function cleanup() {
++  // Invalidate generations and detach upgrades before bridge disposal in main.
++  const listenerClosed = ctx.browserOnly === true ? getBrowserListener().dispose() : null;
+   // Stop the supervisor before disposing the queue: a fs-watch event firing
+   // during teardown must not enqueue new work onto a queue that is about to
+   // reject everything. Runtime status is cleared last since nothing after
+@@ -1133,11 +1201,14 @@
+   clearRuntimeConfigFn();
+   clearClaudeHookGuardStatus();
+   localHookRejectTelemetry.clear();
+-  if (httpServer) httpServer.close();
++  if (ctx.browserOnly !== true && httpServer) httpServer.close();
++  return listenerClosed;
+ }
+
+ return {
+   startHttpServer,
++  ensureListening,
++  getListenerStatus,
+   openRemoteSshIngress,
+   getHookServerPort,
+   getRuntimeStatus,
 diff --git a/src/session-focus.js b/src/session-focus.js
 index 4153d77..64b0c1d 100644
 --- a/src/session-focus.js

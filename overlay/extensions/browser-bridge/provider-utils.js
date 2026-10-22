@@ -26,7 +26,7 @@
   function safeObserverRegister(input) {
     if (!input || input.type !== 'mori.observer.register' || input.v !== 1
       || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
-      || input.observerVersion !== '0.1.7'
+      || input.observerVersion !== '0.1.8'
       || !Object.hasOwn(input, 'attemptId')
       || (input.attemptId !== null && (typeof input.attemptId !== 'string' || !ID.test(input.attemptId)))
       || Object.keys(input).some(key => !['type', 'v', 'pageInstanceId', 'observerVersion', 'attemptId'].includes(key))) return null;
@@ -34,7 +34,7 @@
   }
 
   function safeObserverIdentity(input) {
-    if (!input || input.ok !== true || input.v !== 1 || input.observerVersion !== '0.1.7'
+    if (!input || input.ok !== true || input.v !== 1 || input.observerVersion !== '0.1.8'
       || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
       || !['confirmed', 'unconfirmed'].includes(input.binding?.state)
       || typeof input.binding.epoch !== 'string' || !ID.test(input.binding.epoch)) return null;

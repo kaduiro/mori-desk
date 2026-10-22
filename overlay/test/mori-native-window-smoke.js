@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const path = require("node:path");
 const { WebSocket } = require("ws");
 const { app, BrowserWindow } = require("electron");
 const { EXTENSION_ID, mac, verifyMac, validateEvent } = require("../src/browser-bridge-protocol");
@@ -18,6 +19,11 @@ app.on("web-contents-created", (_event, contents) => {
 // Load the real composition root, including safeStorage, the HUD owner, the
 // browser panel and their sandboxed preloads. A synthetic client below talks
 // to this process's real loopback bridge; it is not an installed Chrome tab.
+// Electron's direct JavaScript entry sets appPath to this test directory.
+// Establish the same package root/version as a normal runtime launch before
+// main performs its full source/build checks; do not bypass those checks.
+app.setAppPath(path.resolve(__dirname, ".."));
+app.setVersion(require("../package.json").version);
 require("../src/main");
 
 const timeout = setTimeout(() => {

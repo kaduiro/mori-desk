@@ -14,7 +14,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 const BASELINE_VERSION = "0.1.6";
-const CURRENT_VERSION = "0.1.7";
+const CURRENT_VERSION = require("../extensions/browser-bridge/manifest.json").version;
 const FIXTURE_URL = "https://chatgpt.com/c/fixture-recovery";
 const PORTS = [23333, 23334, 23335, 23336, 23337];
 const ARGUMENTS = {
@@ -49,7 +49,7 @@ Outputs: chrome-recovery-results.json and chrome-recovery-options.png.
 Only this run's mkdtemp directory is removed; the requested output is retained.
 This checks synthetic DOM and a safeStorage test double, not live provider DOM
 or the operating system's credential encryption.
-The production 0.1.7 candidate currently cannot confirm provider binding.
+The production candidate currently cannot confirm provider binding.
 This test expects quarantine safety but records the useful-recovery gate as
 FAIL-no-recovery after a passive 120-second observation (45-second deadline).
 Exit 2 means safety checks passed while business acceptance remains blocked;
@@ -322,7 +322,7 @@ async function run(config) {
     const before = await documentState();
     const baselineLoads = pageLoads;
 
-    stage = "update-to-0.1.7-without-page-reload";
+    stage = `update-to-${CURRENT_VERSION}-without-page-reload`;
     fs.rmSync(extensionPath, { recursive: true, force: true });
     fs.cpSync(currentExtension, extensionPath, { recursive: true, dereference: true });
     const previousWorker = worker;
@@ -365,7 +365,7 @@ async function run(config) {
       recovery: quarantined.observerRecovery, observationDelivery: quarantined.observationDelivery,
       pageReloaded: false, draftPreserved: true, unreadPreserved: true });
 
-    stage = "repeat-0.1.7-reload-quarantine";
+    stage = `repeat-${CURRENT_VERSION}-reload-quarantine`;
     await refreshWorker(CURRENT_VERSION);
     const again = await option({ type: "mori.options.health" });
     assert.equal(again.observationDelivery.accepted, 0);

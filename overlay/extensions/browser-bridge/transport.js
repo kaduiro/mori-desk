@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (function (root, factory) {
   const api = factory(typeof module === 'object' && module.exports
-    ? require('./provider-utils.js') : root.MoriProviderUtils);
+    ? require('./provider-utils.js') : root.MoriProviderUtils,
+  typeof module === 'object' && module.exports ? require('./restart-health.js') : root.MoriRestartHealth);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MoriTransport = api;
-})(typeof globalThis === 'object' ? globalThis : this, function (utils) {
+})(typeof globalThis === 'object' ? globalThis : this, function (utils, healthApi) {
   'use strict';
   const PORTS = [23333, 23334, 23335, 23336, 23337];
   const MAX_BYTES = 16 * 1024;
@@ -66,17 +67,18 @@
 
   class Transport {
     constructor({ clientId, browserRunId, getCredential, saveCredential,
-      onStatus = () => {}, onReady = () => {}, onFocus = async () => ({ ok: false }),
+      onStatus = () => {}, onReady = () => {}, onFocus = async () => ({ ok: false }), onHeartbeat = () => {},
       WebSocketClass = globalThis.WebSocket, cryptoApi = globalThis.crypto,
       now = () => Date.now() }) {
       Object.assign(this, { clientId, browserRunId, getCredential, saveCredential, onStatus, onReady,
-        onFocus, WebSocketClass, cryptoApi, now });
+        onFocus, onHeartbeat, WebSocketClass, cryptoApi, now });
       this.connection = null; this.connecting = null; this.reconnectTimer = null;
       this.attempt = 0; this.generation = 0; this.enabled = true; this.pairing = false;
       this.pairingOwner = null;
       this.lastSendAt = 0;
     }
     isReady() { return !!this.connection?.ready; }
+    getPeerInfo() { return this.connection?.ready ? this.connection.peer : null; }
     setEnabled(value) {
       this.enabled = value;
       if (!value) this.disconnect('paused'); else void this.ensureConnected();
@@ -152,10 +154,12 @@
         let ws;
         try { ws = new this.WebSocketClass(`ws://127.0.0.1:${port}/browser/v1`); }
         catch (_) { reject(new Error('connection_failed')); return; }
-        const connection = { ws, ready: false, pending: new Map(), lastPong: this.now() };
+        const connection = { ws, ready: false, pending: new Map(), lastPong: this.now(),
+          peer: null, healthTimer: null, pendingHealth: null, lastHealthAt: null };
         const fail = (code, reconnect = true) => {
           if (closed) return;
-          closed = true; clearTimeout(authTimer); clearInterval(heartbeat);
+          closed = true; clearTimeout(authTimer); clearInterval(heartbeat); clearTimeout(connection.healthTimer);
+          connection.healthTimer = null; connection.pendingHealth = null;
           sharedSecret = ''; derivedKey = null;
           for (const pending of connection.pending.values()) {
             clearTimeout(pending.timer); pending.reject(new Error(code));
@@ -233,6 +237,7 @@
                 && ((mode === 'pair' && stage === 'confirmed') || (mode === 'resume' && stage === 'authenticated'))) {
                 if (message.v !== 1 || message.clientId !== this.clientId || message.instanceId !== expected.instanceId
                   || message.serverRunId !== challenge?.serverRunId || message.port !== port) throw new Error('identity_mismatch');
+                connection.peer = healthApi.safePeer(message);
                 if (mode === 'resume' && credential.port !== port) await this.saveCredential({ ...credential, port });
                 if (!current()) return;
                 clearTimeout(authTimer); connection.ready = true; this.attempt = 0;
@@ -244,6 +249,9 @@
                 heartbeat = setInterval(() => {
                   if (this.now() - connection.lastPong > 65000) { fail('heartbeat_timeout'); return; }
                   try { send({ type: 'ping', at: this.now() }); } catch (_) { fail('connection_failed'); }
+                  // Inventory uses an existing heartbeat opportunity; it never
+                  // becomes an authentication or receipt-delivery barrier.
+                  Promise.resolve().then(() => this.onHeartbeat()).catch(() => {});
                 }, 20000);
                 fulfilled = true; resolve();
                 // Do not await callbacks in the incoming-message queue: outbox
@@ -278,6 +286,27 @@
         ws.onerror = () => fail('connection_failed');
         ws.onclose = () => fail('connection_closed');
       });
+    }
+    sendHealth(value) {
+      const connection = this.connection;
+      if (!connection?.ready || !connection.peer?.capabilities.includes(healthApi.CAPABILITY)) return false;
+      if (value?.type !== 'client.health' || value.browserRunId !== this.browserRunId) return false;
+      const text = JSON.stringify(value);
+      if (encoder.encode(text).byteLength > MAX_BYTES) return false;
+      connection.pendingHealth = text;
+      const flushHealth = () => {
+        connection.healthTimer = null;
+        if (connection !== this.connection || !connection.ready || !this.enabled) return;
+        const pending = connection.pendingHealth;
+        connection.pendingHealth = null;
+        if (!pending) return;
+        try { connection.ws.send(pending); connection.lastHealthAt = this.now(); }
+        catch (_) { connection.fail('connection_failed'); }
+      };
+      const delay = connection.lastHealthAt === null ? 0 : Math.min(1000, Math.max(0, 1000 - (this.now() - connection.lastHealthAt)));
+      if (!delay && !connection.healthTimer) flushHealth();
+      else if (!connection.healthTimer) connection.healthTimer = setTimeout(flushHealth, delay);
+      return true;
     }
     async sendEvent(event) {
       const connection = this.connection;

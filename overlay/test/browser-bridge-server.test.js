@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { WebSocket } = require("ws");
+const restartHealth = require("../extensions/browser-bridge/restart-health");
 const { createBrowserBridge } = require("../src/browser-bridge-server");
 const { EXTENSION_ID, mac, verifyMac } = require("../src/browser-bridge-protocol");
 
@@ -14,6 +15,54 @@ const safeStorage = {
   encryptString: (text) => Buffer.from(`test-vault:${text}`),
   decryptString: (buffer) => buffer.toString("utf8").slice(11),
 };
+
+function healthFrame(patch = {}) {
+  return { type: "client.health", v: 1, schema: 1, browserRunId: "run-1", workerEpoch: "health-worker",
+    sequence: 1, extensionVersion: "0.1.8", observerVersion: "0.1.8", buildId: "e".repeat(64), observerContract: 1,
+    providers: restartHealth.unknownProviders(),
+    delivery: { state: "current", remainingReplay: 0, livePending: 0, reserveUsed: 0 }, ...patch };
+}
+
+test("health has a 45-second receipt lifetime and cannot refresh a row or erase unread data", async t => {
+  let now = Date.now();
+  const f = await fixture(t, { now: () => now,
+    buildInfo: { desktopVersion: "0.1.3-preview.1", buildId: "e".repeat(64), observerContract: 1 } });
+  const client = await f.pair();
+  assert.deepEqual(client.ready.capabilities, ["restart-health-v1"]);
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "unknown");
+  await f.deliver(client, f.terminal());
+  const before = f.bridge.getSnapshot()[0];
+  const bytes = fs.readFileSync(path.join(f.dataDir, "sessions.json"));
+  client.send(healthFrame()); client.send({ type: "ping", at: now }); await client.take("pong");
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "current");
+  assert.equal(f.bridge.getSnapshot()[0].lastObservationAt, before.lastObservationAt);
+  assert.equal(f.bridge.getSnapshot()[0].unreadCount, 1);
+  assert.deepEqual(fs.readFileSync(path.join(f.dataDir, "sessions.json")), bytes);
+  now += 45001;
+  client.send({ type: "ping", at: now }); await client.take("pong");
+  assert.equal(f.bridge.getStatus().connectedClients.length, 1);
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "stale");
+  assert.equal(f.bridge.getStatus().clientHealth[0].health, null);
+  client.send(healthFrame({ sequence: 2 })); client.send({ type: "ping", at: now }); await client.take("pong");
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "current");
+  const replacement = await f.pair("client-1", "run-1");
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "unknown", "health belongs to the old connection, not the browser id");
+  replacement.send(healthFrame({ workerEpoch: "new-worker" }));
+  replacement.send({ type: "ping", at: now }); await replacement.take("pong");
+  assert.equal(f.bridge.getStatus().clientHealth[0].state, "current");
+});
+
+test("health identity, worker epoch and sequence cannot be reassigned inside one authenticated socket", async t => {
+  const buildInfo = { desktopVersion: "0.1.3-preview.1", buildId: "e".repeat(64), observerContract: 1 };
+  for (const [patch, code] of [[{ browserRunId: "other-run" }, "health_identity_mismatch"],
+    [{ sequence: 1 }, "health_sequence"], [{ workerEpoch: "other-worker", sequence: 2 }, "health_sequence"]]) {
+    const f = await fixture(t, { buildInfo });
+    const client = await f.pair();
+    client.send(healthFrame()); client.send({ type: "ping", at: Date.now() }); await client.take("pong");
+    client.send(healthFrame(patch));
+    assert.equal((await client.take("error")).code, code);
+  }
+});
 
 function channel(socket) {
   const queue = [];
@@ -75,8 +124,8 @@ async function fixture(t, options = {}) {
     await client.take("pair.ready");
     const key = mac(pairing.secret, "credential", context);
     client.send({ type: "pair.confirm", proof: mac(key, "pair-confirm", context) });
-    await client.take("ready");
-    return { ...client, key, clientId, browserRunId, instanceId: pairing.instanceId };
+    const ready = await client.take("ready");
+    return { ...client, key, clientId, browserRunId, ready, instanceId: pairing.instanceId };
   }
   function event(overrides = {}) {
     return { type: "event", v: 1, eventId: `event-${overrides.sequence || 1}`, browserRunId: "run-1", sessionId: "session-1",

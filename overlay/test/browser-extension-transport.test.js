@@ -29,7 +29,7 @@ async function listen(server) {
 async function fixture(t, options = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mori-extension-transport-'));
   const server = http.createServer((_req, res) => { res.writeHead(404); res.end(); });
-  const bridge = createBrowserBridge({ dataDir, safeStorage: fakeSafeStorage });
+  const bridge = createBrowserBridge({ dataDir, safeStorage: fakeSafeStorage, buildInfo: options.buildInfo });
   bridge.attach(server);
   const port = await listen(server);
   const wire = [];
@@ -83,6 +83,31 @@ test('extension transport pairs against the real backend, then reconnects with t
   const resumed = f.make(); await resumed.ensureConnected();
   assert.equal(resumed.isReady(), true);
   assert.equal(f.wire.filter(item => item.type === 'hello').at(-1).mode, 'resume');
+});
+
+test('capability-gated health coalesces without blocking a durable terminal receipt', async t => {
+  const f = await fixture(t, { buildInfo: { desktopVersion: '0.1.3-preview.1', buildId: 'f'.repeat(64), observerContract: 1 } });
+  const instance = f.make(); await instance.pair(f.bridge.beginPairing(f.port).code);
+  const health = { type: 'client.health', v: 1, schema: 1, browserRunId: 'browser-run', workerEpoch: 'coalesce-worker',
+    sequence: 1, extensionVersion: '0.1.8', observerVersion: '0.1.8', buildId: 'f'.repeat(64), observerContract: 1,
+    providers: require('../extensions/browser-bridge/restart-health').unknownProviders(),
+    delivery: { state: 'current', remainingReplay: 0, livePending: 0, reserveUsed: 0 } };
+  for (let sequence = 1; sequence <= 25; sequence++) assert.equal(instance.sendHealth({ ...health, sequence }), true);
+  assert.equal(f.wire.filter(item => item.type === 'client.health').length, 1);
+  const ack = await instance.sendEvent(f.event({ kind: 'terminal', phase: 'settled', outcome: 'unverified' }));
+  assert.equal(ack.eventId, 'observation-1');
+  assert.equal(f.bridge.getSnapshot()[0].unreadCount, 1);
+  const deadline = Date.now() + 3000;
+  while (f.bridge.getStatus().clientHealth[0].health?.sequence !== 25 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  assert.deepEqual(f.wire.filter(item => item.type === 'client.health').map(item => item.sequence), [1, 25]);
+  assert.equal(f.bridge.getStatus().clientHealth[0].health.sequence, 25);
+  assert.equal(instance.isReady(), true);
+  instance.sendHealth({ ...health, sequence: 26 });
+  instance.enabled = false; instance.disconnect();
+  assert.equal(instance.sendHealth({ ...health, sequence: 27 }), false);
+  assert.equal(f.wire.some(item => item.type === 'client.health' && item.sequence >= 26), false);
 });
 
 test('a failed extension credential write never sends pair.confirm or reports ready', async t => {

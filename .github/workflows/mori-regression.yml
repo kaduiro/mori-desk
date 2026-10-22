@@ -3,6 +3,8 @@ name: Mori browser and HUD regression
 on:
   push:
     paths:
+      - 'bootstrap/**'
+      - 'test/**'
       - 'overlay/**'
       - 'patches/**'
       - 'scripts/**'
@@ -11,6 +13,8 @@ on:
       - '.github/workflows/mori-regression.yml'
   pull_request:
     paths:
+      - 'bootstrap/**'
+      - 'test/**'
       - 'overlay/**'
       - 'patches/**'
       - 'scripts/**'

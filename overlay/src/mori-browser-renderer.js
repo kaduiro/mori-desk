@@ -205,13 +205,26 @@ async function refresh() {
     $("connection").textContent = connection.label || "接続準備中";
     $("connection").dataset.state = connection.state || "starting";
     $("connection-detail").textContent = connection.detail || "";
-    $("server-detail").textContent = value.port ? `この PC の接続先: 127.0.0.1:${value.port} · ページ内の監視は拡張機能の「タブの監視を確認・復旧」から確認できます。` : "";
+    $("server-detail").textContent = value.port ? "この PC の接続先は準備できています。" : "";
+    for (const provider of ["chatgpt", "claude"]) {
+      const item = connection.providers?.find(row => row.provider === provider);
+      $(`${provider}-status`).textContent = item?.label || "確認状況は未受信";
+      $(`${provider}-status`).dataset.state = item?.state || "unknown";
+      $(`${provider}-detail`).textContent = item?.detail || "ブラウザからの詳細状態を待っています。";
+    }
+    $("delivery-status").textContent = connection.delivery?.label || "保存済み通知の同期状況は未確認";
+    $("login-status").textContent = connection.login?.label || "ログイン時の自動起動：登録状態は未確認";
+    $("version-status").textContent = [
+      `Mori Desk：${connection.desktopVersion || "未確認"}`,
+      ...(connection.versions || []).map(item => `${item.label}：拡張 ${item.extensionVersion || "未確認"} / 同梱の監視プログラム ${item.observerVersion || "未確認"}（${item.compatibility}）`),
+      "ページで実行中の監視プログラムの版は、この表示では確認していません。",
+    ].join("\n");
     $("mode").textContent = value.cliEnabled ? "CLI 連携モード：有効。CLI セッションはキャラクター下の HUD に一緒に表示されます。" : "ブラウザ用モード。CLI の自動セットアップは無効です。";
     if (value.error || value.bridge?.error) {
       const errors = { secure_storage_unavailable: "OS の保護された鍵の保存先を利用できないため、ペアリングは停止しています。Windows / Mac で確認してください。",
-        session_limit: "保存できるセッション数の上限です。接続を解除して履歴を削除するか、後続版の保存容量対応が必要です。",
+        session_limit: "保存できるセッション数の上限です。保存済みの記録と未確認通知は保持しています。履歴の整理には後続版の保存容量対応が必要です。",
         active_session_limit: "同時に観測できるセッション数の上限です。対象タブを減らしてください。",
-        receipt_limit: "保存できる通知数の上限です。接続を解除して履歴を削除するか、後続版の履歴整理対応が必要です。" };
+        receipt_limit: "保存できる通知数の上限です。保存済みの通知は保持しています。履歴の整理には後続版の保存容量対応が必要です。" };
       feedback(value.error || errors[value.bridge.error] || `接続状態: ${value.bridge.error}`);
     }
     $("profiles").replaceChildren();

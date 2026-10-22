@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
-importScripts('provider-utils.js', 'session-coordinator.js', 'outbox.js', 'transport.js', 'observer-recovery.js');
+// Source-overlay installations have no generated build identity. Keep that
+// metadata unknown without preventing the actual extension from starting.
+try { importScripts('build-info.js'); }
+catch (_) { globalThis.MoriBrowserBuildInfo = null; }
+// Product imports are mandatory: a missing/broken module must still fail.
+importScripts('provider-utils.js', 'restart-health.js', 'session-coordinator.js', 'outbox.js', 'transport.js', 'observer-recovery.js');
 
 'use strict';
 const utils = MoriProviderUtils;
@@ -19,6 +24,12 @@ let controlGeneration = 0;
 let pendingControls = 0;
 let pairingGeneration = null;
 let flushing = null;
+let healthProviders = MoriRestartHealth.unknownProviders();
+let healthProvidersAt = 0;
+let healthSequence = 0;
+let healthRevision = 0;
+let refreshOwner = null;
+let replayReceiptKeys = null;
 // Registration is deliberately not restored from storage.session. A new
 // worker must verify the current observer again without resetting its timer
 // or generation controller merely because this grant epoch changed.
@@ -83,6 +94,7 @@ function stopAdmission() {
   observerLeases.clear();
   recoveryAttempts.clear();
   observerRecovery.invalidateAll();
+  invalidateHealth();
   transport?.setEnabled(false);
 }
 
@@ -108,6 +120,7 @@ function failStorage(code = 'storage_failed') {
   observerLeases.clear();
   recoveryAttempts.clear();
   observerRecovery.invalidateAll();
+  invalidateHealth();
   transport?.setEnabled(false);
   connectionStatus = { state: 'error', code };
 }
@@ -166,16 +179,21 @@ async function initialize() {
       });
     },
     onStatus: status => {
-      if (status.state !== 'connected') liveReceipts.clear();
+      if (status.state !== 'connected') { liveReceipts.clear(); invalidateHealth(); }
       if (!fatalError) connectionStatus = status;
     },
     onReady: transportReady,
+    onHeartbeat: publishHealth,
     onFocus: focusRequest,
   });
   transport.setEnabled(settings.enabled && !pendingControls);
 }
 
 async function transportReady() {
+  // Never wait for page queries, registration, the mutation queue or receipt
+  // replay before reporting the current (possibly unknown) inventory.
+  if (!replayReceiptKeys) replayReceiptKeys = new Set(outbox.events.map(eventKey));
+  publishHealth();
   const generation = controlGeneration;
   await enqueue(async () => {
     if (generation === controlGeneration && !admissionBlockReason()) await commit(coordinator.snapshot(sessions));
@@ -183,6 +201,38 @@ async function transportReady() {
   if (generation !== controlGeneration || admissionBlockReason()) return;
   void flush();
   await requestFreshObservations();
+}
+
+function invalidateHealth() {
+  healthRevision++;
+  healthProviders = MoriRestartHealth.unknownProviders();
+  healthProvidersAt = 0;
+  publishHealth();
+}
+
+function currentHealthProviders() {
+  const age = Date.now() - healthProvidersAt;
+  return healthProvidersAt > 0 && age >= 0 && age <= 45000
+    ? healthProviders : MoriRestartHealth.unknownProviders();
+}
+
+function publishHealth() {
+  if (!transport?.isReady() || !sessions || fatalError || pendingControls || !settings.enabled) return;
+  const build = globalThis.MoriBrowserBuildInfo;
+  const version = chrome.runtime.getManifest().version;
+  if (!build || build.extensionVersion !== version || build.observerContract !== 1
+    || typeof build.buildId !== 'string' || !/^[a-f0-9]{64}$/.test(build.buildId)
+    || !Number.isSafeInteger(healthSequence + 1)) return;
+  const remainingReplay = outbox.events.filter(event => replayReceiptKeys?.has(eventKey(event))).length;
+  const message = { type: 'client.health', v: 1, schema: 1,
+    browserRunId: sessions.browserRunId, workerEpoch, sequence: ++healthSequence,
+    extensionVersion: version, observerVersion: version, buildId: build.buildId, observerContract: 1,
+    providers: currentHealthProviders(),
+    delivery: { state: diagnostic === 'outbox_full' ? 'capacity_blocked' : remainingReplay ? 'syncing' : 'current',
+      remainingReplay, livePending: outbox.events.length - remainingReplay + freshEvents.size, reserveUsed: 0 } };
+  // Older peers and test transports have no health capability. Missing
+  // metadata never changes the authentication or observation path.
+  try { transport.sendHealth?.(message); } catch (_) {}
 }
 
 const initialized = initialize().catch(error => {
@@ -239,6 +289,7 @@ async function commit(result) {
       if (pending && pending.sequence <= event.sequence) freshEvents.delete(key);
     } else freshEvents.set(key, event);
   }
+  publishHealth();
   void flush();
 }
 
@@ -271,6 +322,7 @@ async function flush() {
           outbox = next;
           liveReceipts.delete(eventKey(receipt));
           if (diagnostic === 'outbox_full' && outbox.events.length < MoriOutbox.MAX_EVENTS) diagnostic = null;
+          publishHealth();
         }).catch(() => { failStorage(); throw new Error('storage_failed'); });
         continue;
       }
@@ -287,7 +339,7 @@ async function flush() {
   } catch (_) {
     // The durable outbox remains intact. Connection recovery or the explicit
     // retry button resumes delivery; no terminal event is silently discarded.
-  } finally { if (flushing === owner) flushing = null; }
+  } finally { if (flushing === owner) flushing = null; publishHealth(); }
 }
 
 function within(promise, milliseconds = 1500) {
@@ -451,10 +503,28 @@ async function focusRequest(request) {
 async function requestFreshObservations() {
   if (admissionBlockReason()) return;
   const generation = controlGeneration;
-  const tabs = await queryTabs({ url: utils.URL_PATTERNS });
-  if (!tabs || generation !== controlGeneration || admissionBlockReason()) return;
-  await Promise.allSettled(tabs.filter(tab => !!utils.routeForUrl(tab.url))
-    .slice(0, coordinator.MAX_TABS).map(tab => observerRecovery.ensure(tab)));
+  if (refreshOwner?.generation === generation && refreshOwner.revision === healthRevision) return refreshOwner.promise;
+  const owner = { generation, revision: healthRevision, promise: null };
+  refreshOwner = owner;
+  owner.promise = (async () => {
+    const accessPromise = Promise.allSettled(utils.URL_PATTERNS.map(origin => within(Promise.resolve().then(() =>
+      chrome.permissions.contains({ origins: [origin] })))));
+    const tabs = await queryTabs({ url: utils.URL_PATTERNS });
+    if (!tabs || generation !== controlGeneration || admissionBlockReason()) { await accessPromise; return; }
+    const candidates = tabs.filter(tab => !!utils.routeForUrl(tab.url));
+    const results = new Map(candidates.slice(coordinator.MAX_TABS).map(tab => [tab.id, { overLimit: true }]));
+    await Promise.allSettled(candidates.slice(0, coordinator.MAX_TABS).map(async tab => {
+      results.set(tab.id, await observerRecovery.ensure(tab));
+    }));
+    const accessResults = await accessPromise;
+    if (owner.revision !== healthRevision || generation !== controlGeneration || admissionBlockReason()) return;
+    const access = Object.fromEntries(MoriRestartHealth.PROVIDERS.map((provider, index) => [provider,
+      accessResults[index]?.status === 'fulfilled' ? accessResults[index].value : null]));
+    healthProviders = MoriRestartHealth.summarize(candidates, results, { enabled: settings.enabled, access });
+    healthProvidersAt = Date.now();
+    publishHealth();
+  })().finally(() => { if (refreshOwner === owner) refreshOwner = null; });
+  return owner.promise;
 }
 
 async function queryTabs(query) {
@@ -467,6 +537,7 @@ async function queryTabs(query) {
     return tabs;
   } catch (error) {
     if (!fatalError) diagnostic = error?.message === 'tab_unavailable' ? 'tab_query_timeout' : 'tab_query_failed';
+    invalidateHealth();
     return null;
   }
 }
@@ -511,6 +582,8 @@ function statusSnapshot() {
     pending: outbox.events.length,
     lastObservationAt: records.reduce((latest, record) => Math.max(latest, record.lastObservationAt || 0), 0),
     experimental: true,
+    providers: currentHealthProviders(),
+    peer: transport?.getPeerInfo?.() || null,
   };
 }
 
@@ -634,6 +707,7 @@ async function optionsMessage(message) {
   }
   if (message.type === 'mori.options.unpair') {
     transport.disconnect('unpaired');
+    replayReceiptKeys = null;
     await enqueue(async () => {
       if (fatalError) throw new Error(fatalError);
       await requiredStorage(() => chrome.storage.local.set({ moriCredential: null, moriOutbox: { v: 1, events: [] } }));
@@ -685,6 +759,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
+  invalidateHealth();
   observerLeases.delete(tabId);
   for (const [id, attempt] of recoveryAttempts) if (attempt.tabId === tabId) endRecoveryAttempt(id);
   observerRecovery.invalidate(tabId, true);
@@ -694,6 +769,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
   })).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url || changeInfo.status || changeInfo.discarded !== undefined || changeInfo.frozen !== undefined) invalidateHealth();
   if (changeInfo.url || changeInfo.status === 'loading') {
     observerLeases.delete(tabId);
     for (const [id, attempt] of recoveryAttempts) if (attempt.tabId === tabId) endRecoveryAttempt(id);
@@ -708,10 +784,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
   if (changeInfo.status === 'complete' || changeInfo.discarded === false || changeInfo.frozen === false || changeInfo.url) {
     initialized.then(() => {
-      if (!admissionBlockReason()) return observerRecovery.ensure({ id: tabId });
+      if (!admissionBlockReason()) return requestFreshObservations();
     }).catch(() => {});
   }
 });
+function permissionsChanged() {
+  invalidateHealth();
+  initialized.then(() => requestFreshObservations()).catch(reportRecoveryFailure);
+}
+chrome.permissions.onAdded?.addListener(permissionsChanged);
+chrome.permissions.onRemoved?.addListener(permissionsChanged);
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== 'mori-reconnect') return;
   initialized.then(async () => {

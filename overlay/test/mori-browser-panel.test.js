@@ -81,7 +81,7 @@ function session(overrides = {}) {
 }
 
 function harness(rows = [session()]) {
-  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
+  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
   elements.get("history").open = false;
   elements.get("history").append(elements.get("history-sessions"));
   const document = {
@@ -137,6 +137,31 @@ test("browser panel shows actionable stale-state context without treating retain
   assert.equal(byClass(card, "session-label-input").maxLength, 80);
   await button(card, "タブへ戻る").fire("click");
   assert.equal(h.calls.length, 0, "Disconnected navigation cannot send focus or ACK");
+});
+
+test("service and startup status refresh separately from an active session name editor", async () => {
+  const h = harness(); await h.settle();
+  const card = h.card(), input = byClass(card, "session-label-input");
+  h.document.activeElement = input; input.value = "入力中";
+  await input.fire("input"); await input.fire("compositionstart");
+  await h.refresh({ ...h.state, port: 23333, connection: {
+    state: "ready", label: "1 ブラウザ通信接続中", canPair: true,
+    providers: [{ provider: "chatgpt", state: "unconfirmed", label: "会話の識別が未確認", detail: "表示中の会話との対応は未確認です。" },
+      { provider: "claude", state: "unknown", label: "確認状況は不明", detail: "対象が0件とは確認できていません。" }],
+    delivery: { state: "syncing", label: "保存済み通知を同期中：残り 7 件" },
+    login: { state: "os_disabled", label: "ログイン時の自動起動：OS 側で無効" },
+    desktopVersion: "0.1.3-preview.1", versions: [{ label: "ブラウザ 1", extensionVersion: "0.1.8", observerVersion: "0.1.8", compatibility: "詳細状態の受信に対応" }],
+  } });
+  assert.equal(h.elements.get("chatgpt-status").textContent, "会話の識別が未確認");
+  assert.equal(h.elements.get("claude-status").dataset.state, "unknown");
+  assert.match(h.elements.get("delivery-status").textContent, /7 件/);
+  assert.match(h.elements.get("login-status").textContent, /OS 側で無効/);
+  assert.match(h.elements.get("version-status").textContent, /拡張 0\.1\.8/);
+  assert.match(h.elements.get("version-status").textContent, /ページで実行中.*確認していません/);
+  assert.doesNotMatch(h.elements.get("server-detail").textContent, /F5|タブの監視を確認・復旧/);
+  assert.equal(h.card(), card); assert.equal(byClass(card, "session-label-input"), input);
+  assert.equal(input.value, "入力中"); assert.equal(h.document.activeElement, input);
+  assert.equal(h.calls.length, 0);
 });
 
 test("live panel refresh preserves the actual editing node and draft through row ordering changes", async () => {

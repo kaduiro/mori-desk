@@ -1,3 +1,4 @@
+const CURRENT_VERSION = require('../extensions/browser-bridge/manifest.json').version;
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
@@ -17,7 +18,7 @@ function fixture() {
   const leaseFor = tab => tab.admitted === false ? null : { workerEpoch: 'worker-test',
     leaseId: `lease-${tab.documentId}`, bindingEpoch: tab.bindingEpoch || 'binding-a' };
   const chrome = {
-    runtime: { getManifest: () => ({ version: '0.1.7' }) },
+    runtime: { getManifest: () => ({ version: CURRENT_VERSION }) },
     permissions: { contains: async () => true },
     tabs: {
       get: async id => { if (!tabs.has(id)) throw new Error('PRIVATE_TAB_URL'); return { ...tabs.get(id) }; },
@@ -34,7 +35,7 @@ function fixture() {
         if (tab.listener === 'missing') throw new Error('PRIVATE_NO_RECEIVER');
         if (tab.listener === 'invalid') return { ok: false, data: 'PRIVATE_INVALID_RESPONSE' };
         if (tab.listener === 'legacy') return { ok: true };
-        return { ok: true, v: 1, observerVersion: tab.observerVersion || '0.1.7', pageInstanceId: tab.pageInstanceId,
+        return { ok: true, v: 1, observerVersion: tab.observerVersion || CURRENT_VERSION, pageInstanceId: tab.pageInstanceId,
           route: utils.routeForUrl(tab.url), binding: { state: tab.bindingState || 'confirmed',
             epoch: tab.bindingEpoch || 'binding-a' }, lease: tab.bindingState === 'unconfirmed' ? null : leaseFor(tab) };
       },
@@ -64,9 +65,9 @@ function fixture() {
           const attempt = attempts.get(attemptId);
           if (!attempt || attempt.expiresAt <= time || block) return { ok: false, reason: 'attempt_expired' };
           if (tab.noop) return { ok: false, reason: 'registration_failed' };
-          if (tab.listener !== 'modern' || (tab.observerVersion && tab.observerVersion !== '0.1.7')) {
+          if (tab.listener !== 'modern' || (tab.observerVersion && tab.observerVersion !== CURRENT_VERSION)) {
             tab.listener = 'modern'; tab.pageInstanceId = `recovered-${++bundleNumber}`;
-            tab.observerVersion = '0.1.7';
+            tab.observerVersion = CURRENT_VERSION;
           }
           if (tab.bindingState === 'unconfirmed') return { ok: false, reason: 'binding_unconfirmed' };
           tab.admitted = true;

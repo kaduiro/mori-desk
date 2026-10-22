@@ -35,6 +35,10 @@ function fixture(t) {
   const marker = { schemaVersion: 1, project: "mori-desk", projectRoot: fs.realpathSync(root), kind: "runtime", ready: true,
     upstreamCommit: lock.commit, inputFingerprint: hash.digest("hex") };
   write(".runtime/.mori-owned.json", marker);
+  write(".runtime/src/mori-build-info.json", JSON.stringify({ schema: 1, product: "mori-desk", version: pkg.version,
+    buildId: marker.inputFingerprint, observerContract: 1 }, null, 2) + "\n");
+  write(".runtime/extensions/browser-bridge/build-info.js", '"use strict";\nglobalThis.MoriBrowserBuildInfo = Object.freeze('
+    + JSON.stringify({ extensionVersion: "0.1.7", buildId: marker.inputFingerprint, observerContract: 1 }) + ");\n");
   const prepare = require(path.join(root, "scripts/prepare-runtime.js"));
   const doctor = require(path.join(root, "scripts/doctor.js"));
   return { root, write, prepare, doctor, marker };
@@ -93,6 +97,7 @@ test("doctor detects a different selected folder even when both manifest version
   const f = fixture(t);
   f.write("selected/manifest.json", { version: "0.1.7" });
   f.write("selected/worker.js", "// stale code without a version bump\n");
+  f.write("selected/build-info.js", fs.readFileSync(path.join(f.root, ".runtime/extensions/browser-bridge/build-info.js"), "utf8"));
   const report = await f.doctor.collectReport({ extensionDir: path.join(f.root, "selected") });
   assert.equal(report.runtime.sourceMatches, true);
   assert.equal(report.selectedExtension.version, "0.1.7");
@@ -109,7 +114,7 @@ test("doctor reports unavailable runtime and missing selected files without auto
   const report = await f.doctor.collectReport({ extensionDir: path.join(f.root, "selected") });
   assert.equal(report.runtime.source.status, "unavailable");
   assert.equal(report.runtime.extension.status, "unavailable");
-  assert.deepEqual(report.selectedExtension.missing, ["worker.js"]);
+  assert.deepEqual(report.selectedExtension.missing, ["build-info.js", "worker.js"]);
   assert.equal(report.diskChecksPassed, false);
   assert.equal(fs.existsSync(path.join(f.root, ".runtime")), false);
 });
@@ -132,5 +137,24 @@ test("doctor reports a non-file manifest as unreadable without trying to parse i
   assert.equal(report.selectedExtension.version, null);
   assert.deepEqual(report.selectedExtension.unreadable, ["manifest.json"]);
   assert.equal(report.selectedExtension.status, "mismatch");
+  assert.equal(report.diskChecksPassed, false);
+});
+
+test("generated desktop and extension metadata must match the current source fingerprint", t => {
+  const f = fixture(t);
+  f.write(".runtime/src/mori-build-info.json", JSON.stringify({ schema: 1, product: "mori-desk", version: "0.1.3-preview.1",
+    buildId: "0".repeat(64), observerContract: 1 }, null, 2) + "\n");
+  assert.throws(() => f.prepare.requireRuntime(), /MORI_RUNTIME_SOURCE_MISMATCH/);
+  fs.unlinkSync(path.join(f.root, ".runtime/extensions/browser-bridge/build-info.js"));
+  const report = f.prepare.inspectRuntimeSource();
+  assert.deepEqual(report.generated.changed, ["src/mori-build-info.json"]);
+  assert.deepEqual(report.generated.missing, ["extensions/browser-bridge/build-info.js"]);
+});
+
+test("an unassembled overlay extension is not approved as a loadable current build", async t => {
+  const f = fixture(t);
+  const report = await f.doctor.collectReport({ extensionDir: path.join(f.root, "overlay/extensions/browser-bridge") });
+  assert.equal(report.runtime.sourceMatches, true);
+  assert.deepEqual(report.selectedExtension.missing, ["build-info.js"]);
   assert.equal(report.diskChecksPassed, false);
 });

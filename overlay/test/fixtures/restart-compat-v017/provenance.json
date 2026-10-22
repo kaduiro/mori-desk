@@ -1,0 +1,44 @@
+{
+  "commit": "b344d552e2a18641cb786cdd5ea0abbfd3ce891c",
+  "extensionVersion": "0.1.7",
+  "files": [
+    {
+      "path": "src/browser-bridge-server.js",
+      "sha256": "8dce54bf9003d0516f4e0d84d4edfbb32c159c48611326ed214f44ce42224a62",
+      "reviewedGitBlob": "19cf0aeef93d57a2f75f9cbee8b7c290f553b0d1"
+    },
+    {
+      "path": "src/browser-bridge-protocol.js",
+      "sha256": "c718a59b0f92e07cb6213e3e5a062aaa69d16c30b27745825274070bba1f5c72",
+      "reviewedGitBlob": "84daaa05672307ad39eaa6947df1fc5380ee664c"
+    },
+    {
+      "path": "src/browser-bridge-auth.js",
+      "sha256": "32c0c53d4b62765a80d09f54795e010ee892a7f326468ecb643b2b3081732fcc",
+      "reviewedGitBlob": "228189450ee818259c84463e1d98eddc11098016"
+    },
+    {
+      "path": "src/browser-bridge-persistence.js",
+      "sha256": "aeb91b8c4d625a8b9d8f9aad3dfc16be43a6bb72268bdcb199c8ac1648ce4ee0",
+      "reviewedGitBlob": "518468974c081db9689dbdcfd47178fc85475fbd"
+    },
+    {
+      "path": "src/browser-session-store.js",
+      "sha256": "c635534531328ec8617875ed2c21d8fdbcc33ca408d6867e676871bf27a37e5f",
+      "reviewedGitBlob": "cbb84078b998b45a46978c6167208387d7a56a7e"
+    },
+    {
+      "path": "extensions/browser-bridge/transport.js",
+      "sha256": "7fa68a88ab5cb480596bb6b067f4414f65b806983e84f6e8c37c4c6a0ef4121b",
+      "reviewedGitBlob": "32ab6117a81dde2dd703dfc0d9c3c773d7035c39"
+    },
+    {
+      "path": "extensions/browser-bridge/provider-utils.js",
+      "sha256": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1",
+      "reviewedGitBlob": "24871eee0d95a70f9a8926b974cfd4dd5e5b81b8"
+    }
+  ],
+  "reviewedProductCommit": "c56d1593676d4ff5b53996afac1e1c12da0a8e3d",
+  "reviewedProductTree": "5859369a4bba1ea2d06e32f995dad92b57cf7e65",
+  "reviewedReadbackEvidence": "docs/review-evidence/parallel-implementation-20261021/publication-execution/final-remote-independent/final-remote-readback.json"
+}

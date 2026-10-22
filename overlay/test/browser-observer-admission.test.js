@@ -1,3 +1,4 @@
+const CURRENT_VERSION = require('../extensions/browser-bridge/manifest.json').version;
 /* SPDX-License-Identifier: AGPL-3.0-only */
 'use strict';
 const test = require('node:test');
@@ -5,9 +6,9 @@ const assert = require('node:assert/strict');
 const utils = require('../extensions/browser-bridge/provider-utils');
 const binding = require('../extensions/browser-bridge/conversation-binding');
 
-const register = { type: 'mori.observer.register', v: 1, pageInstanceId: 'page-a', observerVersion: '0.1.7', attemptId: null };
+const register = { type: 'mori.observer.register', v: 1, pageInstanceId: 'page-a', observerVersion: CURRENT_VERSION, attemptId: null };
 const lease = { workerEpoch: 'worker-a', leaseId: 'lease-a', bindingEpoch: 'binding-a' };
-const identity = { ok: true, v: 1, observerVersion: '0.1.7', pageInstanceId: 'page-a',
+const identity = { ok: true, v: 1, observerVersion: CURRENT_VERSION, pageInstanceId: 'page-a',
   route: { provider: 'chatgpt', path: '/c/a', conversationRef: '/c/a' },
   binding: { state: 'confirmed', epoch: 'binding-a' }, lease };
 const observation = { type: 'mori.observation', v: 1, pageInstanceId: 'page-a',

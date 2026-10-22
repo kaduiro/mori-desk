@@ -5,7 +5,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { ROOT, RUNTIME, assertSafePath, inspectRuntimeSource, run } = require("./prepare-runtime");
+const { ROOT, RUNTIME, assertSafePath, inspectRuntimeSource, inputFingerprint, buildArtifacts, run } = require("./prepare-runtime");
 
 const sha256 = data => crypto.createHash("sha256").update(data).digest("hex");
 function versionIn(data) {
@@ -57,10 +57,10 @@ function packageAt(dir) {
   catch { return null; }
 }
 
-function inspectExtension(dir, sourceDir, expectedFiles) {
+function inspectExtension(dir, sourceDir, expectedFiles, generated) {
   const result = { path: dir, version: null,
     checkedFiles: expectedFiles.length, changed: [], missing: [], unreadable: [], fingerprint: null,
-    coverage: "expected_source_files_only", liveBrowser: "NOT_CHECKED" };
+    coverage: "expected_source_and_generated_files", liveBrowser: "NOT_CHECKED" };
   const entries = [];
   try {
     checkDirectory(dir);
@@ -72,7 +72,8 @@ function inspectExtension(dir, sourceDir, expectedFiles) {
     try {
       const data = readFileWithin(dir, relative);
       if (relative === "manifest.json") result.version = versionIn(data);
-      if (!data.equals(readFileWithin(sourceDir, relative))) result.changed.push(relative);
+      const expected = Object.hasOwn(generated, relative) ? generated[relative] : readFileWithin(sourceDir, relative);
+      if (!data.equals(expected)) result.changed.push(relative);
       entries.push({ path: relative, bytes: data.length, sha256: sha256(data) });
     } catch (error) {
       (error.code === "ENOENT" ? result.missing : result.unreadable).push(relative);
@@ -97,19 +98,26 @@ async function gitIdentity() {
 
 async function collectReport({ extensionDir } = {}) {
   const sourceDir = path.join(ROOT, "overlay", "extensions", "browser-bridge");
-  const files = extensionFiles(sourceDir);
+  const files = [...extensionFiles(sourceDir), "build-info.js"].sort();
+  const checkoutPackage = packageAt(ROOT), runtimePackage = packageAt(RUNTIME);
+  let sourceVersion = null;
+  try { sourceVersion = versionIn(readFileWithin(sourceDir, "manifest.json")); } catch { /* Unavailable, never guess. */ }
+  const generated = {};
+  try {
+    const info = buildArtifacts(checkoutPackage.version, sourceVersion, inputFingerprint())
+      .find(entry => entry.name === "extensions/browser-bridge/build-info.js");
+    generated["build-info.js"] = Buffer.from(info.data);
+  } catch { /* Missing expected build data cannot approve a selected folder. */ }
   let source;
   try { source = { status: "checked", ...inspectRuntimeSource() }; }
   catch { source = { status: "unavailable" }; }
   const sourceMatches = source.status === "checked" && source.ready && source.upstreamMatches && source.inputMatches
-    && source.overlay.changed.length === 0 && source.overlay.missing.length === 0;
-  const runtime = inspectExtension(path.join(RUNTIME, "extensions", "browser-bridge"), sourceDir, files);
-  const selected = extensionDir ? inspectExtension(path.resolve(extensionDir), sourceDir, files) : null;
-  const checkoutPackage = packageAt(ROOT), runtimePackage = packageAt(RUNTIME);
+    && source.overlay.changed.length === 0 && source.overlay.missing.length === 0
+    && source.generated.changed.length === 0 && source.generated.missing.length === 0;
+  const runtime = inspectExtension(path.join(RUNTIME, "extensions", "browser-bridge"), sourceDir, files, generated);
+  const selected = extensionDir ? inspectExtension(path.resolve(extensionDir), sourceDir, files, generated) : null;
   const productIdentityMatches = runtimePackage?.name === "mori-desk"
     && runtimePackage?.build?.appId === "com.kaduiro.moridesk" && runtimePackage?.build?.publish === null;
-  let sourceVersion = null;
-  try { sourceVersion = versionIn(readFileWithin(sourceDir, "manifest.json")); } catch { /* Unavailable, never guess. */ }
   const packageVersion = pkg => pkg ? versionIn(Buffer.from(JSON.stringify(pkg))) : null;
   return {
     schemaVersion: 1, diagnostic: "mori-disk-versions-v1", checkedAt: new Date().toISOString(),

@@ -1,3 +1,4 @@
+const CURRENT_VERSION = require('../extensions/browser-bridge/manifest.json').version;
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -6,9 +7,59 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const transportApi = require('../extensions/browser-bridge/transport');
 const providerUtils = require('../extensions/browser-bridge/provider-utils');
-const { EXTENSION_ID, validateEvent } = require('../src/browser-bridge-protocol');
+const { EXTENSION_ID, validateEvent, validateClientHealth } = require('../src/browser-bridge-protocol');
 
 function event() { const listeners = []; return { listeners, addListener(listener) { listeners.push(listener); } }; }
+
+test('health inventory is published without waiting for a slow tab query and never substitutes for a sample', async () => {
+  let release;
+  const delayed = new Promise(resolve => { release = resolve; });
+  const f = await workerFixture({ savedTabs: [], configureChrome(chrome) { chrome.tabs.query = () => delayed; } });
+  assert.ok(f.transport.health.length > 0);
+  assert.equal(f.transport.health[0].providers[0].inventory, 'unknown');
+  assert.equal(f.transport.events.length, 0);
+  release([]); await f.drain();
+  const last = f.transport.health.at(-1);
+  assert.equal(last.providers[0].inventory, 'known');
+  assert.equal(last.providers[0].discovered, 0);
+  assert.equal(last.providers[0].fresh, 0);
+});
+
+test('permission loss and a failed query publish unknown inventory instead of a false zero', async () => {
+  let allowed = true;
+  const f = await workerFixture({ configureChrome(chrome) {
+    chrome.permissions.contains = async ({ origins }) => !origins[0].includes('chatgpt') || allowed;
+  } });
+  assert.equal(f.transport.health.at(-1).providers[0].inventory, 'known');
+  assert.equal(f.transport.health.at(-1).providers[0].fresh, 0);
+  allowed = false;
+  f.chrome.permissions.onRemoved.listeners[0]({ origins: ['https://chatgpt.com/*'] });
+  await f.drain();
+  assert.equal(f.transport.health.at(-1).providers[0].discovered, null);
+  assert.equal(f.transport.health.at(-1).providers[1].discovered, 0);
+  f.chrome.tabs.query = async () => { throw new Error('PRIVATE_TAB_QUERY'); };
+  await f.dispatch({ type: 'mori.options.retry' }, { id: EXTENSION_ID, url: f.chrome.runtime.getURL('options.html') });
+  assert.equal(f.transport.health.at(-1).providers.every(row => row.inventory === 'unknown'), true);
+  assert.doesNotMatch(JSON.stringify(f.transport.health), /PRIVATE_TAB_QUERY|https:|pageInstanceId|conversationRef/);
+});
+
+test('health inventory expires even if heartbeats continue to run and reconnect begins with unknown inventory', async () => {
+  let clock = 100000;
+  class ClockDate extends Date { static now() { return clock; } }
+  const f = await workerFixture({ timers: { Date: ClockDate } });
+  assert.equal(f.transport.health.at(-1).providers[0].inventory, 'known');
+  clock += 45001;
+  f.transport.onHeartbeat();
+  assert.equal(f.transport.health.at(-1).providers[0].inventory, 'unknown');
+  f.transport.disconnect();
+  const before = f.transport.health.length;
+  await f.transport.ensureConnected();
+  assert.equal(f.transport.health[before].providers[0].inventory, 'unknown');
+  await f.drain();
+  const writes = JSON.stringify({ local: f.local, session: f.session });
+  assert.doesNotMatch(writes, /client.health|extensionVersion|remainingReplay/);
+});
+
 async function workerFixture({ savedLocal = null, savedSession = null, savedTabs = null,
   configureChrome = () => {}, timers = null } = {}) {
   const log = [];
@@ -35,7 +86,8 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
     };
   }
   class FakeTransport {
-    constructor(options) { Object.assign(this, options); this.ready = false; this.enabled = true; this.canConnect = true; this.events = []; transports.push(this); }
+    constructor(options) { Object.assign(this, options); this.ready = false; this.enabled = true; this.canConnect = true; this.events = []; this.health = []; transports.push(this); }
+    sendHealth(value) { validateClientHealth(value); this.health.push(clone(value)); return true; }
     isReady() { return this.ready; }
     disconnect() { this.ready = false; this.onStatus({ state: 'disconnected', code: 'test_offline' }); }
     setEnabled(enabled) { this.enabled = enabled; if (enabled) void this.ensureConnected(); else this.disconnect(); }
@@ -57,7 +109,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
     storage: { local: area(local, 'local'), session: area(session, 'session') },
     runtime: { id: EXTENSION_ID, onMessage: event(), onStartup: event(), onInstalled: event(),
       getURL: file => `chrome-extension://${EXTENSION_ID}/${file}`,
-      getManifest: () => ({ version: '0.1.7' }), openOptionsPage: async () => {} },
+      getManifest: () => ({ version: CURRENT_VERSION }), openOptionsPage: async () => {} },
     tabs: {
       onRemoved: event(), onUpdated: event(),
       async query() { return [...tabs.values()].map(clone); },
@@ -69,7 +121,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
         }
         // This is a protocol-boundary stand-in, not provider DOM evidence.
         // Tests explicitly exercise confirmed and unconfirmed binding states.
-        const identity = { observerVersion: tab.observerVersion || '0.1.7',
+        const identity = { observerVersion: tab.observerVersion || CURRENT_VERSION,
           pageInstanceId: tab.pageId || `page-${id}`, route: providerUtils.routeForUrl(tab.url),
           binding: { state: tab.bindingState || 'confirmed', epoch: tab.bindingEpoch || `binding-${id}` },
           lease: tab.bindingState === 'unconfirmed' ? null : tab.lease || null };
@@ -110,10 +162,10 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
       }
       if (options.files) tab.installed = true;
       if (options.args && !tab.injectionNoop) {
-        if (tab.noReceiver || tab.modernObserver === false || (tab.observerVersion && tab.observerVersion !== '0.1.7')) {
+        if (tab.noReceiver || tab.modernObserver === false || (tab.observerVersion && tab.observerVersion !== CURRENT_VERSION)) {
           tab.noReceiver = false; tab.invalidReady = false; tab.modernObserver = true;
           tab.pageId = `recovered-page-${++injectionCount}`;
-          tab.observerVersion = '0.1.7'; tab.lease = null;
+          tab.observerVersion = CURRENT_VERSION; tab.lease = null;
         }
         tab.pageId ||= `page-${tab.id}`;
         tab.documentId ||= documentId;
@@ -127,7 +179,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
       await onScript(options, tab);
       return [result];
     } },
-    permissions: { async contains({ origins }) { log.push({ type: 'permission-check', origins }); return true; } },
+    permissions: { onAdded: event(), onRemoved: event(), async contains({ origins }) { log.push({ type: 'permission-check', origins }); return true; } },
     windows: { async update(id, value) { log.push({ type: 'window-focus', id, value }); await onWindowFocus(); } },
     alarms: { async create() {}, onAlarm: event() },
     action: { onClicked: event() },
@@ -148,7 +200,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   // Model a manifest-started observer registering through the actual worker
   // listener. Do not seed grants or worker maps in the test context.
   const initialRegistrations = [...tabs.values()].filter(tab => !tab.noReceiver && tab.pageId
-    && tab.modernObserver !== false && (!tab.observerVersion || tab.observerVersion === '0.1.7')
+    && tab.modernObserver !== false && (!tab.observerVersion || tab.observerVersion === CURRENT_VERSION)
     && providerUtils.routeForUrl(tab.url)).map(tab => registerTab(tab));
   await vm.runInContext('initialized', context);
   await Promise.all(initialRegistrations);
@@ -164,7 +216,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   }
   async function registerTab(tab, attemptId = null, patch = {}, senderPatch = {}) {
     const registered = await dispatch({ type: 'mori.observer.register', v: 1,
-      pageInstanceId: tab.pageId || `page-${tab.id}`, observerVersion: '0.1.7', attemptId, ...patch },
+      pageInstanceId: tab.pageId || `page-${tab.id}`, observerVersion: CURRENT_VERSION, attemptId, ...patch },
     { id: EXTENSION_ID, frameId: 0, documentId: tab.documentId || `document-${tab.id}`,
       documentLifecycle: 'active', url: tab.url, tab: { id: tab.id }, ...senderPatch });
     if (registered.ok) {

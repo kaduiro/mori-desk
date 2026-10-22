@@ -12,6 +12,14 @@
       label: "ブラウザ連携を準備中",
       detail: "Mori Desk の接続準備中です。クリックするとブラウザ連携画面を開きます。",
     }),
+    retrying: Object.freeze({
+      label: "ブラウザ接続先を再準備中",
+      detail: "この PC の接続先を自動で再試行しています。保存済みの通知は保持しています。",
+    }),
+    stopped: Object.freeze({
+      label: "ブラウザ連携は停止中",
+      detail: "Mori Desk のブラウザ連携は終了しています。",
+    }),
     pairing: Object.freeze({
       label: "Chrome と接続",
       detail: "ブラウザ連携画面で拡張機能を読み込み、接続コードでペアリングしてください。",

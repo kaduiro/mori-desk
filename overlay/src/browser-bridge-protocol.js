@@ -12,6 +12,10 @@ const SECRET = /^[A-Za-z0-9_-]{43}$/;
 const PHASES = new Set(["idle", "running", "settled"]);
 const OUTCOMES = new Set(["completed", "interrupted", "error", "unverified"]);
 const OBSERVATIONS = new Set(["fresh", "stale", "closed", "unsupported"]);
+const RESTART_HEALTH_CAPABILITY = "restart-health-v1";
+const HEALTH_REASONS = Object.freeze(["checking", "unconfirmed", "loading", "discarded", "frozen",
+  "permission_denied", "paused", "unsupported", "over_limit", "unavailable"]);
+const VERSION_TEXT = /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,31}$/;
 
 function protocolError(code, message = code) {
   const error = new Error(message);
@@ -102,6 +106,56 @@ function validateEvent(input) {
   return { ...input, conversationRef: normalizeConversationRef(input.provider, input.conversationRef) };
 }
 
+function validateDesktopBuild(input) {
+  assertKeys(input, ["desktopVersion", "buildId", "observerContract"]);
+  if (typeof input.desktopVersion !== "string" || !VERSION_TEXT.test(input.desktopVersion)
+    || typeof input.buildId !== "string" || !/^[a-f0-9]{64}$/.test(input.buildId)
+    || input.observerContract !== 1) throw protocolError("invalid_build");
+  return { desktopVersion: input.desktopVersion, buildId: input.buildId, observerContract: 1 };
+}
+
+function validateClientHealth(input) {
+  assertKeys(input, ["type", "v", "schema", "browserRunId", "workerEpoch", "sequence", "extensionVersion",
+    "observerVersion", "buildId", "observerContract", "providers", "delivery"]);
+  if (input.type !== "client.health" || input.v !== VERSION || input.schema !== 1
+    || !isId(input.browserRunId) || !isId(input.workerEpoch) || !isInteger(input.sequence, 1)
+    || typeof input.extensionVersion !== "string" || !VERSION_TEXT.test(input.extensionVersion)
+    || typeof input.observerVersion !== "string" || !VERSION_TEXT.test(input.observerVersion)
+    || typeof input.buildId !== "string" || !/^[a-f0-9]{64}$/.test(input.buildId) || input.observerContract !== 1
+    || !Array.isArray(input.providers) || input.providers.length !== 2) throw protocolError("invalid_health");
+  const providers = new Set();
+  let eligibleTotal = 0;
+  for (const row of input.providers) {
+    assertKeys(row, ["provider", "inventory", "discovered", "eligible", "admitted", "fresh", "unmonitored", "reasons"]);
+    if (!["chatgpt", "claude"].includes(row.provider) || providers.has(row.provider)
+      || !["known", "unknown"].includes(row.inventory)) throw protocolError("invalid_health");
+    providers.add(row.provider);
+    const counts = ["discovered", "eligible", "admitted", "fresh", "unmonitored"];
+    if (row.inventory === "unknown") {
+      if (counts.some(key => row[key] !== null) || row.reasons !== null) throw protocolError("invalid_health");
+      continue;
+    }
+    if (counts.some(key => !isInteger(row[key]) || row[key] > 100000)
+      || row.fresh > row.admitted || row.admitted > row.eligible || row.eligible > row.discovered
+      || row.unmonitored !== row.discovered - row.fresh) throw protocolError("invalid_health");
+    assertKeys(row.reasons, HEALTH_REASONS);
+    if (HEALTH_REASONS.some(key => !isInteger(row.reasons[key]) || row.reasons[key] > 100000)
+      || HEALTH_REASONS.reduce((sum, key) => sum + row.reasons[key], 0) !== row.unmonitored) throw protocolError("invalid_health");
+    eligibleTotal += row.eligible;
+  }
+  if (eligibleTotal > 20) throw protocolError("invalid_health");
+  const delivery = input.delivery;
+  assertKeys(delivery, ["state", "remainingReplay", "livePending", "reserveUsed"]);
+  if (!["unknown", "syncing", "current", "capacity_blocked"].includes(delivery.state)) throw protocolError("invalid_health");
+  for (const [key, max] of [["remainingReplay", 220], ["livePending", 220], ["reserveUsed", 20]]) {
+    if (delivery.state === "unknown" ? delivery[key] !== null : !isInteger(delivery[key]) || delivery[key] > max) {
+      throw protocolError("invalid_health");
+    }
+  }
+  if (delivery.state === "current" && delivery.remainingReplay !== 0) throw protocolError("invalid_health");
+  return structuredClone(input);
+}
+
 function decodeFrame(data, isBinary = false) {
   if (isBinary || Buffer.byteLength(data) > MAX_FRAME_BYTES) throw protocolError("invalid_frame");
   let input;
@@ -119,4 +173,5 @@ module.exports = {
   isId, isSecret, isInteger, isObject, isConversationMetadata, assertKeys, protocolError,
   authText, mac, verifyMac, validateHello, validateEvent,
   normalizeConversationRef, decodeFrame, desktopSessionId,
+  RESTART_HEALTH_CAPABILITY, HEALTH_REASONS, validateDesktopBuild, validateClientHealth,
 };

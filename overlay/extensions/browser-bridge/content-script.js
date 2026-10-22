@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (() => {
   'use strict';
-  const observerVersion = '0.1.7';
+  const observerVersion = '0.1.8';
   // Loading the packaged files has no observation side effects. Recovery must
   // explicitly start them with a worker-owned attempt ticket; a timed-out
   // executeScript(files) cannot later become an ordinary manifest start.
