@@ -1,0 +1,23 @@
+{
+  "scope": "Independent synthetic DOM/event model, not a browser or native IME test",
+  "sourceSha256": "b8d4ca0d91ae62b5c97bf9c86bf47966c4f3106c7b5590d995fb821c1fc37694",
+  "results": [
+    {
+      "name": "changed sole history ancestry",
+      "status": "PASS"
+    },
+    {
+      "name": "changed ancestry/focus/composition",
+      "status": "PASS"
+    },
+    {
+      "name": "changed async save/cross-row/failure/blank",
+      "status": "PASS"
+    },
+    {
+      "name": "baseline sensitivity",
+      "status": "PASS",
+      "detected": "sole history editor must keep every ancestor visible after reconnect\n\nfalse !== true\n"
+    }
+  ]
+}

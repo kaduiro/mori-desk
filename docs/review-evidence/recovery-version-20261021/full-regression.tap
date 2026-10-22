@@ -1,0 +1,1982 @@
+TAP version 13
+# Subtest: publication packets use exact Git blobs and preserve the disclosure boundary
+    # Subtest: replays binary/add/delete/mode changes into the exact tree without reading the dirty worktree
+    ok 1 - replays binary/add/delete/mode changes into the exact tree without reading the dirty worktree
+      ---
+      duration_ms: 182.922368
+      type: 'test'
+      ...
+    # Subtest: composes selected blobs from a private descendant without including its document changes or history
+    ok 2 - composes selected blobs from a private descendant without including its document changes or history
+      ---
+      duration_ms: 143.147311
+      type: 'test'
+      ...
+    # Subtest: rejects changed bytes, blob IDs, modes, mutable revisions, and a different expected tree
+    ok 3 - rejects changed bytes, blob IDs, modes, mutable revisions, and a different expected tree
+      ---
+      duration_ms: 574.867194
+      type: 'test'
+      ...
+    # Subtest: keeps known internal documents excluded even when the spec omits exclusions
+    ok 4 - keeps known internal documents excluded even when the spec omits exclusions
+      ---
+      duration_ms: 248.004434
+      type: 'test'
+      ...
+    # Subtest: uses the named Git objects even when the local repository has replace refs
+    ok 5 - uses the named Git objects even when the local repository has replace refs
+      ---
+      duration_ms: 153.609834
+      type: 'test'
+      ...
+    # Subtest: does not accept a self-declared approval or a different remote destination
+    ok 6 - does not accept a self-declared approval or a different remote destination
+      ---
+      duration_ms: 109.936758
+      type: 'test'
+      ...
+    # Subtest: preserves existing packets and rejects output inside the source repository
+    ok 7 - preserves existing packets and rejects output inside the source repository
+      ---
+      duration_ms: 105.985797
+      type: 'test'
+      ...
+    # Subtest: cannot write into Git metadata through a subdirectory or a linked worktree
+    ok 8 - cannot write into Git metadata through a subdirectory or a linked worktree
+      ---
+      duration_ms: 101.816035
+      type: 'test'
+      ...
+    1..8
+ok 1 - publication packets use exact Git blobs and preserve the disclosure boundary
+  ---
+  duration_ms: 1752.347263
+  type: 'test'
+  ...
+# Subtest: unchanged pinned inputs and overlay can start; unrelated documentation does not invalidate the build
+ok 2 - unchanged pinned inputs and overlay can start; unrelated documentation does not invalidate the build
+  ---
+  duration_ms: 17.396938
+  type: 'test'
+  ...
+# Subtest: pulling changed overlay with the same app/extension version blocks the old runtime without modifying it
+ok 3 - pulling changed overlay with the same app/extension version blocks the old runtime without modifying it
+  ---
+  duration_ms: 4.104116
+  type: 'test'
+  ...
+# Subtest: a changed patch and a missing legacy fingerprint both require a rebuild
+ok 4 - a changed patch and a missing legacy fingerprint both require a rebuild
+  ---
+  duration_ms: 4.707662
+  type: 'test'
+  ...
+# Subtest: a valid input stamp cannot hide a changed or missing runtime overlay file
+ok 5 - a valid input stamp cannot hide a changed or missing runtime overlay file
+  ---
+  duration_ms: 4.576975
+  type: 'test'
+  ...
+# Subtest: disk doctor separates matching files from unobserved live Chrome, desktop and provider behavior
+ok 6 - disk doctor separates matching files from unobserved live Chrome, desktop and provider behavior
+  ---
+  duration_ms: 29.940782
+  type: 'test'
+  ...
+# Subtest: doctor detects a different selected folder even when both manifest versions are identical
+ok 7 - doctor detects a different selected folder even when both manifest versions are identical
+  ---
+  duration_ms: 10.978461
+  type: 'test'
+  ...
+# Subtest: doctor reports unavailable runtime and missing selected files without auto repair
+ok 8 - doctor reports unavailable runtime and missing selected files without auto repair
+  ---
+  duration_ms: 7.065095
+  type: 'test'
+  ...
+# Subtest: doctor does not approve a runtime with an invalid product identity
+ok 9 - doctor does not approve a runtime with an invalid product identity
+  ---
+  duration_ms: 8.164726
+  type: 'test'
+  ...
+# Subtest: doctor reports a non-file manifest as unreadable without trying to parse it
+ok 10 - doctor reports a non-file manifest as unreadable without trying to parse it
+  ---
+  duration_ms: 10.705701
+  type: 'test'
+  ...
+# Subtest: mutual authentication binds direction, nonce, instance, server run, and actual port
+ok 11 - mutual authentication binds direction, nonce, instance, server run, and actual port
+  ---
+  duration_ms: 5.984924
+  type: 'test'
+  ...
+# Subtest: pairing is activated only after durable pending key and client confirmation
+ok 12 - pairing is activated only after durable pending key and client confirmation
+  ---
+  duration_ms: 6.010232
+  type: 'test'
+  ...
+# Subtest: saved pending credential resumes after app restart when the final pairing exchange was lost
+ok 13 - saved pending credential resumes after app restart when the final pairing exchange was lost
+  ---
+  duration_ms: 5.722069
+  type: 'test'
+  ...
+# Subtest: expired pairing code and wrong pairing port are rejected
+ok 14 - expired pairing code and wrong pairing port are rejected
+  ---
+  duration_ms: 1.601734
+  type: 'test'
+  ...
+# Subtest: OS key storage unavailable and Linux basic_text both fail closed
+ok 15 - OS key storage unavailable and Linux basic_text both fail closed
+  ---
+  duration_ms: 1.852565
+  type: 'test'
+  ...
+# Subtest: revoking a client invalidates a challenge already in progress
+ok 16 - revoking a client invalidates a challenge already in progress
+  ---
+  duration_ms: 5.824074
+  type: 'test'
+  ...
+# Subtest: browser event schema rejects conversation content and arbitrary URLs
+ok 17 - browser event schema rejects conversation content and arbitrary URLs
+  ---
+  duration_ms: 0.491757
+  type: 'test'
+  ...
+# Subtest: real loopback WebSocket pairs, persists completion, and returns to the exact tab
+ok 18 - real loopback WebSocket pairs, persists completion, and returns to the exact tab
+  ---
+  duration_ms: 47.746687
+  type: 'test'
+  ...
+# Subtest: authenticated short metadata persists before ACK and stays out of navigation requests
+ok 19 - authenticated short metadata persists before ACK and stays out of navigation requests
+  ---
+  duration_ms: 14.081831
+  type: 'test'
+  ...
+# Subtest: a newer completion racing the focus result remains unread
+ok 20 - a newer completion racing the focus result remains unread
+  ---
+  duration_ms: 26.18757
+  type: 'test'
+  ...
+# Subtest: page change during focus fails without clearing a receipt
+ok 21 - page change during focus fails without clearing a receipt
+  ---
+  duration_ms: 17.541988
+  type: 'test'
+  ...
+# Subtest: null captured notice never acknowledges a completion that arrives during focus
+ok 22 - null captured notice never acknowledges a completion that arrives during focus
+  ---
+  duration_ms: 13.049061
+  type: 'test'
+  ...
+# Subtest: missing or foreign Origin is rejected before WebSocket authentication
+ok 23 - missing or foreign Origin is rejected before WebSocket authentication
+  ---
+  duration_ms: 6.964092
+  type: 'test'
+  ...
+# Subtest: state events without a proven client never create a HUD session
+ok 24 - state events without a proven client never create a HUD session
+  ---
+  duration_ms: 5.256236
+  type: 'test'
+  ...
+# Subtest: disk failure sends an explicit error and no terminal ACK
+ok 25 - disk failure sends an explicit error and no terminal ACK
+  ---
+  duration_ms: 15.296507
+  type: 'test'
+  ...
+# Subtest: profile revocation closes its upgraded socket and removes its local rows
+ok 26 - profile revocation closes its upgraded socket and removes its local rows
+  ---
+  duration_ms: 12.814641
+  type: 'test'
+  ...
+# Subtest: passive smoke never mistakes an old fresh row for a new candidate observation
+ok 27 - passive smoke never mistakes an old fresh row for a new candidate observation
+  ---
+  duration_ms: 0.430253
+  type: 'test'
+  ...
+# Subtest: passive smoke latches transient idle acceptance even when a later diagnostic would see no row
+ok 28 - passive smoke latches transient idle acceptance even when a later diagnostic would see no row
+  ---
+  duration_ms: 0.157409
+  type: 'test'
+  ...
+# Subtest: passive smoke latches unsupported metadata even without a fresh observation timestamp
+ok 29 - passive smoke latches unsupported metadata even without a fresh observation timestamp
+  ---
+  duration_ms: 0.163258
+  type: 'test'
+  ...
+# Subtest: passive smoke records deadline arrival at the callback and does not upgrade a late result
+ok 30 - passive smoke records deadline arrival at the callback and does not upgrade a late result
+  ---
+  duration_ms: 0.149748
+  type: 'test'
+  ...
+# Subtest: passive smoke detects receipt replacement despite an unchanged count and a later restoration
+ok 31 - passive smoke detects receipt replacement despite an unchanged count and a later restoration
+  ---
+  duration_ms: 0.187005
+  type: 'test'
+  ...
+# Subtest: synthetic alternate controls create distinct HUD rows and one durable unverified receipt per observed turn
+ok 32 - synthetic alternate controls create distinct HUD rows and one durable unverified receipt per observed turn
+  ---
+  duration_ms: 34.746219
+  type: 'test'
+  ...
+# Subtest: synthetic alternate editor forms and short stop labels use fixed attributes without reading text
+ok 33 - synthetic alternate editor forms and short stop labels use fixed attributes without reading text
+  ---
+  duration_ms: 7.909398
+  type: 'test'
+  ...
+# Subtest: synthetic incomplete, ambiguous, or hidden alternate controls cannot start a HUD session
+ok 34 - synthetic incomplete, ambiguous, or hidden alternate controls cannot start a HUD session
+  ---
+  duration_ms: 5.134101
+  type: 'test'
+  ...
+# Subtest: synthetic alternate stop targeting excludes competing legacy controls and preserves an observed interruption
+ok 35 - synthetic alternate stop targeting excludes competing legacy controls and preserves an observed interruption
+  ---
+  duration_ms: 3.77739
+  type: 'test'
+  ...
+# Subtest: synthetic alternate controls remain constrained to allowed ChatGPT origins and conversation routes
+ok 36 - synthetic alternate controls remain constrained to allowed ChatGPT origins and conversation routes
+  ---
+  duration_ms: 0.314097
+  type: 'test'
+  ...
+# Subtest: synthetic alternate settlement rejects partial disappearance, lost editors, and ambiguity even with an assistant marker
+ok 37 - synthetic alternate settlement rejects partial disappearance, lost editors, and ambiguity even with an assistant marker
+  ---
+  duration_ms: 8.871604
+  type: 'test'
+  ...
+# Subtest: synthetic alternate reappearance and uncertainty restart the settlement debounce
+ok 38 - synthetic alternate reappearance and uncertainty restart the settlement debounce
+  ---
+  duration_ms: 0.66138
+  type: 'test'
+  ...
+# Subtest: synthetic legacy generations do not acquire alternate settlement eligibility in the middle of a turn
+ok 39 - synthetic legacy generations do not acquire alternate settlement eligibility in the middle of a turn
+  ---
+  duration_ms: 0.933608
+  type: 'test'
+  ...
+# Subtest: synthetic controller reset removes alternate eligibility and user interruption from the previous document
+ok 40 - synthetic controller reset removes alternate eligibility and user interruption from the previous document
+  ---
+  duration_ms: 0.792945
+  type: 'test'
+  ...
+# Subtest: fixed public key matches the desktop allowlist, and browser capabilities are narrow
+ok 41 - fixed public key matches the desktop allowlist, and browser capabilities are narrow
+  ---
+  duration_ms: 0.533961
+  type: 'test'
+  ...
+# Subtest: URL normalization rejects unrelated origins and strips query, fragment, and content
+ok 42 - URL normalization rejects unrelated origins and strips query, fragment, and content
+  ---
+  duration_ms: 0.310982
+  type: 'test'
+  ...
+# Subtest: scoped ChatGPT conversations keep only the canonical conversation ID in session storage and events
+ok 43 - scoped ChatGPT conversations keep only the canonical conversation ID in session storage and events
+  ---
+  duration_ms: 0.63144
+  type: 'test'
+  ...
+# Subtest: switching empty GPT/project scopes fences the old row without a completion or stored scope name
+ok 44 - switching empty GPT/project scopes fences the old row without a completion or stored scope name
+  ---
+  duration_ms: 0.604378
+  type: 'test'
+  ...
+# Subtest: cross-scope navigation to an existing conversation cannot inherit an unfinished null-ID turn
+ok 45 - cross-scope navigation to an existing conversation cannot inherit an unfinished null-ID turn
+  ---
+  duration_ms: 0.398445
+  type: 'test'
+  ...
+# Subtest: browser Web Crypto and Node backend use the same directional port-bound HMAC
+ok 46 - browser Web Crypto and Node backend use the same directional port-bound HMAC
+  ---
+  duration_ms: 12.462105
+  type: 'test'
+  ...
+# Subtest: pairing parser accepts only a short-lived MORI code on the bounded localhost ports
+ok 47 - pairing parser accepts only a short-lived MORI code on the bounded localhost ports
+  ---
+  duration_ms: 1.198601
+  type: 'test'
+  ...
+# Subtest: opening a completed historical conversation produces no terminal or new turn
+ok 48 - opening a completed historical conversation produces no terminal or new turn
+  ---
+  duration_ms: 0.391334
+  type: 'test'
+  ...
+# Subtest: stop disappearance is only an unverified candidate, and transient or unknown DOM never completes
+ok 49 - stop disappearance is only an unverified candidate, and transient or unknown DOM never completes
+  ---
+  duration_ms: 0.171981
+  type: 'test'
+  ...
+# Subtest: an observed trusted stop action stays distinct from an error or an uncertain end
+ok 50 - an observed trusted stop action stays distinct from an error or an uncertain end
+  ---
+  duration_ms: 0.114664
+  type: 'test'
+  ...
+# Subtest: two tabs of the same conversation have independent sessions and monotonic sequence numbers
+ok 51 - two tabs of the same conversation have independent sessions and monotonic sequence numbers
+  ---
+  duration_ms: 0.343282
+  type: 'test'
+  ...
+# Subtest: new conversation URL assignment retains a running session, while explicit navigation closes it without completion
+ok 52 - new conversation URL assignment retains a running session, while explicit navigation closes it without completion
+  ---
+  duration_ms: 0.468972
+  type: 'test'
+  ...
+# Subtest: reload and tab closure cannot manufacture a terminal event
+ok 53 - reload and tab closure cannot manufacture a terminal event
+  ---
+  duration_ms: 0.331934
+  type: 'test'
+  ...
+# Subtest: offline completion remains in a bounded durable outbox when the next turn starts
+ok 54 - offline completion remains in a bounded durable outbox when the next turn starts
+  ---
+  duration_ms: 0.738332
+  type: 'test'
+  ...
+# Subtest: outbox overflow is explicit and never discards an older receipt
+ok 55 - outbox overflow is explicit and never discards an older receipt
+  ---
+  duration_ms: 4.850479
+  type: 'test'
+  ...
+# Subtest: durable terminal journal recovers a failed session write without manufacturing a different duplicate
+ok 56 - durable terminal journal recovers a failed session write without manufacturing a different duplicate
+  ---
+  duration_ms: 0.833246
+  type: 'test'
+  ...
+# Subtest: focus accepts a running row with no notice and rejects another browser run, document, or route revision
+ok 57 - focus accepts a running row with no notice and rejects another browser run, document, or route revision
+  ---
+  duration_ms: 0.202458
+  type: 'test'
+  ...
+# Subtest: status detection stays text-free; only the metadata reader may inspect bounded authorized nodes
+ok 58 - status detection stays text-free; only the metadata reader may inspect bounded authorized nodes
+  ---
+  duration_ms: 0.791903
+  type: 'test'
+  ...
+# Subtest: idle title/preview updates retain the same tab identity across reload and reconnect
+ok 59 - idle title/preview updates retain the same tab identity across reload and reconnect
+  ---
+  duration_ms: 0.737671
+  type: 'test'
+  ...
+# Subtest: navigation creates an idle current row without copying the old conversation metadata or focus target
+ok 60 - navigation creates an idle current row without copying the old conversation metadata or focus target
+  ---
+  duration_ms: 0.528793
+  type: 'test'
+  ...
+# Subtest: legacy durable events retain their exact fields; malformed authorized metadata is rejected
+ok 61 - legacy durable events retain their exact fields; malformed authorized metadata is rejected
+  ---
+  duration_ms: 0.685642
+  type: 'test'
+  ...
+# Subtest: synthetic ChatGPT fixture tracks visible generation controls without reading the reply
+ok 62 - synthetic ChatGPT fixture tracks visible generation controls without reading the reply
+  ---
+  duration_ms: 2.552979
+  type: 'test'
+  ...
+# Subtest: synthetic Claude streaming attribute and stop control both indicate work, never proven completion
+ok 63 - synthetic Claude streaming attribute and stop control both indicate work, never proven completion
+  ---
+  duration_ms: 0.75659
+  type: 'test'
+  ...
+# Subtest: hidden controls, changed markup, and unsupported paths return unknown rather than a finish
+ok 64 - hidden controls, changed markup, and unsupported paths return unknown rather than a finish
+  ---
+  duration_ms: 0.573311
+  type: 'test'
+  ...
+# Subtest: synthetic scoped ChatGPT text conversations use the same controls; an empty scope requires its text composer
+ok 65 - synthetic scoped ChatGPT text conversations use the same controls; an empty scope requires its text composer
+  ---
+  duration_ms: 0.641224
+  type: 'test'
+  ...
+# Subtest: confirmed protocol boundary rotates empty scopes, retains proved assignment, and gates focus with the lease
+ok 66 - confirmed protocol boundary rotates empty scopes, retains proved assignment, and gates focus with the lease
+  ---
+  duration_ms: 8.873643
+  type: 'test'
+  ...
+# Subtest: a busy change beside main starts an alternate session through the mutation debounce, before the heartbeat
+ok 67 - a busy change beside main starts an alternate session through the mutation debounce, before the heartbeat
+  ---
+  duration_ms: 2.52096
+  type: 'test'
+  ...
+# Subtest: an idle title/request update is published through the mutation debounce without inventing a generation
+ok 68 - an idle title/request update is published through the mutation debounce without inventing a generation
+  ---
+  duration_ms: 4.396129
+  type: 'test'
+  ...
+# Subtest: SPA navigation quarantines lingering A generation controls so idle B never inherits a turn or terminal
+ok 69 - SPA navigation quarantines lingering A generation controls so idle B never inherits a turn or terminal
+  ---
+  duration_ms: 2.90259
+  type: 'test'
+  ...
+# Subtest: SPA navigation permits a real B generation when its controls are new, without inheriting A token
+ok 70 - SPA navigation permits a real B generation when its controls are new, without inheriting A token
+  ---
+  duration_ms: 1.569495
+  type: 'test'
+  ...
+# Subtest: same-scope new-chat navigation via trusted-link cannot be mistaken for a newly assigned conversation
+ok 71 - same-scope new-chat navigation via trusted-link cannot be mistaken for a newly assigned conversation
+  ---
+  duration_ms: 2.699792
+  type: 'test'
+  ...
+# Subtest: same-scope new-chat navigation via popstate cannot be mistaken for a newly assigned conversation
+ok 72 - same-scope new-chat navigation via popstate cannot be mistaken for a newly assigned conversation
+  ---
+  duration_ms: 2.599525
+  type: 'test'
+  ...
+# Subtest: same-scope new-chat navigation via known-existing-link cannot be mistaken for a newly assigned conversation
+ok 73 - same-scope new-chat navigation via known-existing-link cannot be mistaken for a newly assigned conversation
+  ---
+  duration_ms: 2.621863
+  type: 'test'
+  ...
+# Subtest: new server-assigned conversation ID retains the running turn even if its new history link renders first
+ok 74 - new server-assigned conversation ID retains the running turn even if its new history link renders first
+  ---
+  duration_ms: 2.563885
+  type: 'test'
+  ...
+# Subtest: invalidated content runtime stops observation after a sync API failure without uncaught errors or repeated sends
+ok 75 - invalidated content runtime stops observation after a sync API failure without uncaught errors or repeated sends
+  ---
+  duration_ms: 6.468758
+  type: 'test'
+  ...
+# Subtest: invalidated content runtime stops observation after a async API failure without uncaught errors or repeated sends
+ok 76 - invalidated content runtime stops observation after a async API failure without uncaught errors or repeated sends
+  ---
+  duration_ms: 2.4616
+  type: 'test'
+  ...
+# Subtest: temporary content message failures preserve the observer and recover on the next poll
+ok 77 - temporary content message failures preserve the observer and recover on the next poll
+  ---
+  duration_ms: 2.476352
+  type: 'test'
+  ...
+# Subtest: health preserves the running DOM state but reports a rejected document receipt and recovers without broadening identity
+ok 78 - health preserves the running DOM state but reports a rejected document receipt and recovers without broadening identity
+  ---
+  duration_ms: 2.278762
+  type: 'test'
+  ...
+# Subtest: health binds its receipt to its own observation even when the replies arrive out of order
+ok 79 - health binds its receipt to its own observation even when the replies arrive out of order
+  ---
+  duration_ms: 2.03336
+  type: 'test'
+  ...
+# Subtest: health distinguishes missing worker receipts from acceptance and never exposes exception text
+ok 80 - health distinguishes missing worker receipts from acceptance and never exposes exception text
+  ---
+  duration_ms: 3.121423
+  type: 'test'
+  ...
+# Subtest: a missing extension runtime ID stops the observer before another API call
+ok 81 - a missing extension runtime ID stops the observer before another API call
+  ---
+  duration_ms: 1.345464
+  type: 'test'
+  ...
+# Subtest: reinjection preserves a healthy observer, its running identity, timers, and unfinished input
+ok 82 - reinjection preserves a healthy observer, its running identity, timers, and unfinished input
+  ---
+  duration_ms: 2.344021
+  type: 'test'
+  ...
+# Subtest: a stopped observer or orphaned 0.1.5 boolean guard can recover without reload or a fabricated completion
+ok 83 - a stopped observer or orphaned 0.1.5 boolean guard can recover without reload or a fabricated completion
+  ---
+  duration_ms: 4.555501
+  type: 'test'
+  ...
+# Subtest: a health reply retains the sampled page identity when a same-document route changes before its receipt
+ok 84 - a health reply retains the sampled page identity when a same-document route changes before its receipt
+  ---
+  duration_ms: 3.109014
+  type: 'test'
+  ...
+# Subtest: production binding stays quarantined across install, health, timer, mutation and route changes
+ok 85 - production binding stays quarantined across install, health, timer, mutation and route changes
+  ---
+  duration_ms: 2.378093
+  type: 'test'
+  ...
+# Subtest: delayed packaged-file loading alone cannot install an unticketed observer
+ok 86 - delayed packaged-file loading alone cannot install an unticketed observer
+  ---
+  duration_ms: 2.037285
+  type: 'test'
+  ...
+# Subtest: lease loss breaks generation continuity while worker-only renewal preserves continuously sampled work
+ok 87 - lease loss breaks generation continuity while worker-only renewal preserves continuously sampled work
+  ---
+  duration_ms: 861.826517
+  type: 'test'
+  ...
+# Subtest: metadata normalization bounds UTF-16 without breaking emoji and removes whitespace/control/bidi
+ok 88 - metadata normalization bounds UTF-16 without breaking emoji and removes whitespace/control/bidi
+  ---
+  duration_ms: 0.700358
+  type: 'test'
+  ...
+# Subtest: observation accepts only the two authorized normalized metadata strings and legacy omissions
+ok 89 - observation accepts only the two authorized normalized metadata strings and legacy omissions
+  ---
+  duration_ms: 0.301495
+  type: 'test'
+  ...
+# Subtest: title uses the exact canonical history route; preview reads only the latest submitted USER text
+ok 90 - title uses the exact canonical history route; preview reads only the latest submitted USER text
+  ---
+  duration_ms: 1.442959
+  type: 'test'
+  ...
+# Subtest: a quoted conversation link is not a title; hidden/edited messages and assistant text are not previews
+ok 91 - a quoted conversation link is not a title; hidden/edited messages and assistant text are not previews
+  ---
+  duration_ms: 0.38393
+  type: 'test'
+  ...
+# Subtest: paragraphs and line breaks in the latest submitted request become a single readable line
+ok 92 - paragraphs and line breaks in the latest submitted request become a single readable line
+  ---
+  duration_ms: 0.197348
+  type: 'test'
+  ...
+# Subtest: SPA A to B blanks A preview even when its old DOM remains, while the B title binds to its own link
+ok 93 - SPA A to B blanks A preview even when its old DOM remains, while the B title binds to its own link
+  ---
+  duration_ms: 0.858016
+  type: 'test'
+  ...
+# Subtest: rapid SPA switches and missing titles never inherit an old title or request
+ok 94 - rapid SPA switches and missing titles never inherit an old title or request
+  ---
+  duration_ms: 0.388367
+  type: 'test'
+  ...
+# Subtest: a new ID assigned to the observed running conversation retains its submitted request
+ok 95 - a new ID assigned to the observed running conversation retains its submitted request
+  ---
+  duration_ms: 0.41394
+  type: 'test'
+  ...
+# Subtest: Claude uses its submitted user-message marker and exact chat history link
+ok 96 - Claude uses its submitted user-message marker and exact chat history link
+  ---
+  duration_ms: 0.235245
+  type: 'test'
+  ...
+# Subtest: options distinguishes desktop communication from recovered page monitoring and keeps delivery evidence separate
+ok 97 - options distinguishes desktop communication from recovered page monitoring and keeps delivery evidence separate
+  ---
+  duration_ms: 4.382911
+  type: 'test'
+  ...
+# Subtest: permission and unavailable recovery capabilities have actionable guidance without directing a page reload
+ok 98 - permission and unavailable recovery capabilities have actionable guidance without directing a page reload
+  ---
+  duration_ms: 2.247435
+  type: 'test'
+  ...
+# Subtest: zero visible tabs and site access counts do not imply there are no AI tabs or that a responding observer is blocked
+ok 99 - zero visible tabs and site access counts do not imply there are no AI tabs or that a responding observer is blocked
+  ---
+  duration_ms: 1.162607
+  type: 'test'
+  ...
+# Subtest: paused, resting, loading and temporary recovery waits have distinct explanations and do not request F5
+ok 100 - paused, resting, loading and temporary recovery waits have distinct explanations and do not request F5
+  ---
+  duration_ms: 9.012544
+  type: 'test'
+  ...
+# Subtest: failed repair offers reload only as a last resort after generation and draft protection
+ok 101 - failed repair offers reload only as a last resort after generation and draft protection
+  ---
+  duration_ms: 2.913912
+  type: 'test'
+  ...
+# Subtest: older count-only responses remain readable and needsReload alone never becomes a blanket reload instruction
+ok 102 - older count-only responses remain readable and needsReload alone never becomes a blanket reload instruction
+  ---
+  duration_ms: 1.293193
+  type: 'test'
+  ...
+# Subtest: diagnostic reason rendering never exposes raw unknown text or interprets it as markup
+ok 103 - diagnostic reason rendering never exposes raw unknown text or interprets it as markup
+  ---
+  duration_ms: 0.930285
+  type: 'test'
+  ...
+# Subtest: a pending diagnostic cannot be duplicated and retry or pairing does not claim page reload is required
+ok 104 - a pending diagnostic cannot be duplicated and retry or pairing does not claim page reload is required
+  ---
+  duration_ms: 1.678295
+  type: 'test'
+  ...
+# Subtest: query faults remain distinct from storage faults and keep permitted recovery actions available
+ok 105 - query faults remain distinct from storage faults and keep permitted recovery actions available
+  ---
+  duration_ms: 4.754141
+  type: 'test'
+  ...
+# Subtest: unconfirmed conversation binding is not a recovered observer or an invitation to repeat F5
+ok 106 - unconfirmed conversation binding is not a recovered observer or an invitation to repeat F5
+  ---
+  duration_ms: 1.108184
+  type: 'test'
+  ...
+# Subtest: missing or malformed observers recover through a fixed top-frame probe and exact-document packaged bundle
+ok 107 - missing or malformed observers recover through a fixed top-frame probe and exact-document packaged bundle
+  ---
+  duration_ms: 5.187395
+  type: 'test'
+  ...
+# Subtest: admitted current observers are not injected, and liveness timeouts remain deferred
+ok 108 - admitted current observers are not injected, and liveness timeouts remain deferred
+  ---
+  duration_ms: 0.45051
+  type: 'test'
+  ...
+# Subtest: legacy and version-mismatched observers are replaced by the packaged installer and registered start
+ok 109 - legacy and version-mismatched observers are replaced by the packaged installer and registered start
+  ---
+  duration_ms: 3.125481
+  type: 'test'
+  ...
+# Subtest: paused, unpaired, fail-closed, loading, discarded, frozen and unsupported pages are never injected
+ok 110 - paused, unpaired, fail-closed, loading, discarded, frozen and unsupported pages are never injected
+  ---
+  duration_ms: 0.395838
+  type: 'test'
+  ...
+# Subtest: overlapping retries coalesce per tab and repeated failures obey a 30-second cooldown
+ok 111 - overlapping retries coalesce per tab and repeated failures obey a 30-second cooldown
+  ---
+  duration_ms: 8.624777
+  type: 'test'
+  ...
+# Subtest: automatic recovery has at most 20 pending tabs and 20 attempts per cooldown window
+ok 112 - automatic recovery has at most 20 pending tabs and 20 attempts per cooldown window
+  ---
+  duration_ms: 32.007949
+  type: 'test'
+  ...
+# Subtest: pause, unpair, fail-closed and route changes during preflight stop before bundle injection
+ok 113 - pause, unpair, fail-closed and route changes during preflight stop before bundle injection
+  ---
+  duration_ms: 2.545235
+  type: 'test'
+  ...
+# Subtest: same-URL replacement cannot receive a bundle aimed at the old document or count as recovered
+ok 114 - same-URL replacement cannot receive a bundle aimed at the old document or count as recovered
+  ---
+  duration_ms: 1.772026
+  type: 'test'
+  ...
+# Subtest: navigation invalidation and pause after injection cannot report a restored observer
+ok 115 - navigation invalidation and pause after injection cannot report a restored observer
+  ---
+  duration_ms: 1.262607
+  type: 'test'
+  ...
+# Subtest: withheld persistent permission is not an injection gate; failures and error prose remain fixed categories
+ok 116 - withheld persistent permission is not an injection gate; failures and error prose remain fixed categories
+  ---
+  duration_ms: 1.97243
+  type: 'test'
+  ...
+# Subtest: missing scripting support and a bundle that cannot restore messaging are explicit failures
+ok 117 - missing scripting support and a bundle that cannot restore messaging are explicit failures
+  ---
+  duration_ms: 1.813128
+  type: 'test'
+  ...
+# Subtest: a live but unconfirmed binding is deferred and never counted as observer recovery success
+ok 118 - a live but unconfirmed binding is deferred and never counted as observer recovery success
+  ---
+  duration_ms: 1.962624
+  type: 'test'
+  ...
+# Subtest: worker restart renews the existing confirmed owner without loading a second bundle
+ok 119 - worker restart renews the existing confirmed owner without loading a second bundle
+  ---
+  duration_ms: 1.702833
+  type: 'test'
+  ...
+# Subtest: installer loading is passive and the separately serialized start carries the exact attempt ticket
+ok 120 - installer loading is passive and the separately serialized start carries the exact attempt ticket
+  ---
+  duration_ms: 1.686037
+  type: 'test'
+  ...
+# Subtest: an elapsed attempt or invalidation before start cannot restore the observer
+ok 121 - an elapsed attempt or invalidation before start cannot restore the observer
+  ---
+  duration_ms: 2.987273
+  type: 'test'
+  ...
+# Subtest: extension transport pairs against the real backend, then reconnects with the saved derived key
+ok 122 - extension transport pairs against the real backend, then reconnects with the saved derived key
+  ---
+  duration_ms: 19.219668
+  type: 'test'
+  ...
+# Subtest: a failed extension credential write never sends pair.confirm or reports ready
+ok 123 - a failed extension credential write never sends pair.confirm or reports ready
+  ---
+  duration_ms: 13.083363
+  type: 'test'
+  ...
+# Subtest: real metadata terminal ACK and focus round-trip do not need any input or approval capability
+ok 124 - real metadata terminal ACK and focus round-trip do not need any input or approval capability
+  ---
+  duration_ms: 94.752407
+  type: 'test'
+  ...
+# Subtest: automatic reconnect calls from observations respect the pending exponential backoff
+ok 125 - automatic reconnect calls from observations respect the pending exponential backoff
+  ---
+  duration_ms: 2.716954
+  type: 'test'
+  ...
+# Subtest: explicit retry cancels the pending wait and coalesces concurrent connection attempts
+ok 126 - explicit retry cancels the pending wait and coalesces concurrent connection attempts
+  ---
+  duration_ms: 0.993661
+  type: 'test'
+  ...
+# Subtest: explicit retry does not bypass paused, pairing or unpaired states
+ok 127 - explicit retry does not bypass paused, pairing or unpaired states
+  ---
+  duration_ms: 0.380735
+  type: 'test'
+  ...
+# Subtest: resumption still finds a moved desktop port and authenticates its saved key
+ok 128 - resumption still finds a moved desktop port and authenticates its saved key
+  ---
+  duration_ms: 10.783804
+  type: 'test'
+  ...
+# Subtest: a late credential-save completion cannot report connected after monitoring is paused
+ok 129 - a late credential-save completion cannot report connected after monitoring is paused
+  ---
+  duration_ms: 2.292843
+  type: 'test'
+  ...
+# Subtest: an expired authentication cannot become ready when its delayed save completes
+ok 130 - an expired authentication cannot become ready when its delayed save completes
+  ---
+  duration_ms: 1.37722
+  type: 'test'
+  ...
+# Subtest: a replaced socket cannot publish ready over its authenticated replacement
+ok 131 - a replaced socket cannot publish ready over its authenticated replacement
+  ---
+  duration_ms: 2.062636
+  type: 'test'
+  ...
+# Subtest: a current delayed credential save still completes authentication exactly once
+ok 132 - a current delayed credential save still completes authentication exactly once
+  ---
+  duration_ms: 1.214975
+  type: 'test'
+  ...
+# Subtest: pausing from the connected status callback stops readiness and still permits a later connection
+ok 133 - pausing from the connected status callback stops readiness and still permits a later connection
+  ---
+  duration_ms: 2.156086
+  type: 'test'
+  ...
+# Subtest: an obsolete pair completion cannot release the current pair exclusion
+ok 134 - an obsolete pair completion cannot release the current pair exclusion
+  ---
+  duration_ms: 1.094212
+  type: 'test'
+  ...
+# Subtest: worker rejects forged sources and old documents; only metadata reaches storage and the wire
+ok 135 - worker rejects forged sources and old documents; only metadata reaches storage and the wire
+  ---
+  duration_ms: 8.567923
+  type: 'test'
+  ...
+# Subtest: initialization remains usable after a browser query sync-throw, and the alarm retries automatically
+ok 136 - initialization remains usable after a browser query sync-throw, and the alarm retries automatically
+  ---
+  duration_ms: 3.91234
+  type: 'test'
+  ...
+# Subtest: initialization remains usable after a browser query reject, and the alarm retries automatically
+ok 137 - initialization remains usable after a browser query reject, and the alarm retries automatically
+  ---
+  duration_ms: 3.420257
+  type: 'test'
+  ...
+# Subtest: initialization remains usable after a browser query timeout, and the alarm retries automatically
+ok 138 - initialization remains usable after a browser query timeout, and the alarm retries automatically
+  ---
+  duration_ms: 4.32922
+  type: 'test'
+  ...
+# Subtest: initialization remains usable after a browser query late-resolve, and the alarm retries automatically
+ok 139 - initialization remains usable after a browser query late-resolve, and the alarm retries automatically
+  ---
+  duration_ms: 4.158691
+  type: 'test'
+  ...
+# Subtest: a browser alarm error is not a storage failure and does not block current observations
+ok 140 - a browser alarm error is not a storage failure and does not block current observations
+  ---
+  duration_ms: 4.004209
+  type: 'test'
+  ...
+# Subtest: an actual local.get initialization failure remains fatal
+ok 141 - an actual local.get initialization failure remains fatal
+  ---
+  duration_ms: 2.600278
+  type: 'test'
+  ...
+# Subtest: an actual session.get initialization failure remains fatal
+ok 142 - an actual session.get initialization failure remains fatal
+  ---
+  duration_ms: 2.064498
+  type: 'test'
+  ...
+# Subtest: an actual session.set initialization failure remains fatal
+ok 143 - an actual session.set initialization failure remains fatal
+  ---
+  duration_ms: 2.290695
+  type: 'test'
+  ...
+# Subtest: old reconciliation results do not close newly observed tabs or updated records
+ok 144 - old reconciliation results do not close newly observed tabs or updated records
+  ---
+  duration_ms: 6.172043
+  type: 'test'
+  ...
+# Subtest: a permission-filtered absence or failed query cannot close a still-existing physical tab
+ok 145 - a permission-filtered absence or failed query cannot close a still-existing physical tab
+  ---
+  duration_ms: 4.013072
+  type: 'test'
+  ...
+# Subtest: storage failure while closing an absent tab remains fatal with its durable receipt retained
+ok 146 - storage failure while closing an absent tab remains fatal with its durable receipt retained
+  ---
+  duration_ms: 4.434709
+  type: 'test'
+  ...
+# Subtest: a query started before pause cannot inject after pause completes
+ok 147 - a query started before pause cannot inject after pause completes
+  ---
+  duration_ms: 4.334307
+  type: 'test'
+  ...
+# Subtest: worker does not acknowledge stale or duplicate observations as newly accepted
+ok 148 - worker does not acknowledge stale or duplicate observations as newly accepted
+  ---
+  duration_ms: 5.284513
+  type: 'test'
+  ...
+# Subtest: worker binds authorized idle metadata to the current route and rejects the old focus target after navigation
+ok 149 - worker binds authorized idle metadata to the current route and rejects the old focus target after navigation
+  ---
+  duration_ms: 6.103229
+  type: 'test'
+  ...
+# Subtest: navigation during the current-document reply cannot commit stale title or preview
+ok 150 - navigation during the current-document reply cannot commit stale title or preview
+  ---
+  duration_ms: 3.09152
+  type: 'test'
+  ...
+# Subtest: worker restart and page reload reuse the idle tab session within the same browser run
+ok 151 - worker restart and page reload reuse the idle tab session within the same browser run
+  ---
+  duration_ms: 17.398752
+  type: 'test'
+  ...
+# Subtest: worker returns a capacity refusal for the new tab instead of claiming its observation was accepted
+ok 152 - worker returns a capacity refusal for the new tab instead of claiming its observation was accepted
+  ---
+  duration_ms: 23.220376
+  type: 'test'
+  ...
+# Subtest: worker writes the offline terminal before sending, replays it before the next turn, and removes only its ACK
+ok 153 - worker writes the offline terminal before sending, replays it before the next turn, and removes only its ACK
+  ---
+  duration_ms: 5.623073
+  type: 'test'
+  ...
+# Subtest: observations and reconnect alarms do not request an immediate retry; page scripts cannot force it
+ok 154 - observations and reconnect alarms do not request an immediate retry; page scripts cannot force it
+  ---
+  duration_ms: 4.617095
+  type: 'test'
+  ...
+# Subtest: worker revalidates after focusing; navigation during the window API cannot acknowledge a notice
+ok 155 - worker revalidates after focusing; navigation during the window API cannot acknowledge a notice
+  ---
+  duration_ms: 4.354548
+  type: 'test'
+  ...
+# Subtest: worker accepts a scoped ChatGPT conversation and focuses its canonical ID without storing its name
+ok 156 - worker accepts a scoped ChatGPT conversation and focuses its canonical ID without storing its name
+  ---
+  duration_ms: 3.57462
+  type: 'test'
+  ...
+# Subtest: options health reports metadata-only counts for reload, route, unknown, idle, running, and settled pages
+ok 157 - options health reports metadata-only counts for reload, route, unknown, idle, running, and settled pages
+  ---
+  duration_ms: 8.907846
+  type: 'test'
+  ...
+# Subtest: health cannot report accepted generation when the worker rejects the current document; a valid observation recovers
+ok 158 - health cannot report accepted generation when the worker rejects the current document; a valid observation recovers
+  ---
+  duration_ms: 5.64692
+  type: 'test'
+  ...
+# Subtest: health projects only fixed receipt codes and treats a missing receipt as unconfirmed
+ok 159 - health projects only fixed receipt codes and treats a missing receipt as unconfirmed
+  ---
+  duration_ms: 3.966652
+  type: 'test'
+  ...
+# Subtest: options health bounds probes at 20 and treats navigation or an old observer as unverified
+ok 160 - options health bounds probes at 20 and treats navigation or an old observer as unverified
+  ---
+  duration_ms: 16.290288
+  type: 'test'
+  ...
+# Subtest: options health remains available when monitoring is paused or this Chrome profile is unpaired
+ok 161 - options health remains available when monitoring is paused or this Chrome profile is unpaired
+  ---
+  duration_ms: 14.51796
+  type: 'test'
+  ...
+# Subtest: diagnostics repair a missing observer in place and independently verify its receipt without finishing the lost turn
+ok 162 - diagnostics repair a missing observer in place and independently verify its receipt without finishing the lost turn
+  ---
+  duration_ms: 5.35535
+  type: 'test'
+  ...
+# Subtest: startup automatically restores a missing observer without a page reload
+ok 163 - startup automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 2.97897
+  type: 'test'
+  ...
+# Subtest: update automatically restores a missing observer without a page reload
+ok 164 - update automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 3.723315
+  type: 'test'
+  ...
+# Subtest: alarm automatically restores a missing observer without a page reload
+ok 165 - alarm automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 3.636292
+  type: 'test'
+  ...
+# Subtest: reconnect automatically restores a missing observer without a page reload
+ok 166 - reconnect automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 2.815393
+  type: 'test'
+  ...
+# Subtest: retry automatically restores a missing observer without a page reload
+ok 167 - retry automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 6.625147
+  type: 'test'
+  ...
+# Subtest: load-complete automatically restores a missing observer without a page reload
+ok 168 - load-complete automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 3.634731
+  type: 'test'
+  ...
+# Subtest: thaw automatically restores a missing observer without a page reload
+ok 169 - thaw automatically restores a missing observer without a page reload
+  ---
+  duration_ms: 4.487623
+  type: 'test'
+  ...
+# Subtest: worker initialization repairs an old existing tab without waiting for an observation ACK
+ok 170 - worker initialization repairs an old existing tab without waiting for an observation ACK
+  ---
+  duration_ms: 2.334977
+  type: 'test'
+  ...
+# Subtest: automatic checks and manual diagnostics coalesce, while dead paused/unpaired tabs remain untouched
+ok 171 - automatic checks and manual diagnostics coalesce, while dead paused/unpaired tabs remain untouched
+  ---
+  duration_ms: 8.195859
+  type: 'test'
+  ...
+# Subtest: health rejects a same-URL replacement during the reply instead of counting an old accepted document
+ok 172 - health rejects a same-URL replacement during the reply instead of counting an old accepted document
+  ---
+  duration_ms: 2.692337
+  type: 'test'
+  ...
+# Subtest: site access diagnostics are two fixed permission counts, independent of visible tab count
+ok 173 - site access diagnostics are two fixed permission counts, independent of visible tab count
+  ---
+  duration_ms: 2.613167
+  type: 'test'
+  ...
+# Subtest: registration has a strict schema and a first observation cannot bypass its worker-issued lease
+ok 174 - registration has a strict schema and a first observation cannot bypass its worker-issued lease
+  ---
+  duration_ms: 3.467648
+  type: 'test'
+  ...
+# Subtest: bootstrap response and a current page ID cannot authorize an unconfirmed conversation or focus
+ok 175 - bootstrap response and a current page ID cannot authorize an unconfirmed conversation or focus
+  ---
+  duration_ms: 4.088195
+  type: 'test'
+  ...
+# Subtest: pause blocks new admissions immediately even while an earlier options health call is pending
+ok 176 - pause blocks new admissions immediately even while an earlier options health call is pending
+  ---
+  duration_ms: 3.491254
+  type: 'test'
+  ...
+# Subtest: pause rejects an observation returning from a pre-commit identity probe
+ok 177 - pause rejects an observation returning from a pre-commit identity probe
+  ---
+  duration_ms: 4.649164
+  type: 'test'
+  ...
+# Subtest: pause waits for a terminal commit already writing its durable receipt
+ok 178 - pause waits for a terminal commit already writing its durable receipt
+  ---
+  duration_ms: 4.93229
+  type: 'test'
+  ...
+# Subtest: unpair blocks new admissions immediately even while an earlier options health call is pending
+ok 179 - unpair blocks new admissions immediately even while an earlier options health call is pending
+  ---
+  duration_ms: 3.734912
+  type: 'test'
+  ...
+# Subtest: unpair rejects an observation returning from a pre-commit identity probe
+ok 180 - unpair rejects an observation returning from a pre-commit identity probe
+  ---
+  duration_ms: 2.604664
+  type: 'test'
+  ...
+# Subtest: unpair waits for a terminal commit already writing its durable receipt
+ok 181 - unpair waits for a terminal commit already writing its durable receipt
+  ---
+  duration_ms: 2.797305
+  type: 'test'
+  ...
+# Subtest: a late transport ACK cannot write back or resend after unpair succeeds
+ok 182 - a late transport ACK cannot write back or resend after unpair succeeds
+  ---
+  duration_ms: 3.823065
+  type: 'test'
+  ...
+# Subtest: reconciliation rechecks admission between individual closed-record commits
+ok 183 - reconciliation rechecks admission between individual closed-record commits
+  ---
+  duration_ms: 3.428148
+  type: 'test'
+  ...
+# Subtest: a bundle resolving after its four-second timeout cannot authorize late observation
+ok 184 - a bundle resolving after its four-second timeout cannot authorize late observation
+  ---
+  duration_ms: 11.573412
+  type: 'test'
+  ...
+# Subtest: a start resolving after its four-second timeout cannot authorize late observation
+ok 185 - a start resolving after its four-second timeout cannot authorize late observation
+  ---
+  duration_ms: 3.738116
+  type: 'test'
+  ...
+# Subtest: a granted-start resolving after its four-second timeout cannot authorize late observation
+ok 186 - a granted-start resolving after its four-second timeout cannot authorize late observation
+  ---
+  duration_ms: 3.400697
+  type: 'test'
+  ...
+# Subtest: worker renewal changes the grant epoch without inventing a new turn for a continuous observer
+ok 187 - worker renewal changes the grant epoch without inventing a new turn for a continuous observer
+  ---
+  duration_ms: 5.996387
+  type: 'test'
+  ...
+# Subtest: a delayed start is refused after pause, even when Chrome eventually executes its fixed function
+ok 188 - a delayed start is refused after pause, even when Chrome eventually executes its fixed function
+  ---
+  duration_ms: 3.007253
+  type: 'test'
+  ...
+# Subtest: a delayed start is refused after unpair, even when Chrome eventually executes its fixed function
+ok 189 - a delayed start is refused after unpair, even when Chrome eventually executes its fixed function
+  ---
+  duration_ms: 2.690414
+  type: 'test'
+  ...
+# Subtest: a delayed start is refused after navigation, even when Chrome eventually executes its fixed function
+ok 190 - a delayed start is refused after navigation, even when Chrome eventually executes its fixed function
+  ---
+  duration_ms: 3.173203
+  type: 'test'
+  ...
+# Subtest: a delayed start is refused after replacement, even when Chrome eventually executes its fixed function
+ok 191 - a delayed start is refused after replacement, even when Chrome eventually executes its fixed function
+  ---
+  duration_ms: 2.447037
+  type: 'test'
+  ...
+# Subtest: attempts expire before timeout diagnosis, even if the diagnostic tab lookup hangs
+ok 192 - attempts expire before timeout diagnosis, even if the diagnostic tab lookup hangs
+  ---
+  duration_ms: 5.022997
+  type: 'test'
+  ...
+# Subtest: an expired old start cannot revoke a newer owner that already received a valid grant
+ok 193 - an expired old start cannot revoke a newer owner that already received a valid grant
+  ---
+  duration_ms: 3.710815
+  type: 'test'
+  ...
+# Subtest: the final focus reply cannot acknowledge A after its tab changes to B while the reply is in flight
+ok 194 - the final focus reply cannot acknowledge A after its tab changes to B while the reply is in flight
+  ---
+  duration_ms: 2.870806
+  type: 'test'
+  ...
+# Subtest: resuming after a tab closed during pause eventually closes only that physical session
+ok 195 - resuming after a tab closed during pause eventually closes only that physical session
+  ---
+  duration_ms: 3.617304
+  type: 'test'
+  ...
+# Subtest: the automatic alarm reconciles a physically absent saved tab after startup enumeration failed
+ok 196 - the automatic alarm reconciles a physically absent saved tab after startup enumeration failed
+  ---
+  duration_ms: 4.210059
+  type: 'test'
+  ...
+# Subtest: registration schema requires the version, an explicit ticket origin, and no extra fields
+ok 197 - registration schema requires the version, an explicit ticket origin, and no extra fields
+  ---
+  duration_ms: 0.215195
+  type: 'test'
+  ...
+# Subtest: bootstrap schema cannot turn an unconfirmed binding, inconsistent route or epoch into an admitted identity
+ok 198 - bootstrap schema cannot turn an unconfirmed binding, inconsistent route or epoch into an admitted identity
+  ---
+  duration_ms: 0.36368
+  type: 'test'
+  ...
+# Subtest: observation projects all three lease fields together and never forwards arbitrary fields
+ok 199 - observation projects all three lease fields together and never forwards arbitrary fields
+  ---
+  duration_ms: 0.161053
+  type: 'test'
+  ...
+# Subtest: production verifier never treats URL, fake DOM attributes, or elapsed samples as conversation proof
+ok 200 - production verifier never treats URL, fake DOM attributes, or elapsed samples as conversation proof
+  ---
+  duration_ms: 1.95941
+  type: 'test'
+  ...
+# Subtest: independent acceptance oracle remains the pre-source frozen version
+ok 201 - independent acceptance oracle remains the pre-source frozen version
+  ---
+  duration_ms: 0.60888
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+ok 202 - I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 10.548254
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+ok 203 - I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 4.982106
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+ok 204 - I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 4.360447
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+ok 205 - I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 7.407209
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+ok 206 - I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 5.35535
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+ok 207 - I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 16.928792
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+ok 208 - I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.664906
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+ok 209 - I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.94562
+  type: 'test'
+  ...
+# Subtest: I-A3 independent stale enumeration cannot close a later accepted physical tab
+ok 210 - I-A3 independent stale enumeration cannot close a later accepted physical tab
+  ---
+  duration_ms: 5.856055
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.access failure remains fatal before observation ACK
+ok 211 - I-A2 independent actual local.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.597143
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.access failure remains fatal before observation ACK
+ok 212 - I-A2 independent actual session.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.532064
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.get failure remains fatal before observation ACK
+ok 213 - I-A2 independent actual local.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.672006
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.get failure remains fatal before observation ACK
+ok 214 - I-A2 independent actual session.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.463621
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.set failure remains fatal before observation ACK
+ok 215 - I-A2 independent actual local.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.379043
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.set failure remains fatal before observation ACK
+ok 216 - I-A2 independent actual session.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 1.361968
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+ok 217 - I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 3.883387
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+ok 218 - I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 3.935194
+  type: 'test'
+  ...
+# Subtest: I-B1 independent cold injection with route B / central A never attributes A to B
+ok 219 - I-B1 independent cold injection with route B / central A never attributes A to B
+  ---
+  duration_ms: 3.959741
+  type: 'test'
+  ...
+# Subtest: I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+ok 220 - I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+  ---
+  duration_ms: 3.281277
+  type: 'test'
+  ...
+# Subtest: I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+ok 221 - I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+  ---
+  duration_ms: 3.184741
+  type: 'test'
+  ...
+# Subtest: I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+ok 222 - I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+  ---
+  duration_ms: 3.525375
+  type: 'test'
+  ...
+Clawd state server listening on 127.0.0.1:0
+# Subtest: I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+ok 223 - I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+  ---
+  duration_ms: 5.560369
+  type: 'test'
+  ...
+# Subtest: I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+ok 224 - I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+  ---
+  duration_ms: 11.231005
+  type: 'test'
+  ...
+# Subtest: I-U13 independent successful focus preserves the exact later R2 receipt
+ok 225 - I-U13 independent successful focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 9.720638
+  type: 'test'
+  ...
+# Subtest: I-U13 independent failed focus preserves the exact later R2 receipt
+ok 226 - I-U13 independent failed focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 8.130091
+  type: 'test'
+  ...
+# Subtest: I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient
+ok 227 - I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient # TODO
+  ---
+  duration_ms: 0.065008
+  type: 'test'
+  ...
+# Subtest: late completion creates a receipt without replacing the newer running turn
+ok 228 - late completion creates a receipt without replacing the newer running turn
+  ---
+  duration_ms: 3.87262
+  type: 'test'
+  ...
+# Subtest: exactly one completion notice survives replay, acknowledgement, and restart
+ok 229 - exactly one completion notice survives replay, acknowledgement, and restart
+  ---
+  duration_ms: 3.159643
+  type: 'test'
+  ...
+# Subtest: opening an existing settled conversation never manufactures a completion notice
+ok 230 - opening an existing settled conversation never manufactures a completion notice
+  ---
+  duration_ms: 1.000732
+  type: 'test'
+  ...
+# Subtest: heartbeats do not refresh DOM evidence, elapsed start, or visual activity
+ok 231 - heartbeats do not refresh DOM evidence, elapsed start, or visual activity
+  ---
+  duration_ms: 1.507888
+  type: 'test'
+  ...
+# Subtest: restart preserves unread but requires new observation before treating running state as live
+ok 232 - restart preserves unread but requires new observation before treating running state as live
+  ---
+  duration_ms: 5.19706
+  type: 'test'
+  ...
+# Subtest: old browser-run terminal is retained as history and cannot target a reused tab number
+ok 233 - old browser-run terminal is retained as history and cannot target a reused tab number
+  ---
+  duration_ms: 1.407706
+  type: 'test'
+  ...
+# Subtest: acknowledging the notice captured before a new completion leaves the new receipt unread
+ok 234 - acknowledging the notice captured before a new completion leaves the new receipt unread
+  ---
+  duration_ms: 5.437884
+  type: 'test'
+  ...
+# Subtest: same conversation in two tabs has independent identity and focus targets
+ok 235 - same conversation in two tabs has independent identity and focus targets
+  ---
+  duration_ms: 2.775844
+  type: 'test'
+  ...
+# Subtest: closed or disconnected rows show observation loss while retaining prior unread outcome
+ok 236 - closed or disconnected rows show observation loss while retaining prior unread outcome
+  ---
+  duration_ms: 2.226053
+  type: 'test'
+  ...
+# Subtest: reusing an event ID for different terminal data is rejected
+ok 237 - reusing an event ID for different terminal data is rejected
+  ---
+  duration_ms: 1.232511
+  type: 'test'
+  ...
+# Subtest: a failed durable write does not consume the terminal or create an unread receipt
+ok 238 - a failed durable write does not consume the terminal or create an unread receipt
+  ---
+  duration_ms: 3.694601
+  type: 'test'
+  ...
+# Subtest: unread receipt corruption fails closed or restores only a known-good backup
+ok 239 - unread receipt corruption fails closed or restores only a known-good backup
+  ---
+  duration_ms: 2.670254
+  type: 'test'
+  ...
+# Subtest: active session capacity also gates reactivation of previously stale rows
+ok 240 - active session capacity also gates reactivation of previously stale rows
+  ---
+  duration_ms: 34.996924
+  type: 'test'
+  ...
+# Subtest: brief completion animation returns to work while unread remains visible
+ok 241 - brief completion animation returns to work while unread remains visible
+  ---
+  duration_ms: 2.662121
+  type: 'test'
+  ...
+# Subtest: dismissed receipts cannot resurrect after replay and restart
+ok 242 - dismissed receipts cannot resurrect after replay and restart
+  ---
+  duration_ms: 3.139131
+  type: 'test'
+  ...
+# Subtest: offline tab closure after a browser restart preserves its known completion as closed history
+ok 243 - offline tab closure after a browser restart preserves its known completion as closed history
+  ---
+  duration_ms: 2.837386
+  type: 'test'
+  ...
+# Subtest: malformed persisted timestamps, receipt identity, or duplicate notice sequences are not trusted
+ok 244 - malformed persisted timestamps, receipt identity, or duplicate notice sequences are not trusted
+  ---
+  duration_ms: 2.358092
+  type: 'test'
+  ...
+# Subtest: reconnect and replayed invalidation never freshen prior DOM evidence
+ok 245 - reconnect and replayed invalidation never freshen prior DOM evidence
+  ---
+  duration_ms: 3.497964
+  type: 'test'
+  ...
+# Subtest: unknown state explains disconnected, restarted, reobserving and expired evidence independently
+ok 246 - unknown state explains disconnected, restarted, reobserving and expired evidence independently
+  ---
+  duration_ms: 3.400316
+  type: 'test'
+  ...
+# Subtest: unsupported controls keep exact-tab navigation without claiming generation or acknowledging unread
+ok 247 - unsupported controls keep exact-tab navigation without claiming generation or acknowledging unread
+  ---
+  duration_ms: 3.386135
+  type: 'test'
+  ...
+# Subtest: explicit local names persist per row without changing identity, timestamps, phase or unread receipts
+ok 248 - explicit local names persist per row without changing identity, timestamps, phase or unread receipts
+  ---
+  duration_ms: 5.318403
+  type: 'test'
+  ...
+# Subtest: optional conversation metadata accepts normalized short text and rejects malformed or unbounded content
+ok 249 - optional conversation metadata accepts normalized short text and rejects malformed or unbounded content
+  ---
+  duration_ms: 1.25787
+  type: 'test'
+  ...
+# Subtest: fresh conversation metadata identifies a row while local names keep priority and receipts stay unchanged
+ok 250 - fresh conversation metadata identifies a row while local names keep priority and receipts stay unchanged
+  ---
+  duration_ms: 5.903758
+  type: 'test'
+  ...
+# Subtest: SPA route and document changes clear obsolete descriptions, including saved invalidations
+ok 251 - SPA route and document changes clear obsolete descriptions, including saved invalidations
+  ---
+  duration_ms: 8.932092
+  type: 'test'
+  ...
+# Subtest: metadata never rolls back for out-of-order, stale or replayed events but remains independent of generation support
+ok 252 - metadata never rolls back for out-of-order, stale or replayed events but remains independent of generation support
+  ---
+  duration_ms: 7.179065
+  type: 'test'
+  ...
+# Subtest: same browser-run reconnect and desktop restart reuse a row while waiting for a fresh observation
+ok 253 - same browser-run reconnect and desktop restart reuse a row while waiting for a fresh observation
+  ---
+  duration_ms: 3.804407
+  type: 'test'
+  ...
+# Subtest: browser restart separates current tabs from history and restores local names without combining receipts
+ok 254 - browser restart separates current tabs from history and restores local names without combining receipts
+  ---
+  duration_ms: 6.311254
+  type: 'test'
+  ...
+# Subtest: real coordinator A to B to A keeps history descriptions, local names and unread receipts attached to their conversation
+ok 255 - real coordinator A to B to A keeps history descriptions, local names and unread receipts attached to their conversation
+  ---
+  duration_ms: 12.031324
+  type: 'test'
+  ...
+# Subtest: manual names never cross profile, provider, different conversation or unknown-conversation boundaries
+ok 256 - manual names never cross profile, provider, different conversation or unknown-conversation boundaries
+  ---
+  duration_ms: 10.832974
+  type: 'test'
+  ...
+# Subtest: clearing a local name prevents an older name from returning on a later reopened tab
+ok 257 - clearing a local name prevents an older name from returning on a later reopened tab
+  ---
+  duration_ms: 10.153908
+  type: 'test'
+  ...
+# Subtest: old terminal replay keeps its original history title and cannot rename or revive current tabs
+ok 258 - old terminal replay keeps its original history title and cannot rename or revive current tabs
+  ---
+  duration_ms: 6.093064
+  type: 'test'
+  ...
+# Subtest: old stores and pre-metadata receipt fingerprints load without losing unread or local names
+ok 259 - old stores and pre-metadata receipt fingerprints load without losing unread or local names
+  ---
+  duration_ms: 3.082877
+  type: 'test'
+  ...
+# Subtest: persisted metadata and local-name ordering are validated before any history is restored
+ok 260 - persisted metadata and local-name ordering are validated before any history is restored
+  ---
+  duration_ms: 4.333616
+  type: 'test'
+  ...
+# Subtest: browser panel shows actionable stale-state context without treating retained generation as current
+ok 261 - browser panel shows actionable stale-state context without treating retained generation as current
+  ---
+  duration_ms: 10.635526
+  type: 'test'
+  ...
+# Subtest: live panel refresh preserves the actual editing node and draft through row ordering changes
+ok 262 - live panel refresh preserves the actual editing node and draft through row ordering changes
+  ---
+  duration_ms: 2.090999
+  type: 'test'
+  ...
+# Subtest: local display-name save refreshes the canonical name and empty input restores the automatic name
+ok 263 - local display-name save refreshes the canonical name and empty input restores the automatic name
+  ---
+  duration_ms: 1.597332
+  type: 'test'
+  ...
+# Subtest: a slow or rejected display-name save preserves newer typing and the visible error
+ok 264 - a slow or rejected display-name save preserves newer typing and the visible error
+  ---
+  duration_ms: 1.343449
+  type: 'test'
+  ...
+# Subtest: persistent panel buttons capture the current notice and never ACK a failed focus
+ok 265 - persistent panel buttons capture the current notice and never ACK a failed focus
+  ---
+  duration_ms: 1.344281
+  type: 'test'
+  ...
+# Subtest: targeted details scroll once per explicit selection and labels remain inert text
+ok 266 - targeted details scroll once per explicit selection and labels remain inert text
+  ---
+  duration_ms: 1.419765
+  type: 'test'
+  ...
+# Subtest: conversation titles and submitted previews distinguish current tabs from collapsed previous records
+ok 267 - conversation titles and submitted previews distinguish current tabs from collapsed previous records
+  ---
+  duration_ms: 1.259163
+  type: 'test'
+  ...
+# Subtest: a selected history record opens once without acknowledging its receipt
+ok 268 - a selected history record opens once without acknowledging its receipt
+  ---
+  duration_ms: 1.036025
+  type: 'test'
+  ...
+# Subtest: route metadata refresh updates the title and preview while preserving IME composition and name drafts
+ok 269 - route metadata refresh updates the title and preview while preserving IME composition and name drafts
+  ---
+  duration_ms: 1.297079
+  type: 'test'
+  ...
+# Subtest: moving an edited session into history waits until the editor loses focus
+ok 270 - moving an edited session into history waits until the editor loses focus
+  ---
+  duration_ms: 1.15883
+  type: 'test'
+  ...
+# Subtest: C1: reconnecting the only history row keeps its composing editor visible until editing ends
+ok 271 - C1: reconnecting the only history row keeps its composing editor visible until editing ends
+  ---
+  duration_ms: 1.308166
+  type: 'test'
+  ...
+# Subtest: C2: reconnecting other rows still changes their groups while one history name is being edited
+ok 272 - C2: reconnecting other rows still changes their groups while one history name is being edited
+  ---
+  duration_ms: 1.332543
+  type: 'test'
+  ...
+# Subtest: C3: repeated reconnect and disconnect keep one editor node and move it once after blur
+ok 273 - C3: repeated reconnect and disconnect keep one editor node and move it once after blur
+  ---
+  duration_ms: 1.627959
+  type: 'test'
+  ...
+# Subtest: C4: IME candidate cancellation preserves the saved name and blank save restores the intended conversation
+ok 274 - C4: IME candidate cancellation preserves the saved name and blank save restores the intended conversation
+  ---
+  duration_ms: 1.4429
+  type: 'test'
+  ...
+# Subtest: C5: a save finishing after reconnect cannot overwrite newer typing or save into another row
+ok 275 - C5: a save finishing after reconnect cannot overwrite newer typing or save into another row
+  ---
+  duration_ms: 1.514718
+  type: 'test'
+  ...
+# Subtest: desktop distinguishes startup, unpaired Chrome, and disconnected saved Chrome
+ok 276 - desktop distinguishes startup, unpaired Chrome, and disconnected saved Chrome
+  ---
+  duration_ms: 0.20549
+  type: 'test'
+  ...
+# Subtest: authenticated socket is shown independently of missing DOM observations
+ok 277 - authenticated socket is shown independently of missing DOM observations
+  ---
+  duration_ms: 0.114433
+  type: 'test'
+  ...
+# Subtest: failed secure storage and startup failure remain visible and cannot enable pairing
+ok 278 - failed secure storage and startup failure remain visible and cannot enable pairing
+  ---
+  duration_ms: 0.111709
+  type: 'test'
+  ...
+# Subtest: browser merge preserves the original CLI snapshot and its consumers
+ok 279 - browser merge preserves the original CLI snapshot and its consumers
+  ---
+  duration_ms: 0.275667
+  type: 'test'
+  ...
+# Subtest: CLI permission is higher priority and heartbeat does not change browser order
+ok 280 - CLI permission is higher priority and heartbeat does not change browser order
+  ---
+  duration_ms: 0.127653
+  type: 'test'
+  ...
+# Subtest: only current browser tabs join local HUD sessions; previous receipts remain explicitly accessible
+ok 281 - only current browser tabs join local HUD sessions; previous receipts remain explicitly accessible
+  ---
+  duration_ms: 0.319142
+  type: 'test'
+  ...
+# Subtest: history-only HUD snapshot keeps a details target without counting or publishing the old sessions
+ok 282 - history-only HUD snapshot keeps a details target without counting or publishing the old sessions
+  ---
+  duration_ms: 0.113972
+  type: 'test'
+  ...
+# Subtest: browser character candidate cannot overwrite CLI approval or DND
+ok 283 - browser character candidate cannot overwrite CLI approval or DND
+  ---
+  duration_ms: 0.091048
+  type: 'test'
+  ...
+# Subtest: a browser row cannot inherit terminal paste capabilities
+ok 284 - a browser row cannot inherit terminal paste capabilities
+  ---
+  duration_ms: 0.129336
+  type: 'test'
+  ...
+# Subtest: clicking a connected row with stale DOM evidence reaches focus with its exact tab and captured notice
+ok 285 - clicking a connected row with stale DOM evidence reaches focus with its exact tab and captured notice
+  ---
+  duration_ms: 5.380628
+  type: 'test'
+  ...
+# Subtest: a generating row sends an explicit null notice; a later notice is not captured retroactively
+ok 286 - a generating row sends an explicit null notice; a later notice is not captured retroactively
+  ---
+  duration_ms: 3.39669
+  type: 'test'
+  ...
+# Subtest: a rejected browser focus keeps its unread receipt and never falls back to terminal navigation
+ok 287 - a rejected browser focus keeps its unread receipt and never falls back to terminal navigation
+  ---
+  duration_ms: 2.446977
+  type: 'test'
+  ...
+# Subtest: a disconnected retained record moves to the history link without issuing focus or acknowledging its receipt
+ok 288 - a disconnected retained record moves to the history link without issuing focus or acknowledging its receipt
+  ---
+  duration_ms: 2.758117
+  type: 'test'
+  ...
+# Subtest: a connected row with unsupported generation controls can return to its validated tab
+ok 289 - a connected row with unsupported generation controls can return to its validated tab
+  ---
+  duration_ms: 3.371192
+  type: 'test'
+  ...
+# Subtest: closed and older-browser-run records stay in history and select their retained details
+ok 290 - closed and older-browser-run records stay in history and select their retained details
+  ---
+  duration_ms: 6.158734
+  type: 'test'
+  ...
+# Subtest: the details button selects this session without triggering row focus or any acknowledgement
+ok 291 - the details button selects this session without triggering row focus or any acknowledgement
+  ---
+  duration_ms: 2.52209
+  type: 'test'
+  ...
+# Subtest: the real focus IPC rejects other WebContents, subframes and a navigated HUD even with a valid row ID
+ok 292 - the real focus IPC rejects other WebContents, subframes and a navigated HUD even with a valid row ID
+  ---
+  duration_ms: 2.291922
+  type: 'test'
+  ...
+# Subtest: empty browser HUD status describes connection evidence without creating a session
+ok 293 - empty browser HUD status describes connection evidence without creating a session
+  ---
+  duration_ms: 0.389618
+  type: 'test'
+  ...
+# Subtest: empty browser help keeps HUD visibility gates and reserves only a one-row card
+ok 294 - empty browser help keeps HUD visibility gates and reserves only a one-row card
+  ---
+  duration_ms: 0.693648
+  type: 'test'
+  ...
+# Subtest: current browser content and the explicit history link reserve their own heights without changing CLI rows
+ok 295 - current browser content and the explicit history link reserve their own heights without changing CLI rows
+  ---
+  duration_ms: 0.37077
+  type: 'test'
+  ...
+# Subtest: empty HUD button opens browser connection help without focus, receipt ACK, or fake unread
+ok 296 - empty HUD button opens browser connection help without focus, receipt ACK, or fake unread
+  ---
+  duration_ms: 1.383279
+  type: 'test'
+  ...
+# Subtest: real browser rows replace empty help and preserve an unread receipt across a new turn
+ok 297 - real browser rows replace empty help and preserve an unread receipt across a new turn
+  ---
+  duration_ms: 0.95281
+  type: 'test'
+  ...
+# Subtest: HUD titles and submitted previews update as inert text while history stays an explicit details link
+ok 298 - HUD titles and submitted previews update as inert text while history stays an explicit details link
+  ---
+  duration_ms: 1.196978
+  type: 'test'
+  ...
+# Subtest: new Mori data is independent from the original product
+ok 299 - new Mori data is independent from the original product
+  ---
+  duration_ms: 0.145169
+  type: 'test'
+  ...
+# Subtest: browser-only runtime creation and cleanup stay in the Mori directory
+ok 300 - browser-only runtime creation and cleanup stay in the Mori directory
+  ---
+  duration_ms: 0.94014
+  type: 'test'
+  ...
+# Subtest: fresh installs require an explicit CLI integration and keep HUD visible
+ok 301 - fresh installs require an explicit CLI integration and keep HUD visible
+  ---
+  duration_ms: 0.832949
+  type: 'test'
+  ...
+# Subtest: a crashed CLI runtime owner does not permanently block the next launch
+ok 302 - a crashed CLI runtime owner does not permanently block the next launch
+  ---
+  duration_ms: 0.308736
+  type: 'test'
+  ...
+# Subtest: a live or uncertain CLI runtime owner remains protected
+ok 303 - a live or uncertain CLI runtime owner remains protected
+  ---
+  duration_ms: 0.196717
+  type: 'test'
+  ...
+# Subtest: browser-only startup does not inspect or mutate the shared CLI runtime
+ok 304 - browser-only startup does not inspect or mutate the shared CLI runtime
+  ---
+  duration_ms: 0.072209
+  type: 'test'
+  ...
+# Subtest: the current process can recheck its own runtime without a foreign-owner conflict
+ok 305 - the current process can recheck its own runtime without a foreign-owner conflict
+  ---
+  duration_ms: 0.073351
+  type: 'test'
+  ...
+# Subtest: CLI runtime publishing rechecks ownership before every startup or Doctor write
+ok 306 - CLI runtime publishing rechecks ownership before every startup or Doctor write
+  ---
+  duration_ms: 0.292672
+  type: 'test'
+  ...
+# Subtest: manual CLI integration mutations stop when a live foreign runtime takes ownership
+ok 307 - manual CLI integration mutations stop when a live foreign runtime takes ownership
+  ---
+  duration_ms: 0.398082
+  type: 'test'
+  ...
+Clawd state server listening on 127.0.0.1:0
+# Subtest: browser-only HTTP server is not discovered as a native Clawd receiver
+ok 308 - browser-only HTTP server is not discovered as a native Clawd receiver
+  ---
+  duration_ms: 25.170592
+  type: 'test'
+  ...
+Clawd state server listening on 127.0.0.1:0
+# Subtest: native state, permission, and question POSTs have no accepted marker or state effects in browser mode
+ok 309 - native state, permission, and question POSTs have no accepted marker or state effects in browser mode
+  ---
+  duration_ms: 7.127376
+  type: 'test'
+  ...
+# Subtest: authenticated browser WebSocket upgrades still work on the HTTP-isolated listener
+ok 310 - authenticated browser WebSocket upgrades still work on the HTTP-isolated listener
+  ---
+  duration_ms: 6.591957
+  type: 'test'
+  ...
+# Subtest: an early startup shortcut failure waits for Japanese preferences and names the actual binding
+ok 311 - an early startup shortcut failure waits for Japanese preferences and names the actual binding
+  ---
+  duration_ms: 14.857192
+  type: 'test'
+  ...
+# Subtest: a failure that arrives after preferences uses the saved language and macOS key names
+ok 312 - a failure that arrives after preferences uses the saved language and macOS key names
+  ---
+  duration_ms: 4.859871
+  type: 'test'
+  ...
+# Subtest: a cleared startup failure or an unsupported action does not show a stale warning
+ok 313 - a cleared startup failure or an unsupported action does not show a stale warning
+  ---
+  duration_ms: 4.257631
+  type: 'test'
+  ...
+# Subtest: browser-mode shortcut labels describe the browser list and preserve CLI quick-mode labels
+ok 314 - browser-mode shortcut labels describe the browser list and preserve CLI quick-mode labels
+  ---
+  duration_ms: 8.919393
+  type: 'test'
+  ...
+# Subtest: the Settings window passes its product mode through the sandboxed preload
+ok 315 - the Settings window passes its product mode through the sandboxed preload
+  ---
+  duration_ms: 2.686798
+  type: 'test'
+  ...
+# Subtest: a missing or malformed product-mode preload flag does not claim CLI mode
+ok 316 - a missing or malformed product-mode preload flag does not claim CLI mode
+  ---
+  duration_ms: 1.80721
+  type: 'test'
+  ...
+# Subtest: Mori has its own default shortcut and preserves saved bindings, including unassigned
+ok 317 - Mori has its own default shortcut and preserves saved bindings, including unassigned
+  ---
+  duration_ms: 0.899499
+  type: 'test'
+  ...
+# Subtest: browser-mode Settings, HUD, pet and configured shortcut entries open the browser panel
+ok 318 - browser-mode Settings, HUD, pet and configured shortcut entries open the browser panel
+  ---
+  duration_ms: 0.581909
+  type: 'test'
+  ...
+# Subtest: CLI mode preserves Dashboard source options and numeric quick-mode ownership
+ok 319 - CLI mode preserves Dashboard source options and numeric quick-mode ownership
+  ---
+  duration_ms: 0.113822
+  type: 'test'
+  ...
+# Subtest: omitting the product mode defaults session navigation to browser mode
+ok 320 - omitting the product mode defaults session navigation to browser mode
+  ---
+  duration_ms: 0.075864
+  type: 'test'
+  ...
+1..320
+# tests 328
+# suites 0
+# pass 327
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 1
+# duration_ms 33457.623158

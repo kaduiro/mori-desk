@@ -1,0 +1,19 @@
+[
+  {
+    "case": "regular",
+    "exitCode": 2,
+    "elapsedSeconds": 0.074,
+    "selectedStatus": "mismatch",
+    "selectedVersion": "9.9.9"
+  },
+  {
+    "case": "fifo",
+    "result": "TIMEOUT_CHILD_KILLED",
+    "elapsedSeconds": 2.005
+  },
+  {
+    "case": "symlink_to_fifo",
+    "result": "TIMEOUT_CHILD_KILLED",
+    "elapsedSeconds": 2.005
+  }
+]

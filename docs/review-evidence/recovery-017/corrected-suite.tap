@@ -1,0 +1,172 @@
+TAP version 13
+# Subtest: independent acceptance oracle remains the pre-source frozen version
+ok 1 - independent acceptance oracle remains the pre-source frozen version
+  ---
+  duration_ms: 2.086361
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+ok 2 - I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 22.318629
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+ok 3 - I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 8.268589
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+ok 4 - I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 7.128526
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+ok 5 - I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 10.734723
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+ok 6 - I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 5.893071
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+ok 7 - I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 4.948725
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+ok 8 - I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 5.753449
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+ok 9 - I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 5.020282
+  type: 'test'
+  ...
+# Subtest: I-A3 independent stale enumeration cannot close a later accepted physical tab
+ok 10 - I-A3 independent stale enumeration cannot close a later accepted physical tab
+  ---
+  duration_ms: 9.516964
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.access failure remains fatal before observation ACK
+ok 11 - I-A2 independent actual local.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.953941
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.access failure remains fatal before observation ACK
+ok 12 - I-A2 independent actual session.access failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.415578
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.get failure remains fatal before observation ACK
+ok 13 - I-A2 independent actual local.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.366624
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.get failure remains fatal before observation ACK
+ok 14 - I-A2 independent actual session.get failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.686448
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual local.set failure remains fatal before observation ACK
+ok 15 - I-A2 independent actual local.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 2.604824
+  type: 'test'
+  ...
+# Subtest: I-A2 independent actual session.set failure remains fatal before observation ACK
+ok 16 - I-A2 independent actual session.set failure remains fatal before observation ACK
+  ---
+  duration_ms: 3.258382
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+ok 17 - I-A2 independent terminal local.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 11.386998
+  type: 'test'
+  ...
+# Subtest: I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+ok 18 - I-A2 independent terminal session.set failure withholds ACK and preserves any written journal
+  ---
+  duration_ms: 5.071941
+  type: 'test'
+  ...
+# Subtest: I-B1 independent cold injection with route B / central A never attributes A to B
+ok 19 - I-B1 independent cold injection with route B / central A never attributes A to B
+  ---
+  duration_ms: 8.897728
+  type: 'test'
+  ...
+# Subtest: I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+ok 20 - I-B2 independent current page identity cannot turn unbound route B / central A into focus success
+  ---
+  duration_ms: 5.003828
+  type: 'test'
+  ...
+# Subtest: I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+ok 21 - I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+  ---
+  duration_ms: 6.160024
+  type: 'test'
+  ...
+# Subtest: I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+ok 22 - I-B2 independent health, observe, visibility and pageshow cannot admit unbound central A
+  ---
+  duration_ms: 6.997639
+  type: 'test'
+  ...
+# Subtest: I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+ok 23 - I-B3 independent pause/resume cannot revive an old observation without a new worker grant
+  ---
+  duration_ms: 5.163699
+  type: 'test'
+  ...
+# Subtest: I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+ok 24 - I-U12 independent persisted receipt set survives a new generation and duplicate delivery
+  ---
+  duration_ms: 25.043504
+  type: 'test'
+  ...
+# Subtest: I-U13 independent successful focus preserves the exact later R2 receipt
+ok 25 - I-U13 independent successful focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 17.890556
+  type: 'test'
+  ...
+# Subtest: I-U13 independent failed focus preserves the exact later R2 receipt
+ok 26 - I-U13 independent failed focus preserves the exact later R2 receipt
+  ---
+  duration_ms: 12.42106
+  type: 'test'
+  ...
+# Subtest: I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient
+ok 27 - I-B8 UNKNOWN: useful automatic recovery in real ChatGPT/Claude requires independently verified provider binding; synthetic quarantine is insufficient # TODO
+  ---
+  duration_ms: 0.083516
+  type: 'test'
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 1
+# duration_ms 230.784437

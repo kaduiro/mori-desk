@@ -1,0 +1,260 @@
+{
+  "createdAt": "2026-10-21T09:34:10.443Z",
+  "nodeVersion": "v24.19.0",
+  "platform": "linux",
+  "sourceProductRoot": "/workspace/scratch/71b181da6eca/mori-desk/overlay",
+  "controlFiles": [
+    {
+      "file": "extensions/browser-bridge/adapters/chatgpt.js",
+      "sha256": "4d35484e3ba246c37adadbdd881724a69735e0977e7740462237d96495bf8167"
+    },
+    {
+      "file": "extensions/browser-bridge/adapters/claude.js",
+      "sha256": "b7d8b1d8dacd4f27d8a4a910d7fa25afce7e330120ed3995293d088786f11ddd"
+    },
+    {
+      "file": "extensions/browser-bridge/content-script.js",
+      "sha256": "bbca446fa121a577e1fd00e6b0e66fed9eeb7d4a08b7923526a64c99996620c1"
+    },
+    {
+      "file": "extensions/browser-bridge/content-start.js",
+      "sha256": "a9ac6f2d1f23cf562a1bde5a6bdbe5bcca24dd64c91ede0416b99bbd92bcfeb7"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-binding.js",
+      "sha256": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c"
+    },
+    {
+      "file": "extensions/browser-bridge/conversation-metadata.js",
+      "sha256": "85b7d62378822332bb508b92a2243cf1aeb1253a53e97f71e83212b9d1d0d796"
+    },
+    {
+      "file": "extensions/browser-bridge/manifest.json",
+      "sha256": "4fbccebb3257fdd515d4c111d2de005607e7dbedb070fa0fe81496c048ba3e99"
+    },
+    {
+      "file": "extensions/browser-bridge/observation-controller.js",
+      "sha256": "b63e28338ca968e406634e3acbada59cff799ba03952f82ca05bf29d352efa9b"
+    },
+    {
+      "file": "extensions/browser-bridge/observer-recovery.js",
+      "sha256": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc"
+    },
+    {
+      "file": "extensions/browser-bridge/options.css",
+      "sha256": "1ad57736300fb951f03597a3f5a9b057bf612bac8c77270fbd2856bf9be7f65a"
+    },
+    {
+      "file": "extensions/browser-bridge/options.html",
+      "sha256": "9743d01d5322d7c29585f5176a06b8c6e0f622f39bfb137cf9249ae1b0a522ad"
+    },
+    {
+      "file": "extensions/browser-bridge/options.js",
+      "sha256": "b9e439f7f2c81c93624f977be326f8afa0945b17eff7b53bfa200431641c68ed"
+    },
+    {
+      "file": "extensions/browser-bridge/outbox.js",
+      "sha256": "0fca626dc72521925564c24651973019ef8e7af67bb24da5ef61d3ec67c52262"
+    },
+    {
+      "file": "extensions/browser-bridge/provider-utils.js",
+      "sha256": "da16cb6df53668d454672ee0b716becfd4cb3c654366d83eddeae1395c7377c1"
+    },
+    {
+      "file": "extensions/browser-bridge/README.md",
+      "sha256": "6afc6074e47fa8bb214a5520822de19756442ebf92fdc4daea087722a23c65db"
+    },
+    {
+      "file": "extensions/browser-bridge/service-worker.js",
+      "sha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d"
+    },
+    {
+      "file": "extensions/browser-bridge/session-coordinator.js",
+      "sha256": "9511872690c35c8e8b23fdeb3f693d409cee7ca1e68d8d1f2934c6aedc586fa5"
+    },
+    {
+      "file": "extensions/browser-bridge/transport.js",
+      "sha256": "b6ec36614bfeb7489868b5470d552c2216c0a1303215d19dc79936cc73a8605b"
+    },
+    {
+      "file": "src/browser-bridge-auth.js",
+      "sha256": "32c0c53d4b62765a80d09f54795e010ee892a7f326468ecb643b2b3081732fcc"
+    },
+    {
+      "file": "src/browser-bridge-persistence.js",
+      "sha256": "aeb91b8c4d625a8b9d8f9aad3dfc16be43a6bb72268bdcb199c8ac1648ce4ee0"
+    },
+    {
+      "file": "src/browser-bridge-protocol.js",
+      "sha256": "c718a59b0f92e07cb6213e3e5a062aaa69d16c30b27745825274070bba1f5c72"
+    },
+    {
+      "file": "src/browser-bridge-server.js",
+      "sha256": "8dce54bf9003d0516f4e0d84d4edfbb32c159c48611326ed214f44ce42224a62"
+    },
+    {
+      "file": "src/browser-session-store.js",
+      "sha256": "c635534531328ec8617875ed2c21d8fdbcc33ca408d6867e676871bf27a37e5f"
+    },
+    {
+      "file": "src/mori-browser-renderer.js",
+      "sha256": "b8d4ca0d91ae62b5c97bf9c86bf47966c4f3106c7b5590d995fb821c1fc37694"
+    },
+    {
+      "file": "src/mori-browser-status.js",
+      "sha256": "0e9007a3fc1b45d16101838d216f2e94b95bd8572ec602387bcb2feb555818ed"
+    },
+    {
+      "file": "src/mori-browser-window.js",
+      "sha256": "7915ce44e0fdfedeb3349ae9f19b538f3c39aca50f8699d047fa4ba54f335f84"
+    },
+    {
+      "file": "src/mori-browser.css",
+      "sha256": "f4a09e5189b886d444bc0d45fd32302dd37aa1cdf4214e1627817465e054fb7c"
+    },
+    {
+      "file": "src/mori-browser.html",
+      "sha256": "e68a6d823ff0a3a0f6467375ad3af85576fcddd1a4b04060332a23e04090150f"
+    },
+    {
+      "file": "src/mori-desktop-snapshot.js",
+      "sha256": "8f4817e71026c49127062cd65289ed018c61e5fea425f89fef5c37335efbe66b"
+    },
+    {
+      "file": "src/mori-hud-status.js",
+      "sha256": "ea042a75941ae9a6e41017c1c95b5b9bbf4970ca5459fc805a02d228bea78b6e"
+    },
+    {
+      "file": "src/mori-local-themes.js",
+      "sha256": "49955dcb1027ed174bf4f7aed2a7145bbc9a119627a0128180a677a5c2462c58"
+    },
+    {
+      "file": "src/mori-manual-updater.js",
+      "sha256": "e58ac34bdcb8c90a46548516fbd0fa772925785731367fc40c1e0545fcbfba96"
+    },
+    {
+      "file": "src/mori-product.js",
+      "sha256": "e23b43451ae7e8ce9e0cd9a5acfc114ba4c50b4b970806b250a4373264ef1dea"
+    },
+    {
+      "file": "src/mori-session-navigation.js",
+      "sha256": "bd541cd1252b3703299341821e346b2ce6a1f8be4edf1ea002045f8a612d17fb"
+    },
+    {
+      "file": "src/preload-mori-browser.js",
+      "sha256": "12e03393dd72d11187a436ab39a89bb499dd9fedf9bf8e04028179df12aa83f4"
+    }
+  ],
+  "frozenLedgerSha256": "00e4efc143ee2bda402a5e50b6669baadba33ab66eac31bc2e88fb11df2e90b5",
+  "testFileSha256": "8faec94b107ebd174e2a3298cff57c453f713ad98e65d357d29c0e21949a4c88",
+  "harnessSha256": "a6a00190c12bf77cf61b58a211bc1854ea4993b9b0c46688c8b251d0411f22af",
+  "scope": "Synthetic API/DOM and actual server/store modules. No real Chrome, provider binding, OS safeStorage or IME claim.",
+  "results": [
+    {
+      "id": "query-as-storage",
+      "changedFile": "extensions/browser-bridge/service-worker.js",
+      "replacementCount": 1,
+      "originalSha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+      "mutantSha256": "319eb06b50e10fcb53778df887c9b4f9108b57790c0cffe91e4bb7fa4a2f92e9",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 8,
+      "mutantFailures": 7,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    },
+    {
+      "id": "storage-error-swallowed",
+      "changedFile": "extensions/browser-bridge/service-worker.js",
+      "replacementCount": 1,
+      "originalSha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+      "mutantSha256": "73091e353de5f773e82d78abfe24eeb4fc57031d8d42a161974d6ec3be793095",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 1,
+      "mutantFailures": 1,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    },
+    {
+      "id": "automatic-alarm-disabled",
+      "changedFile": "extensions/browser-bridge/service-worker.js",
+      "replacementCount": 1,
+      "originalSha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+      "mutantSha256": "8a3ea58196cc82a2499bc5d3be4076d6398130e2d8a73b0cf951ffd28c04ef9e",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 8,
+      "mutantFailures": 8,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null,
+      "manualRecoveryRetained": true
+    },
+    {
+      "id": "blind-binding-approval",
+      "changedFile": "extensions/browser-bridge/conversation-binding.js",
+      "replacementCount": 1,
+      "originalSha256": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c",
+      "mutantSha256": "076ad07c396793a86235875be9d1790886c0f86f2875b78577866e842a944bbe",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 1,
+      "mutantFailures": 1,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    },
+    {
+      "id": "time-only-binding-approval",
+      "changedFile": "extensions/browser-bridge/conversation-binding.js",
+      "replacementCount": 1,
+      "originalSha256": "1513d2798c4141952114e9b60ae62de39bbcf8a0a16957e774612ff74118162c",
+      "mutantSha256": "82285753243733364aba3cf723a474fa71515a8336e29c4ab40bcd55a1f1ad49",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 1,
+      "mutantFailures": 1,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    },
+    {
+      "id": "focus-binding-gate-removed",
+      "changedFile": "extensions/browser-bridge/service-worker.js",
+      "replacementCount": 1,
+      "originalSha256": "187b45a8e2b1988984913e854bfb76b9afca39c6d3e59dd948f2afce7f38a04d",
+      "mutantSha256": "0b63329a7117936083083bb6bc77bf4e08b0947eb15a796004379f8c1513f40a",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 1,
+      "mutantFailures": 1,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    },
+    {
+      "id": "ack-all-current-receipts",
+      "changedFile": "src/browser-bridge-server.js",
+      "replacementCount": 1,
+      "originalSha256": "8dce54bf9003d0516f4e0d84d4edfbb32c159c48611326ed214f44ce42224a62",
+      "mutantSha256": "331a3dd3dc75dade123f43cfc049b05ef4f599b9a21c95644588d6c376e9b1b0",
+      "controlExitCode": 0,
+      "mutantExitCode": 1,
+      "controlTests": 1,
+      "mutantFailures": 1,
+      "controlPassed": true,
+      "failedForIntendedRequirement": true,
+      "signal": null,
+      "processError": null
+    }
+  ]
+}

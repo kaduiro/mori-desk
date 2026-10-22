@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const path = require("node:path");
 const { WebSocket } = require("ws");
 const { app, BrowserWindow } = require("electron");
 const { EXTENSION_ID, mac, verifyMac, validateEvent } = require("../src/browser-bridge-protocol");
@@ -18,6 +19,11 @@ app.on("web-contents-created", (_event, contents) => {
 // Load the real composition root, including safeStorage, the HUD owner, the
 // browser panel and their sandboxed preloads. A synthetic client below talks
 // to this process's real loopback bridge; it is not an installed Chrome tab.
+// Electron's direct JavaScript entry sets appPath to this test directory.
+// Establish the same package root/version as a normal runtime launch before
+// main performs its full source/build checks; do not bypass those checks.
+app.setAppPath(path.resolve(__dirname, ".."));
+app.setVersion(require("../package.json").version);
 require("../src/main");
 
 const timeout = setTimeout(() => {
@@ -52,7 +58,7 @@ async function findWindow(file) {
 }
 
 function hudRow(title) {
-  // The full accessible label survives the HUD's visible title shortening.
+  // The full accessible label survives CSS ellipsis in the visible title.
   return `[...document.querySelectorAll('.row-browser')].find(row => row.querySelector('.browser-details-button')?.getAttribute('aria-label') === ${JSON.stringify(`${title} の詳細`)})`;
 }
 async function clickHud(hud, title, details = false) {
@@ -222,22 +228,39 @@ app.whenReady().then(async () => {
   console.log("PASS: native Windows main, protected key storage, empty HUD, and HUD-to-panel IPC.");
 
   const client = await pairFixtureThroughPanel(reopened, status.port);
-  await deliverFixture(client, fixtureEvent(1, 1));
+  const firstMetadata = { conversationTitle: "長期インターンの目標", requestPreview: "今週から始められる行動を整理してください。" };
+  const secondMetadata = { conversationTitle: "企画会議の議事録", requestPreview: "会議で決まったことと次の担当作業を整理してください。" };
+  await deliverFixture(client, fixtureEvent(1, 1, firstMetadata));
   const first = await panelRow(reopened, "native-session-1", row => row.status === "generating");
   await until("one populated HUD row", () => hud.webContents.executeJavaScript("document.querySelectorAll('.row-browser').length === 1"));
   await assertDetailsGeometry(hud, first.displayTitle);
-  await deliverFixture(client, fixtureEvent(2, 1));
+  await deliverFixture(client, fixtureEvent(2, 1, secondMetadata));
   const second = await panelRow(reopened, "native-session-2", row => row.status === "generating");
   assert.equal(first.canFocus, true);
   assert.equal(second.canFocus, true);
   await until("two populated HUD rows with details actions", () => hud.webContents.executeJavaScript(
     "document.querySelectorAll('.row-browser').length === 2 && document.querySelectorAll('.browser-details-button').length === 2"));
+  for (const [row, metadata] of [[first, firstMetadata], [second, secondMetadata]]) {
+    assert.equal(row.displayTitle, metadata.conversationTitle);
+    assert.equal(row.conversationTitle, metadata.conversationTitle);
+    assert.equal(row.requestPreview, metadata.requestPreview);
+    await until("HUD conversation title and submitted request excerpt", () => hud.webContents.executeJavaScript(`(() => {
+      const row = ${hudRow(row.displayTitle)};
+      return row?.querySelector('.title')?.textContent === ${JSON.stringify(metadata.conversationTitle)}
+        && row.querySelector('.browser-source-label')?.textContent === ${JSON.stringify(row.label)}
+        && row.querySelector('.browser-request-preview')?.textContent === ${JSON.stringify(`依頼：${metadata.requestPreview}`)};
+    })()`));
+  }
   assert.equal(hud.isVisible(), true);
   await clickHud(hud, second.displayTitle, true);
   await until("second session selected by its HUD details button", async () => {
     const value = await reopened.webContents.executeJavaScript("window.mori.status()");
-    const selected = await reopened.webContents.executeJavaScript("document.querySelector('.session-selected .session-name')?.textContent");
-    return value.selectedSessionId === second.id && selected === second.displayTitle;
+    const selected = await reopened.webContents.executeJavaScript(`(() => {
+      const card = document.querySelector('#sessions .session-selected');
+      return card?.querySelector('.session-name')?.textContent === ${JSON.stringify(secondMetadata.conversationTitle)}
+        && card.querySelector('.session-request-preview')?.textContent === ${JSON.stringify(`直近の依頼：${secondMetadata.requestPreview}`)};
+    })()`);
+    return value.selectedSessionId === second.id && selected;
   });
 
   const customLabel = "議事録テスト";
@@ -304,29 +327,54 @@ app.whenReady().then(async () => {
   assert.equal(JSON.stringify(client.frames).includes(customLabel), false, "the local display name must not be sent to the browser fixture");
   console.log("PASS: unsupported-state HUD click reaches the authenticated focus request and acknowledges its captured receipt after a matching fixture response.");
 
+  // Leave one real receipt pending so the history link must preserve it and
+  // open its custom-named record after the authenticated client disconnects.
+  await deliverFixture(client, fixtureEvent(2, 3, { kind: "terminal", phase: "settled", outcome: "unverified" }));
+  const retained = await panelRow(reopened, second.sessionId, row => row.requiresCompletionAck && row.unreadCount === 1);
+  const focusRequestsBeforeDisconnect = client.frames.filter(frame => frame.type === "focus.request").length;
   const closed = bounded(new Promise(resolve => client.socket.once("close", resolve)), "close the synthetic browser");
   client.socket.close(1000, "native-smoke-disconnect");
   await closed;
   const disconnected = await panelRow(reopened, second.sessionId, row => row.statusReason === "disconnected");
   assert.equal(disconnected.status, "unknown");
   assert.equal(disconnected.canFocus, false);
+  assert.equal(disconnected.isCurrent, false);
+  assert.equal(disconnected.isHistory, true);
+  assert.equal(disconnected.unreadCount, retained.unreadCount);
+  assert.equal(disconnected.noticeSequence, retained.noticeSequence);
   assert.ok(disconnected.statusDetail.length > 0);
   assert.ok(disconnected.recoveryHint.length > 0);
-  await until("disconnected reason in populated HUD", () => hud.webContents.executeJavaScript(
-    `(() => { const row = ${hudRow(customLabel)}; return !!row && row.classList.contains('row-unfocusable') && row.querySelector('.state-chip')?.textContent === ${JSON.stringify(disconnected.statusLabel)}; })()`));
-  await assertDetailsGeometry(hud, customLabel);
+  await until("disconnected sessions move out of current HUD rows into one history link", () => hud.webContents.executeJavaScript(
+    "document.querySelectorAll('.row-browser').length === 0 && document.querySelectorAll('.row-browser-history').length === 1 && document.querySelector('.row-browser-history .title')?.textContent === '以前の記録 2 件 · 未確認 1 件'"));
   await closePanel(reopened);
-  await clickHud(hud, customLabel);
+  await hud.webContents.executeJavaScript("document.querySelector('.row-browser-history').click()");
   reopened = await findWindow("mori-browser.html");
-  await until("unfocusable row opens its diagnostic detail panel", () => reopened.webContents.executeJavaScript(`(() => {
-    const card = document.querySelector('.session-selected');
+  await until("history opens its unread custom-named record with diagnostic details", () => reopened.webContents.executeJavaScript(`(() => {
+    const card = document.querySelector('#history-sessions .session-selected');
     const focusButton = card && [...card.querySelectorAll('.session-actions button')].find(button => button.textContent === 'タブへ戻る');
-    return !!focusButton?.disabled && card.querySelector('.session-detail')?.textContent === ${JSON.stringify(disconnected.statusDetail)}
+    return document.getElementById('history').open && document.getElementById('count').textContent === '0 件'
+      && document.getElementById('history-count').textContent === '2 件'
+      && document.getElementById('history-unread').textContent === '未確認 1 件'
+      && document.querySelectorAll('#sessions>.session').length === 0
+      && document.querySelectorAll('#history-sessions>.session').length === 2
+      && !!focusButton?.disabled && card.querySelector('.session-detail')?.textContent === ${JSON.stringify(disconnected.statusDetail)}
       && card.querySelector('.session-recovery')?.textContent === ${JSON.stringify(disconnected.recoveryHint)}
+      && card.querySelector('.session-name')?.textContent === ${JSON.stringify(customLabel)}
+      && card.querySelector('.session-request-preview')?.textContent === ${JSON.stringify(`直近の依頼：${secondMetadata.requestPreview}`)}
       && card.querySelector('.session-label-input')?.value === ${JSON.stringify(customLabel)};
   })()`));
+  const historyStatus = await reopened.webContents.executeJavaScript("window.mori.status()");
+  assert.equal(historyStatus.selectedSessionId, disconnected.id);
+  const historyRow = historyStatus.sessions.find(row => row.id === disconnected.id);
+  assert.equal(historyRow.customLabel, customLabel);
+  assert.equal(historyRow.conversationTitle, secondMetadata.conversationTitle);
+  assert.equal(historyRow.requestPreview, secondMetadata.requestPreview);
+  assert.equal(historyRow.unreadCount, retained.unreadCount);
+  assert.equal(historyRow.noticeSequence, retained.noticeSequence);
+  assert.equal(historyRow.requiresCompletionAck, true, "Opening history does not acknowledge the pending receipt");
+  assert.equal(client.frames.filter(frame => frame.type === "focus.request").length, focusRequestsBeforeDisconnect);
   assert.deepEqual(rendererErrors, []);
-  console.log("PASS: disconnected session reason, disabled tab focus, preserved name, and HUD click reopening the selected diagnostic panel.");
+  console.log("PASS: disconnected sessions become history, with correct counts, disabled tab focus, preserved name/title/request, and an unchanged unread receipt after opening details.");
   console.log("This native Windows check uses a synthetic authenticated loopback protocol client. It does not validate an installed Chrome extension, real AI DOM, or real Chrome focus.");
   clearTimeout(timeout);
   app.quit();

@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: pausing from the connected status callback stops readiness and still permits a later connection
+not ok 1 - pausing from the connected status callback stops readiness and still permits a later connection
+  ---
+  duration_ms: 12.811817
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:349:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   heartbeatStarts: 1,
+    +   readyCalls: 1
+    -   heartbeatStarts: 0,
+    -   readyCalls: 0
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    readyCalls: 0
+    heartbeatStarts: 0
+  actual:
+    readyCalls: 1
+    heartbeatStarts: 1
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:362:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: an obsolete pair completion cannot release the current pair exclusion
+not ok 2 - an obsolete pair completion cannot release the current pair exclusion
+  ---
+  duration_ms: 2.044859
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:373:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    retry must not open a resume socket while the replacement pair is pending
+    
+    3 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 3
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:399:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 55.041986

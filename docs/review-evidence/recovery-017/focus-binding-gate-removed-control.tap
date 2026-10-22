@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+ok 1 - I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+  ---
+  duration_ms: 17.1914
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.607223

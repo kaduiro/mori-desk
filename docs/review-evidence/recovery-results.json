@@ -1,0 +1,29 @@
+{
+  "scope": "Actual recovery module, reviewer-owned Chrome API schedule; delayed installation and separately held failure-classification lookup; not installed Chrome",
+  "sourceSha256": "bd81dac7cd27afc1758c88b88b4ea0c063b82d08bde6ea6501a3d100808981bc",
+  "results": [
+    {
+      "name": "timeout revokes ticket before slow failure classification and ignores late installer return",
+      "status": "PASS",
+      "evidence": {
+        "endEvents": [
+          {
+            "attempt": "ticket_A",
+            "options": {
+              "retainLease": false
+            },
+            "at": 1004000
+          },
+          {
+            "attempt": "ticket_A",
+            "options": {
+              "retainLease": false
+            },
+            "at": 1004000
+          }
+        ],
+        "startCalls": 0
+      }
+    }
+  ]
+}

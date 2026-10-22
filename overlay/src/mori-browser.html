@@ -7,17 +7,26 @@
 <header><div><span class="eyebrow">MORI DESK / PREVIEW</span><h1>AI の待ち時間を、ひと目で。</h1></div><span id="connection" class="badge">準備中</span></header>
 <p class="intro">生成中のタブを見守り、回答を確認するタイミングをキャラクターと一覧でお知らせします。</p>
 <aside class="connection-summary" aria-live="polite"><p id="connection-detail">接続状態を確認しています。</p><p id="server-detail"></p></aside>
+<section class="recovery-summary" aria-labelledby="recovery-title"><h2 id="recovery-title">サービスごとの確認状況</h2>
+<div class="provider-grid">
+<article class="provider-status"><h3>ChatGPT</h3><p id="chatgpt-status" class="provider-label">確認状況は未受信</p><p id="chatgpt-detail"></p></article>
+<article class="provider-status"><h3>Claude</h3><p id="claude-status" class="provider-label">確認状況は未受信</p><p id="claude-detail"></p></article>
+</div><p id="delivery-status">保存済み通知の同期状況は未確認</p>
+<p id="login-status">ログイン時の自動起動：登録状態は未確認</p>
+<details class="version-info"><summary>使用中のバージョン</summary><p id="version-status"></p></details></section>
 <section><h2>Chrome と接続</h2>
 <ol><li>Chrome の <code>chrome://extensions</code> を開き、デベロッパーモードをオンにします。</li>
 <li>「パッケージ化されていない拡張機能を読み込む」で、下のボタンから開くフォルダーを選びます。</li>
 <li>接続コードを作成・コピーし、Chrome の「MORI Browser Bridge（プレビュー）」に貼り付けて「接続する」を押します。</li>
-<li>AI を使っているタブを再読み込みします。一覧が出ない場合は、拡張機能の「表示されない原因を確認」を押してください。</li></ol>
+<li>ChatGPT / Claude の会話タブを開きます。上のサービスごとの確認状況に、ページの応答と会話の識別状況を表示します。</li></ol>
 <div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
-<section><div class="section-heading"><h2>ブラウザのセッション</h2><span id="count">0 件</span></div>
-<p class="session-intro">記録ごとの状態・最終観測・未確認通知を確認できます。識別しやすい表示名を、この PC に保存できます。</p>
-<p id="empty">接続後、ChatGPT / Claude のページを再読み込みして質問を送信してください。</p>
-<div id="sessions"></div></section>
-<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。通信時刻の更新だけでは、生成状態が更新されたとは判断できません。</p><p>会話本文・入力内容・ページタイトルを自動収集せず、会話の要約は作成しません。表示名は自分で入力したものを、この PC のセッション記録に保存します。</p><p id="mode"></p></footer>
+<section><div class="section-heading"><h2>現在のタブ</h2><span id="count">0 件</span></div>
+<p class="session-intro">会話名と直近の依頼の抜粋から、どのタブかを確認できます。表示名は自分でも設定できます。</p>
+<p id="empty">接続後、ChatGPT / Claude の会話タブを開いてください。</p>
+<div id="sessions"></div>
+<details id="history" class="session-history" hidden><summary><span>以前の記録</span><span id="history-count">0 件</span><span id="history-unread" class="session-unread" hidden></span></summary>
+<p class="session-intro">閉じたタブや、以前の接続で保存した記録です。未確認通知は確認するまで残ります。</p><div id="history-sessions"></div></details></section>
+<footer><p>この開発版は DOM の変化から状態を推定します。「回答を確認」は正常終了の確定を意味しません。通信時刻の更新だけでは、生成状態が更新されたとは判断できません。</p><p>会話名と送信済みの直近の依頼の短い抜粋を、この PC のセッション記録に保存します。入力途中の文章・回答本文は取得せず、自動要約や外部 AI への送信は行いません。</p><p id="mode"></p></footer>
 </main><script src="mori-browser-renderer.js"></script></body></html>

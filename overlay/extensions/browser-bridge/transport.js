@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (function (root, factory) {
   const api = factory(typeof module === 'object' && module.exports
-    ? require('./provider-utils.js') : root.MoriProviderUtils);
+    ? require('./provider-utils.js') : root.MoriProviderUtils,
+  typeof module === 'object' && module.exports ? require('./restart-health.js') : root.MoriRestartHealth);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MoriTransport = api;
-})(typeof globalThis === 'object' ? globalThis : this, function (utils) {
+})(typeof globalThis === 'object' ? globalThis : this, function (utils, healthApi) {
   'use strict';
   const PORTS = [23333, 23334, 23335, 23336, 23337];
   const MAX_BYTES = 16 * 1024;
@@ -66,16 +67,18 @@
 
   class Transport {
     constructor({ clientId, browserRunId, getCredential, saveCredential,
-      onStatus = () => {}, onReady = () => {}, onFocus = async () => ({ ok: false }),
+      onStatus = () => {}, onReady = () => {}, onFocus = async () => ({ ok: false }), onHeartbeat = () => {},
       WebSocketClass = globalThis.WebSocket, cryptoApi = globalThis.crypto,
       now = () => Date.now() }) {
       Object.assign(this, { clientId, browserRunId, getCredential, saveCredential, onStatus, onReady,
-        onFocus, WebSocketClass, cryptoApi, now });
+        onFocus, onHeartbeat, WebSocketClass, cryptoApi, now });
       this.connection = null; this.connecting = null; this.reconnectTimer = null;
       this.attempt = 0; this.generation = 0; this.enabled = true; this.pairing = false;
+      this.pairingOwner = null;
       this.lastSendAt = 0;
     }
     isReady() { return !!this.connection?.ready; }
+    getPeerInfo() { return this.connection?.ready ? this.connection.peer : null; }
     setEnabled(value) {
       this.enabled = value;
       if (!value) this.disconnect('paused'); else void this.ensureConnected();
@@ -96,9 +99,18 @@
     async pair(value) {
       const code = parsePairingCode(value, this.now());
       this.disconnect('pairing'); this.enabled = true; this.pairing = true;
+      const owner = {}; this.pairingOwner = owner;
       this.onStatus({ state: 'pairing', code: null });
       try { await this.connectOne(code.port, code); }
-      finally { code.secret = ''; this.pairing = false; if (!this.isReady()) this.scheduleReconnect(); }
+      finally {
+        code.secret = '';
+        // A replaced pair may finish after its successor has started. Only
+        // the current attempt may release the exclusion on resume attempts.
+        if (this.pairingOwner === owner) {
+          this.pairingOwner = null; this.pairing = false;
+          if (!this.isReady()) this.scheduleReconnect();
+        }
+      }
     }
     async ensureConnected({ immediate = false } = {}) {
       if (!this.enabled || this.pairing || this.isReady()) return;
@@ -128,6 +140,7 @@
       return this.connecting;
     }
     connectOne(port, pairCode = null) {
+      const generation = this.generation;
       return new Promise((resolve, reject) => {
         const credential = pairCode || this.getCredential();
         if (!credential) { reject(new Error('unpaired')); return; }
@@ -141,10 +154,12 @@
         let ws;
         try { ws = new this.WebSocketClass(`ws://127.0.0.1:${port}/browser/v1`); }
         catch (_) { reject(new Error('connection_failed')); return; }
-        const connection = { ws, ready: false, pending: new Map(), lastPong: this.now() };
+        const connection = { ws, ready: false, pending: new Map(), lastPong: this.now(),
+          peer: null, healthTimer: null, pendingHealth: null, lastHealthAt: null };
         const fail = (code, reconnect = true) => {
           if (closed) return;
-          closed = true; clearTimeout(authTimer); clearInterval(heartbeat);
+          closed = true; clearTimeout(authTimer); clearInterval(heartbeat); clearTimeout(connection.healthTimer);
+          connection.healthTimer = null; connection.pendingHealth = null;
           sharedSecret = ''; derivedKey = null;
           for (const pending of connection.pending.values()) {
             clearTimeout(pending.timer); pending.reject(new Error(code));
@@ -162,7 +177,17 @@
         connection.fail = fail;
         this.connection = connection;
         const authTimer = setTimeout(() => fail('authentication_timeout'), 5000);
+        // Crypto and credential persistence yield to pause, disconnect,
+        // authentication timeout and replacement connections. A continuation
+        // from the old socket must not publish ready or start a heartbeat.
+        const current = () => {
+          if (closed) return false;
+          if (this.connection === connection && this.generation === generation && this.enabled) return true;
+          fail('connection_closed', false);
+          return false;
+        };
         const send = message => {
+          if (!current()) throw new Error('connection_closed');
           const text = JSON.stringify(message);
           if (encoder.encode(text).byteLength > MAX_BYTES) throw new Error('message_too_large');
           ws.send(text);
@@ -176,7 +201,7 @@
         let chain = Promise.resolve();
         ws.onmessage = event => {
           chain = chain.then(async () => {
-            if (closed) return;
+            if (!current()) return;
             if (typeof event.data !== 'string' || encoder.encode(event.data).byteLength > MAX_BYTES) throw new Error('invalid_message');
             let message;
             try { message = JSON.parse(event.data); } catch (_) { throw new Error('invalid_message'); }
@@ -190,10 +215,13 @@
               if (message.type === 'challenge' && stage === 'hello') {
                 if (!verifyChallenge(message, expected)) throw new Error('identity_mismatch');
                 const proof = await hmac(sharedSecret, canonical('server-proof', message), this.cryptoApi);
+                if (!current()) return;
                 if (!equalProof(proof, message.proof)) throw new Error('authentication_failed');
                 challenge = message;
                 if (mode === 'pair') derivedKey = await hmac(sharedSecret, canonical('credential', challenge), this.cryptoApi);
+                if (!current()) return;
                 const clientProof = await hmac(sharedSecret, canonical('client-proof', challenge), this.cryptoApi);
+                if (!current()) return;
                 stage = 'authenticated';
                 send({ type: 'authenticate', proof: clientProof });
               } else if (message.type === 'pair.ready' && mode === 'pair' && stage === 'authenticated') {
@@ -201,21 +229,31 @@
                 // This write must succeed before the desktop activates the key.
                 await this.saveCredential({ clientId: this.clientId, instanceId: expected.instanceId,
                   key: derivedKey, port });
+                if (!current()) return;
                 const proof = await hmac(derivedKey, canonical('pair-confirm', challenge), this.cryptoApi);
+                if (!current()) return;
                 stage = 'confirmed'; send({ type: 'pair.confirm', proof });
               } else if (message.type === 'ready'
                 && ((mode === 'pair' && stage === 'confirmed') || (mode === 'resume' && stage === 'authenticated'))) {
                 if (message.v !== 1 || message.clientId !== this.clientId || message.instanceId !== expected.instanceId
                   || message.serverRunId !== challenge?.serverRunId || message.port !== port) throw new Error('identity_mismatch');
+                connection.peer = healthApi.safePeer(message);
                 if (mode === 'resume' && credential.port !== port) await this.saveCredential({ ...credential, port });
+                if (!current()) return;
                 clearTimeout(authTimer); connection.ready = true; this.attempt = 0;
-                sharedSecret = ''; derivedKey = null; fulfilled = true;
+                sharedSecret = ''; derivedKey = null;
                 this.onStatus({ state: 'connected', code: null, port });
+                // Status callbacks can synchronously pause or replace this
+                // connection; leave its promise rejectable until they return.
+                if (!current()) return;
                 heartbeat = setInterval(() => {
                   if (this.now() - connection.lastPong > 65000) { fail('heartbeat_timeout'); return; }
                   try { send({ type: 'ping', at: this.now() }); } catch (_) { fail('connection_failed'); }
+                  // Inventory uses an existing heartbeat opportunity; it never
+                  // becomes an authentication or receipt-delivery barrier.
+                  Promise.resolve().then(() => this.onHeartbeat()).catch(() => {});
                 }, 20000);
-                resolve();
+                fulfilled = true; resolve();
                 // Do not await callbacks in the incoming-message queue: outbox
                 // replay waits for ACKs that must be processed by this queue.
                 Promise.resolve(this.onReady()).catch(() => fail('sync_failed'));
@@ -248,6 +286,27 @@
         ws.onerror = () => fail('connection_failed');
         ws.onclose = () => fail('connection_closed');
       });
+    }
+    sendHealth(value) {
+      const connection = this.connection;
+      if (!connection?.ready || !connection.peer?.capabilities.includes(healthApi.CAPABILITY)) return false;
+      if (value?.type !== 'client.health' || value.browserRunId !== this.browserRunId) return false;
+      const text = JSON.stringify(value);
+      if (encoder.encode(text).byteLength > MAX_BYTES) return false;
+      connection.pendingHealth = text;
+      const flushHealth = () => {
+        connection.healthTimer = null;
+        if (connection !== this.connection || !connection.ready || !this.enabled) return;
+        const pending = connection.pendingHealth;
+        connection.pendingHealth = null;
+        if (!pending) return;
+        try { connection.ws.send(pending); connection.lastHealthAt = this.now(); }
+        catch (_) { connection.fail('connection_failed'); }
+      };
+      const delay = connection.lastHealthAt === null ? 0 : Math.min(1000, Math.max(0, 1000 - (this.now() - connection.lastHealthAt)));
+      if (!delay && !connection.healthTimer) flushHealth();
+      else if (!connection.healthTimer) connection.healthTimer = setTimeout(flushHealth, delay);
+      return true;
     }
     async sendEvent(event) {
       const connection = this.connection;

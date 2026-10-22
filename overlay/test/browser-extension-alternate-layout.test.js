@@ -195,9 +195,13 @@ function integration(t) {
 
 test('synthetic alternate controls create distinct HUD rows and one durable unverified receipt per observed turn', t => {
   const f = integration(t);
-  assert.equal(f.sample(1, quiet().doc).events.length, 0);
-  assert.equal(f.hud().sessions.length, 0);
-  assert.equal(getMoriHudStatus(f.hud()).label, '生成状態は未受信');
+  const idle = f.sample(1, quiet().doc);
+  assert.equal(idle.events.length, 1);
+  assert.equal(idle.events[0].phase, 'idle');
+  assert.equal(idle.events[0].turnId, null);
+  assert.equal(f.hud().sessions.length, 1);
+  assert.equal(f.notices.length, 0);
+  assert.equal(getMoriHudStatus(f.hud()), null);
 
   const first = f.sample(1, alternate().doc);
   assert.equal(first.signal.hasAssistant, false);

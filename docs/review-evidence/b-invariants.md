@@ -1,0 +1,14 @@
+# B supplement fixed before content implementation review
+
+The recovery plan and initial `invariants.md` define the oracle. This supplement makes the B adversarial schedules explicit before reading the changed content entrypoint/binding/installer. The provider-utils message projection was already read while preparing A's API-boundary harness; no implementation tests or fixtures have been read.
+
+1. An unconfirmed page, including URL B with old A contents, sends only registration/identity information. None of the initial pass, timer, forced observation, health request, focus request, page visibility/pageshow, or retry paths may read/send A's prompt or generation state as B. Focus success and receipt ACK stay false.
+2. URL change, binding epoch change, observer replacement, extension identity change, stop/unpair, and worker epoch change invalidate old authorization. Complete an older registration promise after each event: it cannot restore authority for the old route/observer/control generation.
+3. Registration/identity bootstrap must operate while unapproved without requiring approved focus success. Positive synthetic protocol flow may demonstrate this boundary, but cannot demonstrate real provider DOM attribution.
+4. Installer tickets A and B may complete in reverse order. Once the worker has invalidated A, its late execution must neither emit accepted observation nor replace a newer live B controller, timer, or owner. A stale ticket cannot acquire a fresh permission by pretending to be a first static installation.
+5. Same-observer re-registration after worker-only interruption preserves verified generation continuity. Complete one generation across re-registration: one correct terminal event. Actual observer replacement or route change creates a baseline and cannot infer a terminal from earlier running plus later idle.
+6. All async sends capture the full authorization tuple and observation revision. A stale rejection/acceptance cannot clear newer authority, discard a newer pending terminal, change a newer route's delivery status, or cause cross-route replay.
+7. Stopping while reads/registration/acceptance are in progress revokes new work immediately. Work admitted to durable persistence before revocation settles in the common order; control success cannot precede that persistence. Post-control old work never recreates session/outbox/credentials.
+8. Product defaults have no fabricated provider structural evidence and no option, timer, page-controlled attribute, or generic URL-only path to approval. If this means all real provider observations remain unconfirmed, report B8/useful recovery as unachieved; do not relabel it successful automatic recovery.
+
+Negative source/synthetic results and useful real-provider acceptance are separate. Real Chrome extension reload/session lifetime, Windows/macOS IME, and native provider use remain NOT-RUN unless directly executed in those environments.

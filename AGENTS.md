@@ -27,8 +27,14 @@ authorization; ordinary reversible fixes do not require a separate approval.
   Existing native Origin/Host/Content-Type protections stay unchanged in CLI mode.
 - Preserve HMAC mutual authentication, exact Origin/Host checks, safeStorage
   failure behavior, strict message schemas, durable receipt ACK, per-tab identity,
-  and focus-before-ack race protection. Never collect prompts, answers, HTML,
-  titles, cookies, or API keys for browser status detection.
+  and focus-before-ack race protection. Browser status detection remains based
+  on structural DOM signals. The user-authorized local identification feature
+  may read an existing conversation title and an excerpt of the latest submitted
+  user request, each limited to 160 UTF-16 code units. Keep this display metadata
+  bound to the verified current document/conversation and within the paired local
+  browser store/HUD boundary. Never collect composer drafts, assistant answers,
+  conversation transcripts, HTML, cookies, or API keys. Diagnostics remain
+  categories/counts only; do not send identification text to external consumers.
 - DOM uncertainty, disconnects, closed tabs, and stale observations are not
   normal completion. A new turn must not clear an older unread receipt.
 

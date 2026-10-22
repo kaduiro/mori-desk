@@ -9,9 +9,49 @@
   const CONVERSATION_ID = /^[A-Za-z0-9-]{1,128}$/;
   const CHATGPT_SCOPE = /^g-[A-Za-z0-9_-]{1,160}$/;
   const URL_PATTERNS = ['https://chatgpt.com/*', 'https://claude.ai/*'];
+  const MAX_METADATA_LENGTH = 160;
+  const METADATA_CONTROLS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u;
   const OBSERVATION_REJECTIONS = new Set(['paused', 'invalid_sender', 'old_document',
     'invalid_observation', 'old_observation', 'duplicate_observation', 'capacity',
-    'outbox_full', 'storage_failed', 'local_data_invalid', 'tab_unavailable', 'observation_failed']);
+    'outbox_full', 'storage_failed', 'local_data_invalid', 'tab_unavailable', 'observation_failed',
+    'binding_unconfirmed', 'lease_invalid', 'lease_expired', 'attempt_expired', 'observer_version',
+    'initialization_failed', 'registration_failed']);
+
+  const LEASE_FIELDS = ['workerEpoch', 'leaseId', 'bindingEpoch'];
+  function safeLease(input) {
+    if (!input || LEASE_FIELDS.some(field => typeof input[field] !== 'string' || !ID.test(input[field]))) return null;
+    return Object.fromEntries(LEASE_FIELDS.map(field => [field, input[field]]));
+  }
+
+  function safeObserverRegister(input) {
+    if (!input || input.type !== 'mori.observer.register' || input.v !== 1
+      || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
+      || input.observerVersion !== '0.1.8'
+      || !Object.hasOwn(input, 'attemptId')
+      || (input.attemptId !== null && (typeof input.attemptId !== 'string' || !ID.test(input.attemptId)))
+      || Object.keys(input).some(key => !['type', 'v', 'pageInstanceId', 'observerVersion', 'attemptId'].includes(key))) return null;
+    return { pageInstanceId: input.pageInstanceId, observerVersion: input.observerVersion, attemptId: input.attemptId };
+  }
+
+  function safeObserverIdentity(input) {
+    if (!input || input.ok !== true || input.v !== 1 || input.observerVersion !== '0.1.8'
+      || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
+      || !['confirmed', 'unconfirmed'].includes(input.binding?.state)
+      || typeof input.binding.epoch !== 'string' || !ID.test(input.binding.epoch)) return null;
+    let route = null;
+    if (input.route !== null) {
+      const value = input.route;
+      if (!value || !['chatgpt', 'claude'].includes(value.provider) || typeof value.path !== 'string') return null;
+      const parsed = routeForUrl(`https://${value.provider === 'chatgpt' ? 'chatgpt.com' : 'claude.ai'}${value.path}`);
+      if (!parsed || parsed.path !== value.path || parsed.conversationRef !== value.conversationRef) return null;
+      route = parsed;
+    }
+    const lease = input.lease === null ? null : safeLease(input.lease);
+    if (input.lease !== null && !lease) return null;
+    if (lease && (input.binding.state !== 'confirmed' || lease.bindingEpoch !== input.binding.epoch)) return null;
+    return { ok: true, v: 1, observerVersion: input.observerVersion, pageInstanceId: input.pageInstanceId,
+      route, binding: { state: input.binding.state, epoch: input.binding.epoch }, lease };
+  }
 
   function safeObservationAck(value) {
     if (value?.ok === true) return { ok: true, reason: null };
@@ -98,6 +138,29 @@
     return null;
   }
 
+  function metadataText(value) {
+    if (typeof value !== 'string') return '';
+    // Keep meaningful Unicode (including emoji ZWJ sequences), but discard
+    // control/bidi characters and lone UTF-16 surrogates. Whitespace is
+    // collapsed before controls are removed so line breaks separate words.
+    const singleLine = value.replace(/\s+/gu, ' ')
+      .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu, '')
+      .replace(/\s+/gu, ' ').trim();
+    let text = '';
+    for (const character of singleLine) {
+      if (character.length === 1 && /[\ud800-\udfff]/u.test(character)) continue;
+      if (text.length + character.length > MAX_METADATA_LENGTH) break;
+      text += character;
+    }
+    return text.replace(/\s+/gu, ' ').trim();
+  }
+
+  function validMetadataText(value) {
+    return typeof value === 'string' && value.length <= MAX_METADATA_LENGTH
+      && !METADATA_CONTROLS.test(value) && value === value.replace(/\s+/gu, ' ').trim()
+      && Array.from(value).every(character => character.length === 2 || !/[\ud800-\udfff]/u.test(character));
+  }
+
   function safeObservation(input) {
     if (!input || input.type !== 'mori.observation' || input.v !== 1) return null;
     if (!ID.test(input.pageInstanceId || '') || !Number.isSafeInteger(input.contentSequence)
@@ -107,6 +170,12 @@
     if (![null, 'interrupted', 'error', 'unverified'].includes(input.outcome)) return null;
     if (input.status === 'settled' && (!input.generationToken || !input.outcome)) return null;
     if (input.status !== 'settled' && input.outcome !== null) return null;
+    for (const field of ['conversationTitle', 'requestPreview']) {
+      if (Object.hasOwn(input, field) && !validMetadataText(input[field])) return null;
+    }
+    const hasLease = LEASE_FIELDS.some(field => Object.hasOwn(input, field));
+    const lease = hasLease ? safeLease(input) : null;
+    if (hasLease && !lease) return null;
     // Project only this allowlist. A compromised page cannot smuggle content
     // through additional properties into either storage or the local wire.
     return {
@@ -116,9 +185,13 @@
       status: input.status,
       generationToken: input.generationToken,
       outcome: input.outcome,
+      ...(lease || {}),
+      ...(Object.hasOwn(input, 'conversationTitle') ? { conversationTitle: input.conversationTitle } : {}),
+      ...(Object.hasOwn(input, 'requestPreview') ? { requestPreview: input.requestPreview } : {}),
     };
   }
 
   return { ID, URL_PATTERNS, providerForUrl, routeForUrl, sameRoute, canAssignConversation,
-    isVisible, findVisible, safeObservation, safeObservationAck };
+    isVisible, findVisible, metadataText, validMetadataText, MAX_METADATA_LENGTH,
+    safeObservation, safeObservationAck, safeLease, safeObserverRegister, safeObserverIdentity };
 });

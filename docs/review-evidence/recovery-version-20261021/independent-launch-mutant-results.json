@@ -1,0 +1,202 @@
+{
+  "node": "v24.19.0",
+  "criteriaHash": "3879ccaa0d1f952e23decbfa22ebc1f62cfdbe5bfacbfa29a28861f163b21fcc",
+  "sourceHashes": {
+    "prepare-runtime.js": "4421c065824a881543207d16a3c3f5e2d39d4d3c8f069a46891049e5fe9ac146",
+    "doctor.js": "d9b933c07830cd60e76b21aa23c78a46eff79cb1cd6ace21a4a6fe2ba402fc65",
+    "run.js": "3f942edb3daeebf5d423ee332e31571121de8dc180919e849b2b8ed6fae7c08b"
+  },
+  "method": "Independent temporary source trees; real filesystem comparisons; read-only fs enforcement; Git commands captured and never executed; launch intercepted",
+  "results": [
+    {
+      "name": "S01/L01 consistent disk fixture permits launch without claiming live acceptance",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "live": "NOT_CHECKED"
+      }
+    },
+    {
+      "name": "S02/S03 changed pin is refused before launch",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": false
+      }
+    },
+    {
+      "name": "S02/S03 changed patch is refused before launch",
+      "result": "FAIL",
+      "message": "Missing expected rejection.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected rejection.\n    at async /tmp/mori-next-independent-source.js:90:5\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:83:85"
+    },
+    {
+      "name": "S02/S03 changed overlay-modify is refused before launch",
+      "result": "FAIL",
+      "message": "Missing expected rejection.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected rejection.\n    at async /tmp/mori-next-independent-source.js:90:5\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:83:85"
+    },
+    {
+      "name": "S02/S03 changed overlay-add is refused before launch",
+      "result": "FAIL",
+      "message": "Missing expected rejection.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected rejection.\n    at async /tmp/mori-next-independent-source.js:90:5\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:83:85"
+    },
+    {
+      "name": "S02/S03 changed overlay-delete is refused before launch",
+      "result": "FAIL",
+      "message": "Missing expected rejection.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected rejection.\n    at async /tmp/mori-next-independent-source.js:90:5\n    at async check (/tmp/mori-next-independent-source.js:74:82)\n    at async /tmp/mori-next-independent-source.js:83:85"
+    },
+    {
+      "name": "S04 invalid fingerprint undefined fails closed",
+      "result": "FAIL",
+      "message": "Missing expected exception.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected exception.\n    at requiredRefusal (/tmp/mori-next-independent-source.js:75:36)\n    at /tmp/mori-next-independent-source.js:95:47\n    at check (/tmp/mori-next-independent-source.js:74:88)\n    at /tmp/mori-next-independent-source.js:94:56"
+    },
+    {
+      "name": "S04 invalid fingerprint invalid fails closed",
+      "result": "FAIL",
+      "message": "Missing expected exception.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected exception.\n    at requiredRefusal (/tmp/mori-next-independent-source.js:75:36)\n    at /tmp/mori-next-independent-source.js:95:47\n    at check (/tmp/mori-next-independent-source.js:74:88)\n    at /tmp/mori-next-independent-source.js:94:56"
+    },
+    {
+      "name": "S04 invalid fingerprint 123 fails closed",
+      "result": "FAIL",
+      "message": "Missing expected exception.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected exception.\n    at requiredRefusal (/tmp/mori-next-independent-source.js:75:36)\n    at /tmp/mori-next-independent-source.js:95:47\n    at check (/tmp/mori-next-independent-source.js:74:88)\n    at /tmp/mori-next-independent-source.js:94:56"
+    },
+    {
+      "name": "S04 unreadable ownership/invalid JSON fails closed",
+      "result": "PASS"
+    },
+    {
+      "name": "S05 documentation-only changes preserve startup eligibility",
+      "result": "PASS"
+    },
+    {
+      "name": "S07/L05 runtime extension byte change is detected despite a matching stamp",
+      "result": "FAIL",
+      "message": "Missing expected exception.",
+      "stack": "AssertionError [ERR_ASSERTION]: Missing expected exception.\n    at requiredRefusal (/tmp/mori-next-independent-source.js:75:36)\n    at /tmp/mori-next-independent-source.js:104:102\n    at check (/tmp/mori-next-independent-source.js:74:88)\n    at /tmp/mori-next-independent-source.js:103:9"
+    },
+    {
+      "name": "S07 inherited runtime mutation remains explicitly outside reported coverage",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "scope": "NOT_CHECKED"
+      }
+    },
+    {
+      "name": "L02 same extension version with different bytes is mismatch",
+      "result": "PASS",
+      "details": {
+        "changed": [
+          "worker.js"
+        ]
+      }
+    },
+    {
+      "name": "L04 missing selected file is not silently accepted",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 missing selected directory is unavailable",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 omitted selected directory cannot imply it was inspected",
+      "result": "PASS",
+      "details": {
+        "diskChecksPassed": true,
+        "selected": null
+      }
+    },
+    {
+      "name": "L06 matching different folder is disk-only identity",
+      "result": "PASS"
+    },
+    {
+      "name": "L08/L09 doctor does not mutate files, execute git, or read profile content",
+      "result": "PASS",
+      "details": {
+        "capturedReadOnlyGitRequests": 3,
+        "actualSubprocesses": 0,
+        "writeAttempts": 0
+      }
+    },
+    {
+      "name": "L10 JSON status and CLI exit agree on same-version mismatch",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 human report preserves live and inherited-code limitations",
+      "result": "PASS"
+    },
+    {
+      "name": "A07 target extras are outside fingerprint coverage and must be disclosed",
+      "result": "PASS",
+      "details": {
+        "status": "matches_source",
+        "fingerprintEquals": true,
+        "coverage": "expected_source_files_only"
+      }
+    },
+    {
+      "name": "L09 symlink to unrelated content is not read as a code file",
+      "result": "PASS"
+    },
+    {
+      "name": "L04 nonregular selected-extension/manifest.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular .runtime/package.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular upstream.lock.json is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 nonregular patches/mori.patch is rejected before reading",
+      "result": "PASS",
+      "details": {
+        "specialReads": 0
+      }
+    },
+    {
+      "name": "L04 manifest symlink to a FIFO is not dereferenced",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation name cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation appId cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "L10 runtime product identity violation publish cannot pass doctor",
+      "result": "PASS"
+    },
+    {
+      "name": "A02 Git identity belongs to the actual root only",
+      "result": "PASS"
+    },
+    {
+      "name": "A02 parent Git identity cannot be attributed to a nested ZIP checkout",
+      "result": "PASS"
+    }
+  ]
+}

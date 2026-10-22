@@ -12,10 +12,11 @@
       <span class="brand" aria-hidden="true">mori</span>
       <div><p class="eyebrow">BROWSER BRIDGE · プレビュー</p><h1>回答を待つ時間に、別の仕事を。</h1></div>
     </header>
-    <p class="intro">ChatGPT と Claude の生成状態を、デスクトップのキャラクターに届けます。</p>
+    <p class="intro">ChatGPT と Claude の状態と会話の目印を、デスクトップで確認するための開発候補です。</p>
+    <p class="notice"><strong>この版のページ監視は未完成です。</strong>会話の所属を確認する処理が未実装のため、新しいページの監視結果を受け付けません。本体との接続は確認できますが、再接続やページの再読み込みでは監視は有効になりません。</p>
 
     <section class="status-card" aria-labelledby="status-heading">
-      <div class="status-heading"><h2 id="status-heading">接続状況</h2><span id="connection" class="pill">読み込み中</span></div>
+      <div class="status-heading"><h2 id="status-heading">本体との接続</h2><span id="connection" class="pill">読み込み中</span></div>
       <p id="connection-detail" role="status" aria-live="polite">拡張機能を確認しています。</p>
       <div class="metrics">
         <div><strong id="tracked">0</strong><span>監視中のタブ</span></div>
@@ -23,8 +24,9 @@
         <div><strong id="pending">0</strong><span>未送信の通知</span></div>
       </div>
       <p id="diagnostic" class="notice" hidden></p>
-      <div class="actions"><button id="retry" type="button">今すぐ再接続</button><button id="pause" type="button" class="secondary">監視を一時停止</button></div>
-      <div class="actions"><button id="check-tabs" type="button" class="secondary">表示されない原因を確認</button></div>
+      <div class="actions"><button id="retry" type="button">本体に再接続</button><button id="pause" type="button" class="secondary">監視を一時停止</button></div>
+      <div class="actions"><button id="check-tabs" type="button" class="secondary" aria-describedby="check-tabs-help">タブの監視を確認・復旧</button></div>
+      <p id="check-tabs-help" class="small">開いている AI タブの監視を確認し、必要なら復旧を試みます。ページの再読み込みや、入力・送信は行いません。</p>
       <div id="tab-health" class="notice" role="status" aria-live="polite" hidden></div>
     </section>
 
@@ -41,19 +43,20 @@
         <button id="pair-button" type="submit">接続する</button>
       </form>
       <p id="action-result" role="status" aria-live="polite"></p>
-      <p class="small">接続コードは送信後に入力欄から消えます。再起動後は、この Chrome プロファイルの接続を自動的に再開します。</p>
+      <p class="small">接続コードは送信後に入力欄から消えます。本体とこの Chrome プロファイルが利用可能になると、通信の再接続を試します。会話を監視できるかは、本体のサービス別の確認状況に表示します。</p>
     </section>
 
     <section class="preview-note" aria-labelledby="preview-heading">
-      <h2 id="preview-heading">プレビュー版で確認できること</h2>
-      <p><strong>対象は ChatGPT と Claude の通常のテキスト会話です。</strong> ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も、通常の入力欄と生成の停止ボタンを読み取れる画面で扱います。拡張機能の追加・再読み込み後は、開いている AI のタブも一度再読み込みしてください。生成中の状態を一度観測すると、1 つのタブが HUD の 1 行として表示されます。過去の会話を開いただけでは行は作りません。同じ会話を 2 タブで開いた場合も別々に表示します。最大 20 タブを監視します。</p>
+      <h2 id="preview-heading">実装・検証の対象</h2>
+      <p><strong>以下は目標とする動作です。実サービスでの動作確認は完了していません。</strong>対象は ChatGPT と Claude の通常のテキスト会話です。ChatGPT のプロジェクト内・カスタム GPT 内の会話 URL も対象にします。拡張機能の追加・更新後は、すでに開いているタブの監視の復旧を試みます。1 つのタブが HUD の 1 行に対応し、同じタブの中で表示していない複数の会話を同時には観測しません。同じ会話を 2 タブで開いた場合は別々に表示し、最大 20 タブを扱います。開いただけで完了通知は出しません。</p>
       <p>この版の DOM 判定は、実際の利用環境での確認が必要です。生成の停止を検出したときは <strong>「回答を確認」</strong> と表示します。正常終了の保証や、回答内容の評価は行いません。読み取れない画面、タブの破棄、スリープ中は状態が不明になります。</p>
-      <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。プロジェクト名・GPT 名を収集せず、会話 ID だけを扱います。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
+      <p class="small">音声・画像生成・Deep Research・プロジェクトの管理画面・GPT の編集画面は検証対象に含みません。URL のプロジェクト名・GPT 名の部分は保存せず、会話 ID に正規化します。対象ページの変更によって表示が追従しなくなった場合は、この画面の監視を停止できます。</p>
     </section>
 
     <section aria-labelledby="privacy-heading">
       <h2 id="privacy-heading">この拡張機能が扱う情報</h2>
-      <p>AI の種類、会話の識別子、タブの識別子、生成状態、時刻だけを、この PC の MORI Desk に送ります。プロンプト・回答本文・ページのタイトル・Cookie・API キーは収集しません。</p>
+      <p>AI の種類、会話とタブの識別子、生成状態、時刻に加え、現在の会話タイトルと、最後に送信したユーザーの依頼の短い抜粋を、この PC の MORI Desk に送ります。タイトル・抜粋はそれぞれ最大 160 文字相当で、会話を見分けるために表示します。元の会話を特定できないときは取得できない状態として扱います。</p>
+      <p>入力途中の文章・AI の回答・HTML・Cookie・API キーは収集しません。外部サービスに会話を送って要約する処理はありません。「タブの監視を確認・復旧」の診断は件数と状態だけを扱います。</p>
       <p>HUD の行をクリックしたときだけ、対象のタブとウィンドウを前面に出します。入力、送信、会話の削除、AI の操作許可は行いません。</p>
       <details><summary>接続の詳細と解除</summary>
         <p class="small">接続先は <code>127.0.0.1:23333–23337</code> の MORI Desk です。接続コードを使った相互認証を行います。外部サーバーへの通信や、拡張機能ストアからの自動更新設定は、このソース版にはありません。</p>

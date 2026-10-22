@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: extension transport pairs against the real backend, then reconnects with the saved derived key
+ok 1 - extension transport pairs against the real backend, then reconnects with the saved derived key
+  ---
+  duration_ms: 39.888925
+  type: 'test'
+  ...
+# Subtest: a failed extension credential write never sends pair.confirm or reports ready
+ok 2 - a failed extension credential write never sends pair.confirm or reports ready
+  ---
+  duration_ms: 8.462375
+  type: 'test'
+  ...
+# Subtest: real metadata terminal ACK and focus round-trip do not need any input or approval capability
+ok 3 - real metadata terminal ACK and focus round-trip do not need any input or approval capability
+  ---
+  duration_ms: 96.473269
+  type: 'test'
+  ...
+# Subtest: automatic reconnect calls from observations respect the pending exponential backoff
+ok 4 - automatic reconnect calls from observations respect the pending exponential backoff
+  ---
+  duration_ms: 4.055066
+  type: 'test'
+  ...
+# Subtest: explicit retry cancels the pending wait and coalesces concurrent connection attempts
+ok 5 - explicit retry cancels the pending wait and coalesces concurrent connection attempts
+  ---
+  duration_ms: 1.942515
+  type: 'test'
+  ...
+# Subtest: explicit retry does not bypass paused, pairing or unpaired states
+ok 6 - explicit retry does not bypass paused, pairing or unpaired states
+  ---
+  duration_ms: 0.542049
+  type: 'test'
+  ...
+# Subtest: resumption still finds a moved desktop port and authenticates its saved key
+ok 7 - resumption still finds a moved desktop port and authenticates its saved key
+  ---
+  duration_ms: 19.144504
+  type: 'test'
+  ...
+# Subtest: a late credential-save completion cannot report connected after monitoring is paused
+ok 8 - a late credential-save completion cannot report connected after monitoring is paused
+  ---
+  duration_ms: 2.339234
+  type: 'test'
+  ...
+# Subtest: an expired authentication cannot become ready when its delayed save completes
+ok 9 - an expired authentication cannot become ready when its delayed save completes
+  ---
+  duration_ms: 1.426355
+  type: 'test'
+  ...
+# Subtest: a replaced socket cannot publish ready over its authenticated replacement
+ok 10 - a replaced socket cannot publish ready over its authenticated replacement
+  ---
+  duration_ms: 2.412014
+  type: 'test'
+  ...
+# Subtest: a current delayed credential save still completes authentication exactly once
+ok 11 - a current delayed credential save still completes authentication exactly once
+  ---
+  duration_ms: 1.31067
+  type: 'test'
+  ...
+# Subtest: pausing from the connected status callback stops readiness and still permits a later connection
+ok 12 - pausing from the connected status callback stops readiness and still permits a later connection
+  ---
+  duration_ms: 1.868774
+  type: 'test'
+  ...
+# Subtest: an obsolete pair completion cannot release the current pair exclusion
+ok 13 - an obsolete pair completion cannot release the current pair exclusion
+  ---
+  duration_ms: 0.912398
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 30202.356974

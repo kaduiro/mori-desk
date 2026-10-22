@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: pausing from the connected status callback stops readiness and still permits a later connection
+ok 1 - pausing from the connected status callback stops readiness and still permits a later connection
+  ---
+  duration_ms: 10.850223
+  type: 'test'
+  ...
+# Subtest: an obsolete pair completion cannot release the current pair exclusion
+ok 2 - an obsolete pair completion cannot release the current pair exclusion
+  ---
+  duration_ms: 1.578705
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 45.250346

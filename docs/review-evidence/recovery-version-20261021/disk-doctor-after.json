@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "diagnostic": "mori-disk-versions-v1",
+  "checkedAt": "2026-10-21T11:25:14.119Z",
+  "checkout": {
+    "commit": "d3aef35baba80a16aaab7b4cc0c1720e467537e8",
+    "trackedChanges": true,
+    "remoteFreshness": "NOT_CHECKED",
+    "untrackedFiles": "NOT_CHECKED",
+    "applicationVersion": "0.1.3-preview.1",
+    "extensionVersion": "0.1.7"
+  },
+  "runtime": {
+    "applicationVersion": "0.1.3-preview.1",
+    "productIdentityMatches": true,
+    "source": {
+      "status": "checked",
+      "ready": true,
+      "upstreamMatches": true,
+      "inputMatches": true,
+      "currentInputFingerprint": "d80db87c54e9ae39588ada8ff74524b401b892e2a810dd8389ff902967eff6c4",
+      "builtInputFingerprint": "d80db87c54e9ae39588ada8ff74524b401b892e2a810dd8389ff902967eff6c4",
+      "overlay": {
+        "checked": 70,
+        "changed": [],
+        "missing": []
+      }
+    },
+    "sourceMatches": true,
+    "extension": {
+      "path": "/workspace/scratch/71b181da6eca/mori-desk/.runtime/extensions/browser-bridge",
+      "version": "0.1.7",
+      "checkedFiles": 18,
+      "changed": [],
+      "missing": [],
+      "unreadable": [],
+      "fingerprint": "2692d7d7aae370c9422c5c8dfd17cc9821a25066f28b20572895a602cbb42aab",
+      "coverage": "expected_source_files_only",
+      "liveBrowser": "NOT_CHECKED",
+      "status": "matches_source"
+    },
+    "inheritedRuntimeFiles": "NOT_CHECKED",
+    "runningDesktop": "NOT_CHECKED"
+  },
+  "selectedExtension": null,
+  "diskChecksPassed": true,
+  "browserLoadedExtension": "NOT_CHECKED",
+  "providerAcceptance": "NOT_CHECKED",
+  "automaticRecovery": "NOT_CHECKED"
+}

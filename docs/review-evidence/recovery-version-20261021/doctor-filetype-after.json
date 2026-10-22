@@ -1,0 +1,33 @@
+[
+  {
+    "case": "regular",
+    "exitCode": 2,
+    "elapsedSeconds": 0.088,
+    "selectedStatus": "mismatch",
+    "selectedVersion": "9.9.9",
+    "unreadable": [],
+    "browserLoadedExtension": "NOT_CHECKED"
+  },
+  {
+    "case": "fifo",
+    "exitCode": 2,
+    "elapsedSeconds": 0.079,
+    "selectedStatus": "mismatch",
+    "selectedVersion": null,
+    "unreadable": [
+      "manifest.json"
+    ],
+    "browserLoadedExtension": "NOT_CHECKED"
+  },
+  {
+    "case": "symlink_to_fifo",
+    "exitCode": 2,
+    "elapsedSeconds": 0.083,
+    "selectedStatus": "mismatch",
+    "selectedVersion": null,
+    "unreadable": [
+      "manifest.json"
+    ],
+    "browserLoadedExtension": "NOT_CHECKED"
+  }
+]

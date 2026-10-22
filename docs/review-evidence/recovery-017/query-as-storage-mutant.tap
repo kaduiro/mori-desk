@@ -1,0 +1,142 @@
+TAP version 13
+# Subtest: I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 1 - I-A1 independent query throw: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 14.990501
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:40:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 2 - I-A1 independent query reject: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 4.434477
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:40:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+not ok 3 - I-A1 independent query pending: normal alarms restore attested protocol reports without diagnostic assistance
+  ---
+  duration_ms: 4.347997
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:23:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:40:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+ok 4 - I-A1 independent query delay 1499 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 11.491807
+  type: 'test'
+  ...
+# Subtest: I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+not ok 5 - I-A1 independent query delay 1500 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 4.614039
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+not ok 6 - I-A1 independent query delay 1501 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.096827
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+not ok 7 - I-A1 independent query delay 1700 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 3.958359
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+not ok 8 - I-A1 independent query delay 5000 ms preserves storage health at the timeout boundary
+  ---
+  duration_ms: 2.725216
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:55:3'
+  failureType: 'testCodeFailure'
+  error: 'I-A1: a tab-enumeration failure must not disable transport as a storage failure'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:68:12)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 1
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73.772251

@@ -5,7 +5,8 @@ const { pathToFileURL } = require("node:url");
 const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
-  shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "" }) {
+  shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "",
+  getListenerStatus = () => null, getLoginStatus = () => null, getBuildInfo = () => null }) {
   let window = null;
   let pairing = null;
   let selectedSessionId = null;
@@ -34,10 +35,12 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   function state() {
     const bridge = getBridge();
     const bridgeStatus = bridge?.getStatus() || null;
-    const port = getPort();
+    const listener = getListenerStatus();
+    const port = listener ? (listener.state === "listening" ? listener.port : null) : getPort();
     const error = getStartupError();
     return { ok: !!bridge, port, cliEnabled, bridge: bridgeStatus,
-      connection: getBrowserStatus({ bridge: bridgeStatus, port, error }),
+      connection: getBrowserStatus({ bridge: bridgeStatus, port, error, listener,
+        login: getLoginStatus(), buildInfo: getBuildInfo() }),
       sessions: bridge?.getSnapshot() || [], error,
       selectedSessionId, selectionRevision,
       pairingExpiresAt: pairing?.expiresAt || null };
@@ -46,7 +49,8 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   handle("mori:status", state);
   handle("mori:pair", () => {
     const bridge = getBridge();
-    const port = getPort();
+    const listener = getListenerStatus();
+    const port = listener ? (listener.state === "listening" ? listener.port : null) : getPort();
     if (!bridge || !port) return { ok: false, reason: "server-not-ready", message: getStartupError() || "接続サーバーの準備ができていません。" };
     pairing = bridge.beginPairing(port);
     return { ok: true, ...pairing };

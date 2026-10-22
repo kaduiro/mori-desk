@@ -1,0 +1,32 @@
+TAP version 13
+# Subtest: I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+not ok 1 - I-B2 independent worker rejects focus after its current granted observer loses conversation binding
+  ---
+  duration_ms: 18.295963
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:190:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    I-B2: the worker must reject the current granted observer after binding is lost, even if identity-only focus says yes
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-recovery-independent.test.js:204:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 40.492092

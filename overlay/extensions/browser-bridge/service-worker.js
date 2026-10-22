@@ -1,5 +1,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
-importScripts('provider-utils.js', 'session-coordinator.js', 'outbox.js', 'transport.js');
+// Source-overlay installations have no generated build identity. Keep that
+// metadata unknown without preventing the actual extension from starting.
+try { importScripts('build-info.js'); }
+catch (_) { globalThis.MoriBrowserBuildInfo = null; }
+// Product imports are mandatory: a missing/broken module must still fail.
+importScripts('provider-utils.js', 'restart-health.js', 'session-coordinator.js', 'outbox.js', 'transport.js', 'observer-recovery.js');
 
 'use strict';
 const utils = MoriProviderUtils;
@@ -15,10 +20,94 @@ let diagnostic = null;
 let connectionStatus = { state: 'loading', code: null };
 let queue = Promise.resolve();
 let optionsQueue = Promise.resolve();
-let flushing = false;
+let controlGeneration = 0;
+let pendingControls = 0;
+let pairingGeneration = null;
+let flushing = null;
+let healthProviders = MoriRestartHealth.unknownProviders();
+let healthProvidersAt = 0;
+let healthSequence = 0;
+let healthRevision = 0;
+let refreshOwner = null;
+let replayReceiptKeys = null;
+// Registration is deliberately not restored from storage.session. A new
+// worker must verify the current observer again without resetting its timer
+// or generation controller merely because this grant epoch changed.
+const workerEpoch = crypto.randomUUID();
+const observerLeases = new Map();
+const recoveryAttempts = new Map();
 const freshEvents = new Map();
 const liveReceipts = new Set();
 const eventKey = event => `${event.browserRunId}/${event.sessionId}/${event.eventId}`;
+const observerRecovery = MoriObserverRecovery.createRecovery({ chrome, within,
+  getBlockReason: admissionBlockReason, beginAttempt: beginRecoveryAttempt,
+  endAttempt: endRecoveryAttempt, isAdmitted: admittedIdentity });
+
+function admissionBlockReason() {
+  return fatalError || (pendingControls || !settings.enabled ? 'paused' : !credential ? 'unpaired' : null);
+}
+
+function beginRecoveryAttempt(target) {
+  if (admissionBlockReason()) return null;
+  for (const [id, attempt] of recoveryAttempts) {
+    if (attempt.expiresAt <= Date.now() || attempt.tabId === target.tabId) endRecoveryAttempt(id);
+  }
+  if (recoveryAttempts.size >= coordinator.MAX_TABS) return null;
+  const attemptId = crypto.randomUUID();
+  recoveryAttempts.set(attemptId, { ...target, generation: controlGeneration });
+  return attemptId;
+}
+
+function endRecoveryAttempt(attemptId, { retainLease = false } = {}) {
+  recoveryAttempts.delete(attemptId);
+  if (!retainLease) for (const [tabId, lease] of observerLeases) {
+    if (lease.attemptId === attemptId) observerLeases.delete(tabId);
+  }
+}
+
+function validAttempt(attemptId, sender, pageInstanceId, route, generation) {
+  if (attemptId === null) return true; // the manifest's initial start
+  const attempt = recoveryAttempts.get(attemptId);
+  return !!attempt && attempt.expiresAt > Date.now() && attempt.generation === generation
+    && attempt.tabId === sender.tab.id && attempt.documentId === sender.documentId
+    && (!attempt.pageInstanceId || attempt.pageInstanceId === pageInstanceId)
+    && utils.sameRoute(route, attempt.route);
+}
+
+function leaseFieldsMatch(a, b) {
+  return !!a && !!b && a.workerEpoch === b.workerEpoch && a.leaseId === b.leaseId
+    && a.bindingEpoch === b.bindingEpoch;
+}
+
+function admittedIdentity({ tabId, documentId, route, identity }) {
+  const lease = observerLeases.get(tabId);
+  return !admissionBlockReason() && !!lease && lease.generation === controlGeneration
+    && (!documentId || lease.documentId === documentId) && lease.pageInstanceId === identity?.pageInstanceId
+    && identity.binding.state === 'confirmed' && identity.binding.epoch === lease.bindingEpoch
+    && utils.sameRoute(route, lease.route) && utils.sameRoute(route, identity.route)
+    && leaseFieldsMatch(lease, identity.lease);
+}
+
+function stopAdmission() {
+  pendingControls++;
+  controlGeneration++;
+  observerLeases.clear();
+  recoveryAttempts.clear();
+  observerRecovery.invalidateAll();
+  invalidateHealth();
+  transport?.setEnabled(false);
+}
+
+function resumeAdmission() {
+  pendingControls--;
+  if (!pendingControls && !fatalError) {
+    const ready = transport?.isReady();
+    transport?.setEnabled(settings.enabled);
+    if (!credential) connectionStatus = { state: 'unpaired', code: null };
+    if (ready && settings.enabled && credential) void transportReady();
+    else if (settings.enabled && credential) void requestFreshObservations();
+  }
+}
 
 function enqueue(operation) {
   const result = queue.then(operation);
@@ -28,6 +117,10 @@ function enqueue(operation) {
 
 function failStorage(code = 'storage_failed') {
   fatalError = code;
+  observerLeases.clear();
+  recoveryAttempts.clear();
+  observerRecovery.invalidateAll();
+  invalidateHealth();
   transport?.setEnabled(false);
   connectionStatus = { state: 'error', code };
 }
@@ -35,19 +128,25 @@ function failStorage(code = 'storage_failed') {
 function safeCredential(value) {
   if (!value || value.clientId !== clientId || !utils.ID.test(value.instanceId || '')
     || !MoriTransport.PORTS.includes(value.port)) throw new Error('local_data_invalid');
-  MoriTransport.fromBase64url(value.key, 32);
+  try { MoriTransport.fromBase64url(value.key, 32); }
+  catch (_) { throw new Error('local_data_invalid'); }
   return { clientId, instanceId: value.instanceId, port: value.port, key: value.key };
+}
+
+async function requiredStorage(operation) {
+  try { return await operation(); }
+  catch (_) { failStorage(); throw new Error('storage_failed'); }
 }
 
 async function initialize() {
   // Access levels are established before reading or writing any credential.
-  await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
-  await chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
-  const local = await chrome.storage.local.get(['moriClientId', 'moriCredential', 'moriSettings', 'moriOutbox']);
+  await requiredStorage(() => chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }));
+  await requiredStorage(() => chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }));
+  const local = await requiredStorage(() => chrome.storage.local.get(['moriClientId', 'moriCredential', 'moriSettings', 'moriOutbox']));
   if (!local.moriClientId && (local.moriCredential || local.moriOutbox?.events?.length)) throw new Error('local_data_invalid');
   clientId = local.moriClientId || crypto.randomUUID();
   if (!utils.ID.test(clientId)) throw new Error('local_data_invalid');
-  if (!local.moriClientId) await chrome.storage.local.set({ moriClientId: clientId });
+  if (!local.moriClientId) await requiredStorage(() => chrome.storage.local.set({ moriClientId: clientId }));
   if (local.moriCredential) credential = safeCredential(local.moriCredential);
   if (local.moriSettings) {
     if (typeof local.moriSettings.enabled !== 'boolean') throw new Error('local_data_invalid');
@@ -57,40 +156,108 @@ async function initialize() {
     if (!MoriOutbox.valid(local.moriOutbox)) throw new Error('local_data_invalid');
     outbox = local.moriOutbox;
   }
-  const saved = await chrome.storage.session.get('moriSessions');
+  const saved = await requiredStorage(() => chrome.storage.session.get('moriSessions'));
   sessions = saved.moriSessions || coordinator.newState(crypto.randomUUID());
   if (!coordinator.validState(sessions)) throw new Error('local_data_invalid');
   const recovered = coordinator.recoverDurableEvents(sessions, outbox.events);
-  if (!saved.moriSessions || recovered !== sessions) await chrome.storage.session.set({ moriSessions: recovered });
+  if (!saved.moriSessions || recovered !== sessions) {
+    await requiredStorage(() => chrome.storage.session.set({ moriSessions: recovered }));
+  }
   sessions = recovered;
   transport = new MoriTransport.Transport({
     clientId, browserRunId: sessions.browserRunId,
     getCredential: () => credential,
     saveCredential: async value => {
       const next = safeCredential(value);
-      try { await chrome.storage.local.set({ moriCredential: next }); }
-      catch (_) { failStorage(); throw new Error('storage_failed'); }
-      credential = next;
+      const generation = controlGeneration;
+      await enqueue(async () => {
+        if (fatalError || generation !== controlGeneration
+          || (pendingControls && pairingGeneration !== generation)
+          || (!credential && pairingGeneration !== generation)) throw new Error('attempt_expired');
+        await requiredStorage(() => chrome.storage.local.set({ moriCredential: next }));
+        credential = next;
+      });
     },
     onStatus: status => {
-      if (status.state !== 'connected') liveReceipts.clear();
+      if (status.state !== 'connected') { liveReceipts.clear(); invalidateHealth(); }
       if (!fatalError) connectionStatus = status;
     },
-    onReady: async () => {
-      await enqueue(async () => { await commit(coordinator.snapshot(sessions)); });
-      void flush();
-      await requestFreshObservations();
-    },
+    onReady: transportReady,
+    onHeartbeat: publishHealth,
     onFocus: focusRequest,
   });
-  await chrome.alarms.create('mori-reconnect', { periodInMinutes: 0.5 });
-  transport.setEnabled(settings.enabled);
-  await reconcileTabs();
+  transport.setEnabled(settings.enabled && !pendingControls);
+}
+
+async function transportReady() {
+  // Never wait for page queries, registration, the mutation queue or receipt
+  // replay before reporting the current (possibly unknown) inventory.
+  if (!replayReceiptKeys) replayReceiptKeys = new Set(outbox.events.map(eventKey));
+  publishHealth();
+  const generation = controlGeneration;
+  await enqueue(async () => {
+    if (generation === controlGeneration && !admissionBlockReason()) await commit(coordinator.snapshot(sessions));
+  });
+  if (generation !== controlGeneration || admissionBlockReason()) return;
+  void flush();
+  await requestFreshObservations();
+}
+
+function invalidateHealth() {
+  healthRevision++;
+  healthProviders = MoriRestartHealth.unknownProviders();
+  healthProvidersAt = 0;
+  publishHealth();
+}
+
+function currentHealthProviders() {
+  const age = Date.now() - healthProvidersAt;
+  return healthProvidersAt > 0 && age >= 0 && age <= 45000
+    ? healthProviders : MoriRestartHealth.unknownProviders();
+}
+
+function publishHealth() {
+  if (!transport?.isReady() || !sessions || fatalError || pendingControls || !settings.enabled) return;
+  const build = globalThis.MoriBrowserBuildInfo;
+  const version = chrome.runtime.getManifest().version;
+  if (!build || build.extensionVersion !== version || build.observerContract !== 1
+    || typeof build.buildId !== 'string' || !/^[a-f0-9]{64}$/.test(build.buildId)
+    || !Number.isSafeInteger(healthSequence + 1)) return;
+  const remainingReplay = outbox.events.filter(event => replayReceiptKeys?.has(eventKey(event))).length;
+  const message = { type: 'client.health', v: 1, schema: 1,
+    browserRunId: sessions.browserRunId, workerEpoch, sequence: ++healthSequence,
+    extensionVersion: version, observerVersion: version, buildId: build.buildId, observerContract: 1,
+    providers: currentHealthProviders(),
+    delivery: { state: diagnostic === 'outbox_full' ? 'capacity_blocked' : remainingReplay ? 'syncing' : 'current',
+      remainingReplay, livePending: outbox.events.length - remainingReplay + freshEvents.size, reserveUsed: 0 } };
+  // Older peers and test transports have no health capability. Missing
+  // metadata never changes the authentication or observation path.
+  try { transport.sendHealth?.(message); } catch (_) {}
 }
 
 const initialized = initialize().catch(error => {
-  failStorage(error.message === 'local_data_invalid' ? 'local_data_invalid' : 'storage_failed');
+  failStorage(['local_data_invalid', 'storage_failed'].includes(error?.message) ? error.message : 'initialization_failed');
 });
+
+// Only storage/authentication readiness gates message handling. Browser probes
+// can be slow, unavailable, or call back into this worker during registration.
+// They must never become a dependency of that registration's initialization.
+void initialized.then(() => {
+  if (fatalError) return;
+  void ensureReconnectAlarm();
+  void reconcileTabs().catch(reportRecoveryFailure);
+});
+
+function reportRecoveryFailure() {
+  if (!fatalError) diagnostic = 'recovery_failed';
+}
+
+async function ensureReconnectAlarm() {
+  try {
+    await within(Promise.resolve().then(() => chrome.alarms.create('mori-reconnect', { periodInMinutes: 0.5 })));
+    if (diagnostic === 'alarm_failed') diagnostic = null;
+  } catch (_) { if (!fatalError) diagnostic = 'alarm_failed'; }
+}
 
 async function commit(result) {
   if (fatalError) throw new Error(fatalError);
@@ -122,14 +289,17 @@ async function commit(result) {
       if (pending && pending.sequence <= event.sequence) freshEvents.delete(key);
     } else freshEvents.set(key, event);
   }
+  publishHealth();
   void flush();
 }
 
 async function flush() {
-  if (flushing || fatalError || !settings.enabled || !transport?.isReady()) return;
-  flushing = true;
+  if (flushing?.generation === controlGeneration || admissionBlockReason() || !transport?.isReady()) return;
+  const owner = { generation: controlGeneration, credential };
+  flushing = owner;
   try {
-    while (transport.isReady() && settings.enabled && !fatalError) {
+    while (transport.isReady() && !admissionBlockReason() && owner.generation === controlGeneration
+      && owner.credential === credential) {
       // Always finish durable receipts before publishing current snapshots.
       const receipt = outbox.events[0];
       if (receipt) {
@@ -137,6 +307,9 @@ async function flush() {
           && receipt.browserRunId === sessions.browserRunId && Date.now() - receipt.observedAt <= 30000;
         const ack = await transport.sendEvent({ ...receipt, replay: !live });
         await enqueue(async () => {
+          // A late ACK from a previous pairing or control generation must not
+          // recreate or remove data after unpair/pause has linearized.
+          if (owner.generation !== controlGeneration || owner.credential !== credential || admissionBlockReason()) return;
           const next = MoriOutbox.acknowledge(outbox, ack);
           const nextSessions = coordinator.removeAcknowledgedClosed(sessions, receipt);
           if (nextSessions !== sessions) {
@@ -149,6 +322,7 @@ async function flush() {
           outbox = next;
           liveReceipts.delete(eventKey(receipt));
           if (diagnostic === 'outbox_full' && outbox.events.length < MoriOutbox.MAX_EVENTS) diagnostic = null;
+          publishHealth();
         }).catch(() => { failStorage(); throw new Error('storage_failed'); });
         continue;
       }
@@ -159,12 +333,13 @@ async function flush() {
       const aged = Date.now() - event.observedAt > 30000;
       const outgoing = aged ? { ...event, replay: true, observation: 'stale' } : event;
       await transport.sendEvent(outgoing);
-      if (freshEvents.get(key)?.eventId === event.eventId) freshEvents.delete(key);
+      if (owner.generation === controlGeneration && owner.credential === credential
+        && freshEvents.get(key)?.eventId === event.eventId) freshEvents.delete(key);
     }
   } catch (_) {
     // The durable outbox remains intact. Connection recovery or the explicit
     // retry button resumes delivery; no terminal event is silently discarded.
-  } finally { flushing = false; }
+  } finally { if (flushing === owner) flushing = null; publishHealth(); }
 }
 
 function within(promise, milliseconds = 1500) {
@@ -174,12 +349,13 @@ function within(promise, milliseconds = 1500) {
   })]).finally(() => clearTimeout(timer));
 }
 
-async function checkCurrentDocument(tabId, pageInstanceId, conversationRef) {
-  // Address the currently active top frame, not an old cached document ID.
-  const result = await within(chrome.tabs.sendMessage(tabId,
-    { type: 'mori.focus.check', pageInstanceId, conversationRef }, { frameId: 0 }));
-  return result?.ok === true && result.pageInstanceId === pageInstanceId
-    && result.conversationRef === conversationRef;
+async function currentObserverIdentity(tabId, pageInstanceId, route) {
+  // Bootstrap addresses the active top frame, independently of business focus
+  // authorization. An old cached document may still answer a documentId probe.
+  const identity = utils.safeObserverIdentity(await within(chrome.tabs.sendMessage(tabId,
+    { type: 'mori.observer.identity', pageInstanceId, conversationRef: route.conversationRef }, { frameId: 0 })));
+  return identity && identity.pageInstanceId === pageInstanceId && utils.sameRoute(route, identity.route)
+    && identity.route.conversationRef === route.conversationRef ? identity : null;
 }
 
 function validContentSender(sender) {
@@ -190,18 +366,87 @@ function validContentSender(sender) {
     && !!utils.routeForUrl(sender.url);
 }
 
-async function observationMessage(input, sender) {
-  if (fatalError) return { ok: false, reason: fatalError };
-  if (!settings.enabled || !credential) return { ok: false, reason: 'paused' };
+function availableTab(tab, route) {
+  return tab && tab.status !== 'loading' && !tab.discarded && !tab.frozen
+    && utils.sameRoute(route, utils.routeForUrl(tab.url));
+}
+
+function grantResult(lease) {
+  return { ok: true, v: 1, workerEpoch, leaseId: lease.leaseId,
+    pageInstanceId: lease.pageInstanceId, bindingEpoch: lease.bindingEpoch };
+}
+
+async function registerObserver(input, sender, generation) {
+  if (admissionBlockReason() || generation !== controlGeneration) {
+    return { ok: false, reason: fatalError || 'paused' };
+  }
+  const registration = utils.safeObserverRegister(input);
+  if (!registration || !validContentSender(sender)) return { ok: false, reason: 'invalid_sender' };
+  if (registration.observerVersion !== chrome.runtime.getManifest().version) return { ok: false, reason: 'observer_version' };
+  const route = utils.routeForUrl(sender.url);
+  if (!validAttempt(registration.attemptId, sender, registration.pageInstanceId, route, generation)) {
+    return { ok: false, reason: 'attempt_expired' };
+  }
+  const tab = await within(chrome.tabs.get(sender.tab.id));
+  if (!availableTab(tab, route)) return { ok: false, reason: 'old_document' };
+  const identity = await currentObserverIdentity(tab.id, registration.pageInstanceId, route);
+  if (!identity) return { ok: false, reason: 'old_document' };
+  const current = await within(chrome.tabs.get(tab.id));
+  if (!availableTab(current, route)) return { ok: false, reason: 'old_document' };
+  // Registration probes stay outside the mutation queue: an injected start
+  // waits for this response and must never wait on its own recovery operation.
+  return enqueue(() => {
+    if (admissionBlockReason() || generation !== controlGeneration) return { ok: false, reason: fatalError || 'paused' };
+    if (!validAttempt(registration.attemptId, sender, registration.pageInstanceId, route, generation)) {
+      return { ok: false, reason: 'attempt_expired' };
+    }
+    if (identity.binding.state !== 'confirmed') {
+      observerLeases.delete(tab.id);
+      diagnostic = 'binding_unconfirmed';
+      return { ok: false, reason: 'binding_unconfirmed' };
+    }
+    const existing = observerLeases.get(tab.id);
+    if (!existing && observerLeases.size >= coordinator.MAX_TABS) return { ok: false, reason: 'capacity' };
+    const sameOwner = existing && existing.generation === generation && existing.documentId === sender.documentId
+      && existing.pageInstanceId === registration.pageInstanceId && existing.bindingEpoch === identity.binding.epoch
+      && utils.sameRoute(existing.route, route);
+    const lease = { workerEpoch, leaseId: sameOwner ? existing.leaseId : crypto.randomUUID(),
+      pageInstanceId: registration.pageInstanceId, bindingEpoch: identity.binding.epoch, tabId: tab.id,
+      documentId: sender.documentId, route, generation, attemptId: registration.attemptId };
+    observerLeases.set(tab.id, lease);
+    if (diagnostic === 'binding_unconfirmed') diagnostic = null;
+    return grantResult(lease);
+  });
+}
+
+async function observationMessage(input, sender, generation) {
+  if (admissionBlockReason() || generation !== controlGeneration) return { ok: false, reason: fatalError || 'paused' };
   const observation = utils.safeObservation(input);
   if (!observation || !validContentSender(sender)) return { ok: false, reason: 'invalid_sender' };
   const route = utils.routeForUrl(sender.url);
+  const lease = observerLeases.get(sender.tab.id);
+  if (!utils.safeLease(observation) || !lease || !leaseFieldsMatch(lease, observation)
+    || lease.generation !== generation) return { ok: false, reason: 'lease_invalid' };
+  if (lease.pageInstanceId !== observation.pageInstanceId || lease.documentId !== sender.documentId
+    || !utils.sameRoute(route, lease.route)) return { ok: false, reason: 'old_document' };
   const tab = await within(chrome.tabs.get(sender.tab.id));
-  const currentRoute = utils.routeForUrl(tab.url);
-  if (tab.status === 'loading' || !utils.sameRoute(route, currentRoute)
-    || !(await checkCurrentDocument(tab.id, observation.pageInstanceId, route.conversationRef))) {
+  if (!availableTab(tab, route)) return { ok: false, reason: 'old_document' };
+  const identity = await currentObserverIdentity(tab.id, observation.pageInstanceId, route);
+  if (!identity) return { ok: false, reason: 'old_document' };
+  if (identity.binding.state !== 'confirmed') return { ok: false, reason: 'binding_unconfirmed' };
+  if (!admittedIdentity({ tabId: tab.id, documentId: sender.documentId, route, identity })) {
+    return { ok: false, reason: 'lease_invalid' };
+  }
+  // The page check crosses an async boundary. A route switch while its reply
+  // is in flight must not attach the old document's metadata to the new tab.
+  const confirmedTab = await within(chrome.tabs.get(tab.id));
+  if (!availableTab(confirmedTab, route)) {
     return { ok: false, reason: 'old_document' };
   }
+  if (admissionBlockReason() || generation !== controlGeneration) return { ok: false, reason: fatalError || 'paused' };
+  if (observerLeases.get(tab.id) !== lease) return { ok: false, reason: 'lease_expired' };
+  // No asynchronous work may be inserted between this final gate and commit.
+  // Once the first write starts, a later control waits for this commit to settle.
   const result = coordinator.reduceObservation(sessions, input,
     { route, tabId: tab.id, documentId: sender.documentId });
   await commit(result);
@@ -212,49 +457,114 @@ async function observationMessage(input, sender) {
   return { ok: true };
 }
 
-async function validateFocus(request) {
-  if (!coordinator.focusMatches(sessions, request)) return null;
+async function validateFocus(request, generation) {
+  if (admissionBlockReason() || generation !== controlGeneration || !coordinator.focusMatches(sessions, request)) return null;
   const record = sessions.sessions[request.sessionId];
+  const lease = observerLeases.get(request.tabId);
+  if (!lease || lease.generation !== generation || lease.pageInstanceId !== request.pageInstanceId
+    || lease.documentId !== record.documentId || lease.route.conversationRef !== request.conversationRef) return null;
   const tab = await within(chrome.tabs.get(request.tabId));
   const route = utils.routeForUrl(tab.url);
-  if (tab.status === 'loading' || !route || route.provider !== record.provider
-    || route.conversationRef !== request.conversationRef
-    || !(await checkCurrentDocument(tab.id, request.pageInstanceId, request.conversationRef))) return null;
-  if (!coordinator.focusMatches(sessions, request)) return null;
+  if (!availableTab(tab, route) || route.provider !== record.provider || !utils.sameRoute(route, lease.route)
+    || route.conversationRef !== request.conversationRef) return null;
+  const identity = await currentObserverIdentity(tab.id, request.pageInstanceId, route);
+  if (!identity || !admittedIdentity({ tabId: tab.id, route, identity })) return null;
+  const focused = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.focus.check',
+    pageInstanceId: request.pageInstanceId, conversationRef: request.conversationRef, ...utils.safeLease(lease) }, { frameId: 0 }));
+  if (focused?.ok !== true || focused.pageInstanceId !== request.pageInstanceId
+    || focused.conversationRef !== request.conversationRef) return null;
+  // The page may compute a valid reply before navigation, while Chrome
+  // delivers that reply after its tab URL has changed. onUpdated can lag too.
+  const afterReply = await within(chrome.tabs.get(tab.id));
+  if (!availableTab(afterReply, route)) return null;
+  if (admissionBlockReason() || generation !== controlGeneration || observerLeases.get(tab.id) !== lease
+    || !coordinator.focusMatches(sessions, request)) return null;
   return tab;
 }
 
 async function focusRequest(request) {
-  if (fatalError || !settings.enabled || !credential || request.v !== 1) return { ok: false, reason: 'unavailable' };
+  if (admissionBlockReason() || request.v !== 1) return { ok: false, reason: 'unavailable' };
+  const generation = controlGeneration;
   try {
     return await within((async () => {
-      const tab = await validateFocus(request);
+      const tab = await validateFocus(request, generation);
       if (!tab) return { ok: false, reason: 'session_changed' };
       await chrome.tabs.update(tab.id, { active: true });
       const current = await within(chrome.tabs.get(tab.id));
       await chrome.windows.update(current.windowId, { focused: true });
       // Revalidate again after both focus APIs. A navigation or a new session
       // during focus must leave the captured desktop notice unread.
-      if (!(await validateFocus(request))) return { ok: false, reason: 'session_changed' };
+      if (!(await validateFocus(request, generation))) return { ok: false, reason: 'session_changed' };
       return { ok: true };
     })(), 4000);
   } catch (_) { return { ok: false, reason: 'tab_unavailable' }; }
 }
 
 async function requestFreshObservations() {
-  if (!settings.enabled || !credential || fatalError) return;
-  const tabs = await chrome.tabs.query({ url: utils.URL_PATTERNS });
-  await Promise.allSettled(tabs.map(tab => chrome.tabs.sendMessage(tab.id,
-    { type: 'mori.observe.now' }, { frameId: 0 })));
+  if (admissionBlockReason()) return;
+  const generation = controlGeneration;
+  if (refreshOwner?.generation === generation && refreshOwner.revision === healthRevision) return refreshOwner.promise;
+  const owner = { generation, revision: healthRevision, promise: null };
+  refreshOwner = owner;
+  owner.promise = (async () => {
+    const accessPromise = Promise.allSettled(utils.URL_PATTERNS.map(origin => within(Promise.resolve().then(() =>
+      chrome.permissions.contains({ origins: [origin] })))));
+    const tabs = await queryTabs({ url: utils.URL_PATTERNS });
+    if (!tabs || generation !== controlGeneration || admissionBlockReason()) { await accessPromise; return; }
+    const candidates = tabs.filter(tab => !!utils.routeForUrl(tab.url));
+    const results = new Map(candidates.slice(coordinator.MAX_TABS).map(tab => [tab.id, { overLimit: true }]));
+    await Promise.allSettled(candidates.slice(0, coordinator.MAX_TABS).map(async tab => {
+      results.set(tab.id, await observerRecovery.ensure(tab));
+    }));
+    const accessResults = await accessPromise;
+    if (owner.revision !== healthRevision || generation !== controlGeneration || admissionBlockReason()) return;
+    const access = Object.fromEntries(MoriRestartHealth.PROVIDERS.map((provider, index) => [provider,
+      accessResults[index]?.status === 'fulfilled' ? accessResults[index].value : null]));
+    healthProviders = MoriRestartHealth.summarize(candidates, results, { enabled: settings.enabled, access });
+    healthProvidersAt = Date.now();
+    publishHealth();
+  })().finally(() => { if (refreshOwner === owner) refreshOwner = null; });
+  return owner.promise;
+}
+
+async function queryTabs(query) {
+  try {
+    // Promise.resolve also captures synchronous browser API failures. Catch
+    // only this availability boundary; commits outside it remain fail-closed.
+    const tabs = await within(Promise.resolve().then(() => chrome.tabs.query(query)));
+    if (!Array.isArray(tabs)) throw new Error('invalid_tab_list');
+    if (['tab_query_failed', 'tab_query_timeout'].includes(diagnostic)) diagnostic = null;
+    return tabs;
+  } catch (error) {
+    if (!fatalError) diagnostic = error?.message === 'tab_unavailable' ? 'tab_query_timeout' : 'tab_query_failed';
+    invalidateHealth();
+    return null;
+  }
 }
 
 async function reconcileTabs() {
   if (!sessions || fatalError) return;
-  const tabs = await chrome.tabs.query({ url: utils.URL_PATTERNS });
+  const generation = controlGeneration;
+  const candidates = Object.entries(sessions.tabs).map(([id, sessionId]) => {
+    const record = sessions.sessions[sessionId];
+    return { id: Number(id), sessionId, sequence: record.sequence, routeRevision: record.routeRevision };
+  });
+  // A URL-filtered query can omit a live tab after host permission is withheld.
+  // Use only physical IDs from the unfiltered list to establish absence. No
+  // unrelated URL/title is stored, sent, or used as observation metadata.
+  const tabs = await queryTabs({});
+  if (!tabs || generation !== controlGeneration || fatalError) return;
   const ids = new Set(tabs.map(tab => tab.id));
   await enqueue(async () => {
-    for (const id of Object.keys(sessions.tabs)) {
-      if (!ids.has(Number(id))) await commit(coordinator.closeTab(sessions, Number(id)));
+    if (generation !== controlGeneration || fatalError) return;
+    for (const candidate of candidates) {
+      // Every preceding commit yields. A newly arrived pause/unpair must stop
+      // the remaining entries of this older enumeration as well.
+      if (generation !== controlGeneration || admissionBlockReason()) return;
+      const record = sessions.sessions[candidate.sessionId];
+      if (sessions.tabs[candidate.id] !== candidate.sessionId || !record || record.closed
+        || record.sequence !== candidate.sequence || record.routeRevision !== candidate.routeRevision) continue;
+      if (!ids.has(candidate.id)) await commit(coordinator.closeTab(sessions, candidate.id));
     }
   });
   await requestFreshObservations();
@@ -272,45 +582,83 @@ function statusSnapshot() {
     pending: outbox.events.length,
     lastObservationAt: records.reduce((latest, record) => Math.max(latest, record.lastObservationAt || 0), 0),
     experimental: true,
+    providers: currentHealthProviders(),
+    peer: transport?.getPeerInfo?.() || null,
   };
+}
+
+async function siteAccessSummary() {
+  // A withheld host permission may hide candidate URLs from tabs.query.
+  // These two permission counts are not counts of hidden tabs or proof that
+  // a temporary per-tab grant is unavailable. Never request broader access.
+  const summary = { granted: 0, missing: 0, unknown: 0 };
+  const results = await Promise.allSettled(utils.URL_PATTERNS.map(origin =>
+    within(Promise.resolve().then(() => chrome.permissions.contains({ origins: [origin] })))));
+  for (const result of results) {
+    summary[result.status !== 'fulfilled' || typeof result.value !== 'boolean'
+      ? 'unknown' : result.value ? 'granted' : 'missing']++;
+  }
+  return summary;
 }
 
 async function tabHealth() {
   // This is an explicit options-page diagnostic, not continuous tab history.
   // Query only origins already granted by the manifest. Probe at most the
   // coordinator limit and return aggregate counts, never URLs/titles/IDs.
-  const candidates = await within(chrome.tabs.query({ url: utils.URL_PATTERNS }));
+  const generation = controlGeneration;
+  const [candidates, siteAccess] = await Promise.all([
+    within(chrome.tabs.query({ url: utils.URL_PATTERNS })), siteAccessSummary(),
+  ]);
   const tabs = candidates.filter(tab => Number.isSafeInteger(tab.id) && tab.id >= 0
     && !!utils.providerForUrl(tab.url));
   const sampled = tabs.slice(0, coordinator.MAX_TABS);
   const results = await Promise.all(sampled.map(async tab => {
     const route = utils.routeForUrl(tab.url);
-    if (!route) return 'unsupportedRoute';
-    if (tab.status === 'loading') return 'unknown';
+    const recovery = await observerRecovery.ensure(tab);
+    if (!recovery.ok) return { status: recovery.reason === 'unsupported_route' ? 'unsupportedRoute'
+      : recovery.disposition === 'failed' ? 'needsReload' : 'unknown', recovery };
     let response;
     try {
       // The page waits for the worker to validate this observation, including
       // the existing bounded current-document check. Keep that handshake out
       // of the observation queue and allow enough time for its two API calls.
-      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' }, { frameId: 0 }), 4000);
-    } catch (error) { return error?.message === 'tab_unavailable' ? 'unknown' : 'needsReload'; }
+      response = await within(chrome.tabs.sendMessage(tab.id, { type: 'mori.health.check' },
+        recovery.documentId ? { documentId: recovery.documentId } : { frameId: 0 }), 4000);
+    } catch (error) { return { status: error?.message === 'tab_unavailable' ? 'unknown' : 'needsReload', recovery }; }
     if (!response || response.ok !== true || response.v !== 1
-      || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) return 'needsReload';
+      || !['unsupported_route', 'unknown', 'idle', 'running', 'settled'].includes(response.status)) {
+      return { status: 'needsReload', recovery };
+    }
     // A navigation during the diagnostic must not make an old page appear
     // healthy. No current URL is retained once this local comparison ends.
     try {
       const current = await within(chrome.tabs.get(tab.id));
-      if (current.status === 'loading' || !utils.sameRoute(route, utils.routeForUrl(current.url))) return 'unknown';
-    } catch (_) { return 'unknown'; }
+      if (current.status === 'loading' || current.discarded || current.frozen
+        || !utils.sameRoute(route, utils.routeForUrl(current.url))) return { status: 'unknown', recovery };
+      const identity = utils.safeObserverIdentity(response);
+      if (!identity || !admittedIdentity({ tabId: tab.id, route, identity })) return { status: 'unknown', recovery };
+      const active = await currentObserverIdentity(tab.id, identity.pageInstanceId, route);
+      if (!active || !admittedIdentity({ tabId: tab.id, route, identity: active })
+        || active.binding.epoch !== identity.binding.epoch) return { status: 'unknown', recovery };
+      const confirmed = await within(chrome.tabs.get(tab.id));
+      if (!availableTab(confirmed, route) || generation !== controlGeneration || admissionBlockReason()) {
+        return { status: 'unknown', recovery };
+      }
+    } catch (_) { return { status: 'unknown', recovery }; }
     return { status: response.status === 'unsupported_route' ? 'unsupportedRoute' : response.status,
-      observationAck: utils.safeObservationAck(response.observationAck) };
+      observationAck: utils.safeObservationAck(response.observationAck), recovery };
   }));
   const counts = { needsReload: 0, unsupportedRoute: 0, unknown: 0, idle: 0, running: 0, settled: 0 };
   const observationDelivery = { accepted: 0, rejected: 0, unconfirmed: 0, runningAccepted: 0, reasons: {} };
+  const recoverySummary = { attempted: 0, recovered: 0, deferred: 0, failed: 0, reasons: {} };
   for (const result of results) {
-    if (typeof result === 'string') { counts[result]++; continue; }
+    const recovery = result.recovery;
+    if (recovery.attempted) recoverySummary.attempted++;
+    if (recovery.disposition !== 'healthy') recoverySummary[recovery.disposition]++;
+    if (recovery.reason) recoverySummary.reasons[recovery.reason] = (recoverySummary.reasons[recovery.reason] || 0) + 1;
     counts[result.status]++;
     const ack = result.observationAck;
+    if (!ack) continue;
     if (ack.ok === true) {
       observationDelivery.accepted++;
       if (result.status === 'running') observationDelivery.runningAccepted++;
@@ -323,42 +671,50 @@ async function tabHealth() {
     ok: true, checkedAt: Date.now(), paired: !!credential, enabled: settings.enabled,
     connectionState: connectionStatus.state,
     totalTabs: tabs.length, checkedTabs: sampled.length, remainingTabs: tabs.length - sampled.length,
-    counts, observationDelivery,
+    counts, observationDelivery, observerRecovery: recoverySummary, siteAccess,
   };
 }
 
 async function optionsMessage(message) {
   if (message.type === 'mori.options.status') return statusSnapshot();
-  if (fatalError) return { ok: false, reason: fatalError };
   if (message.type === 'mori.options.health') return tabHealth();
+  if (fatalError) return { ok: false, reason: fatalError };
   if (message.type === 'mori.options.pair') {
     const code = MoriTransport.parsePairingCode(message.code);
     if (credential && credential.instanceId !== code.instanceId) return { ok: false, reason: 'unpair_first' };
-    await chrome.storage.local.set({ moriSettings: { enabled: true } });
-    settings = { enabled: true };
-    await transport.pair(message.code);
+    await enqueue(async () => {
+      if (fatalError) throw new Error(fatalError);
+      await requiredStorage(() => chrome.storage.local.set({ moriSettings: { enabled: true } }));
+      settings = { enabled: true };
+    });
+    pairingGeneration = controlGeneration;
+    try { await transport.pair(message.code); }
+    finally { pairingGeneration = null; }
     return { ok: true };
   }
   if (message.type === 'mori.options.retry') {
-    await transport.ensureConnected({ immediate: true });
-    await requestFreshObservations(); void flush();
+    await Promise.allSettled([transport.ensureConnected({ immediate: true }), requestFreshObservations()]);
+    void flush();
     return { ok: true };
   }
   if (message.type === 'mori.options.enabled' && typeof message.enabled === 'boolean') {
-    await chrome.storage.local.set({ moriSettings: { enabled: message.enabled } });
-    settings = { enabled: message.enabled };
-    transport.setEnabled(settings.enabled);
-    if (settings.enabled) await requestFreshObservations();
+    await enqueue(async () => {
+      if (fatalError) throw new Error(fatalError);
+      await requiredStorage(() => chrome.storage.local.set({ moriSettings: { enabled: message.enabled } }));
+      settings = { enabled: message.enabled };
+    });
     return { ok: true };
   }
   if (message.type === 'mori.options.unpair') {
     transport.disconnect('unpaired');
+    replayReceiptKeys = null;
     await enqueue(async () => {
-      await chrome.storage.local.set({ moriCredential: null, moriOutbox: { v: 1, events: [] } });
+      if (fatalError) throw new Error(fatalError);
+      await requiredStorage(() => chrome.storage.local.set({ moriCredential: null, moriOutbox: { v: 1, events: [] } }));
       credential = null; outbox = { v: 1, events: [] }; freshEvents.clear();
       liveReceipts.clear();
       sessions = coordinator.newState(sessions.browserRunId);
-      await chrome.storage.session.set({ moriSessions: sessions });
+      await requiredStorage(() => chrome.storage.session.set({ moriSessions: sessions }));
       diagnostic = null;
     });
     connectionStatus = { state: 'unpaired', code: null };
@@ -370,19 +726,32 @@ async function optionsMessage(message) {
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || typeof message !== 'object' || sender.id !== chrome.runtime.id) return;
   const isOptions = sender.url === chrome.runtime.getURL('options.html');
+  if (message.type === 'mori.observer.register') {
+    const generation = controlGeneration;
+    initialized.then(() => registerObserver(message, sender, generation))
+      .then(respond).catch(error => respond(utils.safeObservationAck({ ok: false,
+        reason: fatalError || error?.message || 'registration_failed' })));
+    return true;
+  }
   if (message.type === 'mori.observation') {
-    initialized.then(() => enqueue(() => observationMessage(message, sender)))
+    const generation = controlGeneration;
+    initialized.then(() => enqueue(() => observationMessage(message, sender, generation)))
       .then(respond).catch(error => respond(utils.safeObservationAck({ ok: false,
         reason: fatalError || error?.message || 'observation_failed' })));
     return true;
   }
   if (isOptions && typeof message.type === 'string' && message.type.startsWith('mori.options.')) {
+    const control = message.type === 'mori.options.pair' || message.type === 'mori.options.unpair'
+      || (message.type === 'mori.options.enabled' && typeof message.enabled === 'boolean');
+    // Stop admissions on receipt, before either initialized or optionsQueue.
+    // Success is returned only after the common mutation queue persisted it.
+    if (control) stopAdmission();
     const operation = initialized.then(() => {
       if (message.type === 'mori.options.status') return optionsMessage(message);
       const result = optionsQueue.then(() => optionsMessage(message));
       optionsQueue = result.catch(() => {});
       return result;
-    });
+    }).finally(() => { if (control) resumeAdmission(); });
     operation.then(respond)
       .catch(error => respond({ ok: false, reason: /^[a-z_]{1,64}$/.test(error.message) ? error.message : 'action_failed' }));
     return true;
@@ -390,29 +759,55 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
+  invalidateHealth();
+  observerLeases.delete(tabId);
+  for (const [id, attempt] of recoveryAttempts) if (attempt.tabId === tabId) endRecoveryAttempt(id);
+  observerRecovery.invalidate(tabId, true);
+  const generation = controlGeneration;
   initialized.then(() => enqueue(async () => {
-    if (sessions && !fatalError) await commit(coordinator.closeTab(sessions, tabId));
+    if (sessions && !admissionBlockReason() && generation === controlGeneration) await commit(coordinator.closeTab(sessions, tabId));
   })).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (!changeInfo.url && changeInfo.status !== 'loading') return;
-  initialized.then(() => enqueue(async () => {
-    if (!sessions || fatalError || !sessions.tabs[tabId]) return;
-    const result = changeInfo.url && !utils.routeForUrl(changeInfo.url)
-      ? coordinator.closeTab(sessions, tabId) : coordinator.invalidateTab(sessions, tabId);
-    await commit(result);
-  })).catch(() => {});
+  if (changeInfo.url || changeInfo.status || changeInfo.discarded !== undefined || changeInfo.frozen !== undefined) invalidateHealth();
+  if (changeInfo.url || changeInfo.status === 'loading') {
+    observerLeases.delete(tabId);
+    for (const [id, attempt] of recoveryAttempts) if (attempt.tabId === tabId) endRecoveryAttempt(id);
+    observerRecovery.invalidate(tabId);
+    const generation = controlGeneration;
+    initialized.then(() => enqueue(async () => {
+      if (!sessions || admissionBlockReason() || generation !== controlGeneration || !sessions.tabs[tabId]) return;
+      const result = changeInfo.url && !utils.routeForUrl(changeInfo.url)
+        ? coordinator.closeTab(sessions, tabId) : coordinator.invalidateTab(sessions, tabId);
+      await commit(result);
+    })).catch(() => {});
+  }
+  if (changeInfo.status === 'complete' || changeInfo.discarded === false || changeInfo.frozen === false || changeInfo.url) {
+    initialized.then(() => {
+      if (!admissionBlockReason()) return requestFreshObservations();
+    }).catch(() => {});
+  }
 });
+function permissionsChanged() {
+  invalidateHealth();
+  initialized.then(() => requestFreshObservations()).catch(reportRecoveryFailure);
+}
+chrome.permissions.onAdded?.addListener(permissionsChanged);
+chrome.permissions.onRemoved?.addListener(permissionsChanged);
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== 'mori-reconnect') return;
   initialized.then(async () => {
-    if (!fatalError && settings.enabled) { await transport.ensureConnected(); void flush(); }
+    if (!admissionBlockReason()) {
+      await Promise.allSettled([transport.ensureConnected(), reconcileTabs()]);
+      void flush();
+    }
   }).catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => {
-  initialized.then(() => reconcileTabs()).catch(() => {});
+  initialized.then(() => { void ensureReconnectAlarm(); return reconcileTabs(); }).catch(reportRecoveryFailure);
 });
 chrome.runtime.onInstalled.addListener(details => {
   if (details.reason === 'install') chrome.runtime.openOptionsPage();
+  initialized.then(() => { void ensureReconnectAlarm(); return reconcileTabs(); }).catch(reportRecoveryFailure);
 });
 chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());

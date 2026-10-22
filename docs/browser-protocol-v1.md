@@ -60,6 +60,8 @@ Authenticated clients send an event envelope with only these fields:
   "pageInstanceId": "opaque-document-id",
   "routeRevision": 0,
   "conversationRef": "/c/opaque-conversation-id",
+  "conversationTitle": "会議の次の行動を整理",
+  "requestPreview": "担当者と期限を確認できる形で整理してください。",
   "turnId": "opaque-turn-id",
   "generation": 1,
   "phase": "settled",
@@ -77,9 +79,29 @@ the preview adapters do **not** emit `completed`. Observation is `fresh`,
 `conversationRef` is a validated provider conversation path or null, not a full
 URL, page title, or answer. Unknown keys and invalid field combinations fail.
 
+Version 0.1.5 of the extension adds the optional string fields
+`conversationTitle` and `requestPreview`. Each is bounded to 160 UTF-16 code
+units, normalized to a single line without control characters. Missing fields
+from older extensions and empty strings are accepted; an empty string means
+that the current page did not provide verified identification text. The preview
+is an excerpt of the latest submitted user message, never a composer draft,
+assistant response, transcript, HTML, credential, or generated summary.
+Metadata is bound to the verified document and canonical conversation; stale
+or replayed events cannot overwrite current identification text. It stays in
+the local browser store and local HUD/panel projection, not CLI/remote consumers.
+Update the desktop and extension together: older desktops reject the additional
+fields under their strict v1 schema.
+
 The authenticated connection supplies client/profile identity. The desktop
 row key combines client, browser-run, and tab-session identities. Tabs showing
 the same conversation remain independent.
+
+Local projections expose `isCurrent` and `isHistory` separately from observation
+freshness. The current authenticated browser run and a non-closed record are
+required for the current section. Prior runs and closed/disconnected records
+remain history with their original receipts. A stable profile/provider/canonical
+conversation match can recover a manually chosen local display label; it does
+not merge tab identities, transfer receipts, or authorize focus on an old row.
 
 ## Durability and replay
 

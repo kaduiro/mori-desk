@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: a late credential-save completion cannot report connected after monitoring is paused
+not ok 1 - a late credential-save completion cannot report connected after monitoring is paused
+  ---
+  duration_ms: 10.94302
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:290:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the closed socket must not overwrite paused status
+    
+    2 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:300:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: an expired authentication cannot become ready when its delayed save completes
+not ok 2 - an expired authentication cannot become ready when its delayed save completes
+  ---
+  duration_ms: 3.579597
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:305:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:313:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: a replaced socket cannot publish ready over its authenticated replacement
+not ok 3 - a replaced socket cannot publish ready over its authenticated replacement
+  ---
+  duration_ms: 2.456594
+  type: 'test'
+  location: '/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:317:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    late old ready must not replace the new connection status
+    
+    3 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 3
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/workspace/scratch/71b181da6eca/mori-desk/overlay/test/browser-extension-transport.test.js:329:10)
+    async Test.run (node:internal/test_runner/test:1389:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+  ...
+# Subtest: a current delayed credential save still completes authentication exactly once
+ok 4 - a current delayed credential save still completes authentication exactly once
+  ---
+  duration_ms: 1.815072
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 1
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 53.139403

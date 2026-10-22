@@ -32,7 +32,17 @@ function assertSafePath(target) {
   return full;
 }
 
-function readJson(file) { return JSON.parse(fs.readFileSync(file, "utf8")); }
+function readRegularFile(file) {
+  assertSafePath(file);
+  if (!fs.lstatSync(file).isFile()) throw new Error("Expected a regular Mori source file.");
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0));
+  try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error("Expected a regular Mori source file.");
+    return fs.readFileSync(fd);
+  } finally { fs.closeSync(fd); }
+}
+
+function readJson(file) { return JSON.parse(readRegularFile(file).toString("utf8")); }
 
 function readLock() {
   const lock = readJson(path.join(ROOT, "upstream.lock.json"));
@@ -88,7 +98,7 @@ function run(command, args, options = {}) {
     const capture = options.capture !== false;
     const child = spawn(command, args, {
       cwd: options.cwd || ROOT,
-      env: childEnvironment(),
+      env: options.env || childEnvironment(),
       shell: false,
       windowsHide: true,
       stdio: [options.input ? "pipe" : "ignore", capture ? "pipe" : "inherit", capture ? "pipe" : "inherit"],
@@ -231,6 +241,61 @@ function listOverlay(dir, relative = "") {
   return result;
 }
 
+function inputFingerprint(lock = readLock(), files = listOverlay(path.join(ROOT, "overlay"))) {
+  const patch = assertSafePath(path.join(ROOT, "patches", "mori.patch"));
+  const fingerprint = crypto.createHash("sha256").update(JSON.stringify(lock)).update(readRegularFile(patch));
+  for (const entry of files) fingerprint.update(entry.name).update("\0").update(readRegularFile(entry.file));
+  return fingerprint.digest("hex");
+}
+
+function buildArtifacts(version, extensionVersion, fingerprint) {
+  if (!/^[a-f0-9]{64}$/.test(fingerprint) || !/^[0-9A-Za-z.+-]{1,32}$/.test(version)
+      || !/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(extensionVersion)) throw new Error("Invalid Mori build information.");
+  return [
+    { name: "src/mori-build-info.json", data: JSON.stringify({ schema: 1, product: "mori-desk", version,
+      buildId: fingerprint, observerContract: 1 }, null, 2) + "\n" },
+    { name: "extensions/browser-bridge/build-info.js", data: '"use strict";\nglobalThis.MoriBrowserBuildInfo = Object.freeze('
+      + JSON.stringify({ extensionVersion, buildId: fingerprint, observerContract: 1 }) + ");\n" },
+  ];
+}
+
+function inspectRuntimeSource() {
+  const marker = requireOwner(RUNTIME, ["runtime"]);
+  const lock = readLock();
+  const files = listOverlay(path.join(ROOT, "overlay"));
+  const current = inputFingerprint(lock, files);
+  const changed = [], missing = [];
+  for (const entry of files) {
+    const target = assertSafePath(path.join(RUNTIME, entry.name));
+    try {
+      if (!fs.lstatSync(target).isFile() || !readRegularFile(target).equals(readRegularFile(entry.file))) changed.push(entry.name);
+    } catch (error) {
+      if (isMissing(error)) missing.push(entry.name);
+      else throw error;
+    }
+  }
+  const pkg = readJson(path.join(RUNTIME, "package.json"));
+  const manifest = readJson(path.join(ROOT, "overlay/extensions/browser-bridge/manifest.json"));
+  const generated = { checked: 2, changed: [], missing: [] };
+  for (const entry of buildArtifacts(pkg.version, manifest.version, current)) {
+    try {
+      if (!readRegularFile(path.join(RUNTIME, entry.name)).equals(Buffer.from(entry.data))) generated.changed.push(entry.name);
+    } catch (error) {
+      if (isMissing(error)) generated.missing.push(entry.name);
+      else throw error;
+    }
+  }
+  return {
+    ready: marker.ready === true,
+    upstreamMatches: marker.upstreamCommit === lock.commit,
+    inputMatches: marker.inputFingerprint === current,
+    currentInputFingerprint: current,
+    builtInputFingerprint: /^[a-f0-9]{64}$/.test(marker.inputFingerprint || "") ? marker.inputFingerprint : null,
+    overlay: { checked: files.length, changed, missing },
+    generated,
+  };
+}
+
 async function prepareRuntime() {
   const lock = readLock();
   const patch = assertSafePath(path.join(ROOT, "patches", "mori.patch"));
@@ -264,8 +329,12 @@ async function prepareRuntime() {
       throw new Error("The reviewed Mori product/update/uninstaller isolation patch is incomplete.");
     await run(process.execPath, ["scripts/generate-mori-assets.js"], { cwd: stage, capture: false });
     await run(process.execPath, ["scripts/generate-mori-assets.js", "--check"], { cwd: stage, capture: false });
+    const builtFingerprint = fingerprint.digest("hex");
+    const manifest = readJson(path.join(stage, "extensions/browser-bridge/manifest.json"));
+    for (const entry of buildArtifacts(pkg.version, manifest.version, builtFingerprint))
+      fs.writeFileSync(assertSafePath(path.join(stage, entry.name)), entry.data);
     writeMarker(stage, markerFor("runtime-stage", {
-      upstreamCommit: lock.commit, inputFingerprint: fingerprint.digest("hex"), version: pkg.version, ready: false,
+      upstreamCommit: lock.commit, inputFingerprint: builtFingerprint, version: pkg.version, ready: false,
     }));
     return stage;
   } catch (error) {
@@ -312,6 +381,10 @@ function requireRuntime() {
   const pkg = readJson(path.join(RUNTIME, "package.json"));
   if (pkg.name !== "mori-desk" || pkg.build?.appId !== "com.kaduiro.moridesk" || pkg.build?.publish !== null)
     throw new Error("The runtime product identity is not the expected Mori Desk preview.");
+  const source = inspectRuntimeSource();
+  if (!source.inputMatches || source.overlay.changed.length || source.overlay.missing.length
+      || source.generated.changed.length || source.generated.missing.length)
+    throw new Error("MORI_RUNTIME_SOURCE_MISMATCH: The prepared app differs from this checkout. Run setup-windows.bat (or npm run setup) before starting or testing. Your existing runtime and data have been preserved. Chrome's loaded extension must be checked separately.");
   return RUNTIME;
 }
 
@@ -333,7 +406,7 @@ function acquireSetupLock() {
 module.exports = {
   ROOT, RUNTIME, readLock, run, assertSafePath, requireOwner, removeOwned,
   sourcePathAllowed, prepareRuntime, setStageReady, promoteRuntime,
-  requireRuntime, acquireSetupLock,
+  requireRuntime, acquireSetupLock, inputFingerprint, inspectRuntimeSource, buildArtifacts,
 };
 
 if (require.main === module) {

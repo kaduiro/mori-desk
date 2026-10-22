@@ -26,6 +26,9 @@
         || !['idle', 'running', 'settled'].includes(session.phase)
         || ![null, 'interrupted', 'error', 'unverified'].includes(session.outcome)
         || !['fresh', 'stale', 'closed', 'unsupported'].includes(session.observation)) return false;
+      for (const field of ['conversationTitle', 'requestPreview']) {
+        if (Object.hasOwn(session, field) && !utils.validMetadataText(session[field])) return false;
+      }
     }
     for (const [tabId, id] of Object.entries(state.tabs)) {
       if (!state.sessions[id] || String(state.sessions[id].tabId) !== tabId || state.sessions[id].closed) return false;
@@ -46,6 +49,7 @@
       turnId: record.turnId, generation: record.generation,
       phase: record.phase, outcome: record.outcome,
       observation: record.observation, observedAt, replay,
+      conversationTitle: record.conversationTitle ?? '', requestPreview: record.requestPreview ?? '',
     };
     record.latestEvent = event;
     return event;
@@ -96,6 +100,7 @@
         sessionId, provider: route.provider, tabId: context.tabId,
         documentId: context.documentId, pageInstanceId: observation.pageInstanceId,
         routeRevision: 0, conversationRef: route.conversationRef,
+        conversationTitle: '', requestPreview: '',
         sequence: 0, generation: 0, turnId: null, contentGenerationToken: null,
         lastContentSequence: 0, phase: 'idle', outcome: null, observation: 'fresh',
         lastObservationAt: observation.observedAt, announced: false, closed: false,
@@ -113,12 +118,16 @@
       record.lastContentSequence = 0;
       record.contentGenerationToken = null;
       record.unknownAfterReload = record.phase === 'running';
+      record.conversationTitle = ''; record.requestPreview = '';
     }
     if (observation.contentSequence <= record.lastContentSequence) {
       return { state: original, events: [], diagnostic: 'duplicate_observation' };
     }
     record.lastContentSequence = observation.contentSequence;
     record.lastObservationAt = observation.observedAt;
+    for (const field of ['conversationTitle', 'requestPreview']) {
+      if (Object.hasOwn(observation, field)) record[field] = observation[field];
+    }
     let kind = 'observation';
     if (observation.status === 'running') {
       if (!observation.generationToken) return { state: original, events: [], diagnostic: 'invalid_observation' };
@@ -153,6 +162,9 @@
       // Keep a known terminal until the next observed turn. Opening an old
       // conversation is never a new completion notification.
     }
+    // A supported conversation is useful even before its first observed
+    // generation. Baseline idle/settled samples still have no turn/terminal.
+    if (observation.status !== 'unknown') record.announced = true;
     if (record.announced) events.push(makeEvent(state, record, kind, uuid, observation.observedAt));
     return { state, events, diagnostic: observation.status === 'unknown' ? 'unsupported' : null };
   }

@@ -4,7 +4,7 @@ const { createBrowserBridgeAuth } = require("./browser-bridge-auth");
 const { createBrowserSessionStore } = require("./browser-session-store");
 const {
   VERSION, WS_PATH, EXTENSION_ID, MAX_FRAME_BYTES, assertKeys, isId, isInteger,
-  protocolError, validateHello, decodeFrame,
+  protocolError, validateHello, decodeFrame, RESTART_HEALTH_CAPABILITY, validateDesktopBuild, validateClientHealth,
 } = require("./browser-bridge-protocol");
 
 const AUTH_TIMEOUT_MS = 5000;
@@ -12,6 +12,7 @@ const FOCUS_TIMEOUT_MS = 5000;
 const CONNECTION_STALE_MS = 60000;
 const MAX_UNAUTHENTICATED = 8;
 const MAX_PENDING_FOCUS = 20;
+const HEALTH_STALE_MS = 45000;
 
 function headerCount(request, name) {
   let count = 0;
@@ -21,8 +22,9 @@ function headerCount(request, name) {
   return count;
 }
 
-function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID, onChange = () => {}, onNotice = () => {}, now = Date.now, fs } = {}) {
+function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID, onChange = () => {}, onNotice = () => {}, now = Date.now, fs, buildInfo = null } = {}) {
   if (!dataDir || !/^[a-p]{32}$/.test(extensionId)) throw new Error("Browser bridge requires its private data directory and fixed extension ID");
+  const build = buildInfo === null ? null : validateDesktopBuild(buildInfo);
   let auth;
   let store;
   let initializationError = null;
@@ -88,6 +90,7 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     send(connection.socket, {
       type: "ready", v: VERSION, clientId: connection.clientId,
       instanceId: auth.instanceId, serverRunId: auth.serverRunId, port: connection.port,
+      ...(build ? { capabilities: [RESTART_HEALTH_CAPABILITY], build } : {}),
     });
     safeChange();
   }
@@ -165,6 +168,16 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
       for (const event of input.events) ingest(connection, event);
     } else if (input.type === "focus.result") {
       focusResult(connection, input);
+    } else if (input.type === "client.health" && build) {
+      const health = validateClientHealth(input);
+      if (health.browserRunId !== connection.browserRunId) throw protocolError("health_identity_mismatch");
+      if (connection.health && (connection.health.workerEpoch !== health.workerEpoch
+        || connection.health.sequence >= health.sequence)) throw protocolError("health_sequence");
+      // This is socket-scoped inventory, never a row observation or receipt.
+      connection.health = health;
+      connection.healthAt = now();
+      connection.healthExpired = false;
+      safeChange();
     } else {
       throw protocolError("unsupported_message");
     }
@@ -215,10 +228,18 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
       timer.unref?.();
     }
   }
+  function healthIsCurrent(context) {
+    const age = now() - context.healthAt;
+    return !!context.health && !context.healthExpired && age >= 0 && age <= HEALTH_STALE_MS;
+  }
   const tickTimer = setInterval(() => {
     if (disposed) return;
     for (const context of sockets.values()) {
       if (!context.authenticated) continue;
+      if (context.health && !context.healthExpired && !healthIsCurrent(context)) {
+        context.healthExpired = true;
+        safeChange();
+      }
       if (now() - context.lastReceivedAt > CONNECTION_STALE_MS) {
         context.socket.close(1001, "heartbeat_timeout");
       } else if (now() - context.lastPingAt >= 20000) {
@@ -248,7 +269,12 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
       return { ...auth?.getStatus(), available: !disposed && !initializationError, error: initializationError || lastError || auth?.getStatus().error || store?.getStatus().error || null,
         port: typeof address === "object" && address ? address.port : null,
         extensionId, protocolVersion: VERSION, store: store?.getStatus() || null,
-        connectedClients: [...clients.values()].map(({ clientId, browserRunId }) => ({ clientId, browserRunId })) };
+        connectedClients: [...clients.values()].map(({ clientId, browserRunId }) => ({ clientId, browserRunId })),
+        build,
+        clientHealth: [...clients.values()].map(connection => ({ clientId: connection.clientId,
+          browserRunId: connection.browserRunId,
+          state: !connection.health ? "unknown" : healthIsCurrent(connection) ? "current" : "stale",
+          health: healthIsCurrent(connection) ? structuredClone(connection.health) : null })) };
     },
     getSnapshot() { return store?.getSnapshot() || []; },
     getVisualState() { return store?.getVisualState() || "idle"; },
@@ -294,4 +320,4 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
   return api;
 }
 
-module.exports = { createBrowserBridge, AUTH_TIMEOUT_MS, FOCUS_TIMEOUT_MS, CONNECTION_STALE_MS };
+module.exports = { createBrowserBridge, AUTH_TIMEOUT_MS, FOCUS_TIMEOUT_MS, CONNECTION_STALE_MS, HEALTH_STALE_MS };

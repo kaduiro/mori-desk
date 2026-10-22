@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: unchanged pinned inputs and overlay can start; unrelated documentation does not invalidate the build
+ok 1 - unchanged pinned inputs and overlay can start; unrelated documentation does not invalidate the build
+  ---
+  duration_ms: 18.917306
+  type: 'test'
+  ...
+# Subtest: pulling changed overlay with the same app/extension version blocks the old runtime without modifying it
+ok 2 - pulling changed overlay with the same app/extension version blocks the old runtime without modifying it
+  ---
+  duration_ms: 5.597613
+  type: 'test'
+  ...
+# Subtest: a changed patch and a missing legacy fingerprint both require a rebuild
+ok 3 - a changed patch and a missing legacy fingerprint both require a rebuild
+  ---
+  duration_ms: 7.683046
+  type: 'test'
+  ...
+# Subtest: a valid input stamp cannot hide a changed or missing runtime overlay file
+ok 4 - a valid input stamp cannot hide a changed or missing runtime overlay file
+  ---
+  duration_ms: 4.868121
+  type: 'test'
+  ...
+# Subtest: disk doctor separates matching files from unobserved live Chrome, desktop and provider behavior
+ok 5 - disk doctor separates matching files from unobserved live Chrome, desktop and provider behavior
+  ---
+  duration_ms: 13.794366
+  type: 'test'
+  ...
+# Subtest: doctor detects a different selected folder even when both manifest versions are identical
+ok 6 - doctor detects a different selected folder even when both manifest versions are identical
+  ---
+  duration_ms: 8.641015
+  type: 'test'
+  ...
+# Subtest: doctor reports unavailable runtime and missing selected files without auto repair
+ok 7 - doctor reports unavailable runtime and missing selected files without auto repair
+  ---
+  duration_ms: 7.403273
+  type: 'test'
+  ...
+# Subtest: doctor does not approve a runtime with an invalid product identity
+ok 8 - doctor does not approve a runtime with an invalid product identity
+  ---
+  duration_ms: 7.818401
+  type: 'test'
+  ...
+# Subtest: doctor reports a non-file manifest as unreadable without trying to parse it
+ok 9 - doctor reports a non-file manifest as unreadable without trying to parse it
+  ---
+  duration_ms: 7.643817
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 99.39315
