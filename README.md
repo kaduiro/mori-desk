@@ -231,6 +231,8 @@ Mori のキャラクター素材は独自のコードから生成します。
 
 ## 開発用コマンド
 
+ブラウザー監視の計測器は[計測用作業ツリーの手順](docs/browser-monitoring-measurement-20261105-ja.md)に従って実行します。常用側で `npm run prepare:development` を使って独立コピーを作成し、表示されたコピー内で `npm run measure:monitoring -- --regression` を実行してください。実 Chrome の採取器はそのコピー内で `npm run measure:monitoring:native -- --smoke` を使います。
+
 以下は Node.js と npm を PC の PATH から使用できる開発環境向けです。
 BAT が用意した専用 Node は Windows 全体の PATH には登録しません。
 通常の利用では、初回 `setup-windows.bat`、以降 `start-windows.bat` を使ってください。
