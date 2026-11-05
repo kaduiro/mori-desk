@@ -76,7 +76,7 @@ index e7a7fc7..ed42f13 100644
      "claude-code"
    ],
 -  "author": "rullerzhou-afk",
-+  "author": "Mori Desk contributors",
++  "author": "kaduiro",
    "license": "AGPL-3.0-only",
    "type": "commonjs",
    "build": {
@@ -116,7 +116,7 @@ index e7a7fc7..ed42f13 100644
      },
      "linux": {
 -      "maintainer": "rullerzhou-afk <rullerzhou-afk@users.noreply.github.com>",
-+      "maintainer": "Mori Desk contributors",
++      "maintainer": "kaduiro",
        "icon": "assets/icons",
        "category": "Utility",
 -      "artifactName": "Clawd-on-Desk-${version}-${arch}.${ext}",
@@ -897,10 +897,19 @@ index 6f84bbc..0ec8906 100644
      quotaNotifications.dispose();
      // Cancel any live official-theme download and drop this round's `.part`.
 diff --git a/src/menu.js b/src/menu.js
-index dd2cb05..c9cf1ec 100644
+index dd2cb05..d945b90 100644
 --- a/src/menu.js
 +++ b/src/menu.js
-@@ -275,6 +275,9 @@
+@@ -226,7 +226,7 @@ module.exports = function initMenu(ctx) {
+       iconPath: path.join(__dirname, "../assets/icon.png"),
+     });
+     ctx.tray = new Tray(icon);
+-    ctx.tray.setToolTip("Clawd Desktop Pet");
++    ctx.tray.setToolTip("mori-desk");
+     buildTrayMenu();
+   }
+
+@@ -275,6 +275,9 @@ module.exports = function initMenu(ctx) {
      // Dashboard + the danger auto-approve toggle (danger last, as in the
      // context menu).
      const workGroup = [
@@ -910,7 +919,7 @@ index dd2cb05..c9cf1ec 100644
        {
          label: t("openDashboard"),
          click: () => {
-@@ -283,6 +286,7 @@
+@@ -283,6 +285,7 @@ module.exports = function initMenu(ctx) {
        },
        buildPermissionAutomationMenuItem(),
      ];
@@ -918,7 +927,7 @@ index dd2cb05..c9cf1ec 100644
  
      // OS-integration / placement group: bring-to-primary, mac dock/menu-bar,
      // start-on-login.
-@@ -500,6 +504,9 @@
+@@ -500,6 +504,9 @@ module.exports = function initMenu(ctx) {
      ];
  
      const workGroup = [
@@ -928,7 +937,7 @@ index dd2cb05..c9cf1ec 100644
        {
          label: t("openDashboard"),
          click: () => {
-@@ -532,6 +539,7 @@
+@@ -532,6 +537,7 @@ module.exports = function initMenu(ctx) {
        // near the top) makes it harder to hit by accident.
        buildPermissionAutomationMenuItem(),
      ];
@@ -1638,7 +1647,7 @@ index abd0d0f..37d17c6 100644
        return {
          status: "error",
 diff --git a/src/settings-i18n.js b/src/settings-i18n.js
-index 9ef9cad..6a13ac4 100644
+index 9ef9cad..3bdf0df 100644
 --- a/src/settings-i18n.js
 +++ b/src/settings-i18n.js
 @@ -13,7 +13,7 @@
@@ -1664,7 +1673,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "Toggle pet visibility",
        shortcutLabelQuickSelectSession: "Quick-select a session",
        shortcutLabelPermissionAllow: "Permission: Allow",
-@@ -1239,7 +1244,7 @@
+@@ -1189,11 +1194,12 @@
+       autoUpdateCheck: "Automatically check for updates",
+       autoUpdateCheckDescription: "Quietly checks GitHub every 12 hours. Only notifies you when a new version is available.",
+       aboutRepositoryLabel: "Repository",
++      aboutUpstreamRepositoryLabel: "Upstream repository (Clawd on Desk)",
+       aboutLicenseLabel: "License",
+       aboutAuthorLabel: "Made by",
+       aboutMaintainersLabel: "Maintainers",
+       aboutContributorsLabel: "Contributors",
+-      aboutFooter: "Clawd is open source. Built with care by the community.",
++      aboutFooter: "Mori Desk is open source. Built with care by the community.",
+       aboutCleanupButton: "Remove Clawd integrations…",
+       aboutCleanupConfirmTitle: "Remove Clawd integrations?",
+       aboutCleanupConfirmDetail: "This removes Clawd hooks/plugins from local agents and marks all agent integrations as uninstalled and disabled in Clawd. Agent apps and user configs are not deleted.",
+@@ -1239,7 +1245,7 @@
        sessionsSubtitle: "桌宠下方的会话 HUD、额度环，以及会话面板。",
        permissionsTitle: "权限与审批",
        permissionsSubtitle: "权限请求先怎么处理，再决定要不要发到手机上批。",
@@ -1673,7 +1696,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "重新打开新手指南",
        settingsTutorialReplayFailed: "无法打开新手指南",
        sidebarGeneral: "通用",
-@@ -1797,7 +1802,12 @@
+@@ -1797,7 +1803,12 @@
        shortcutErrorReserved: "该组合键属于保留快捷键，请换一个。",
        shortcutErrorInvalid: "暂不支持这个组合键。",
        shortcutErrorNeedsModifier: "快捷键至少要包含一个修饰键。",
@@ -1687,7 +1710,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "显示/隐藏桌宠",
        shortcutLabelQuickSelectSession: "快速选择会话",
        shortcutLabelPermissionAllow: "权限：允许",
-@@ -2453,7 +2463,7 @@
+@@ -2403,11 +2414,12 @@
+       autoUpdateCheck: "自动检查更新",
+       autoUpdateCheckDescription: "每 12 小时静默向 GitHub 查一次，发现新版本才通知你。",
+       aboutRepositoryLabel: "代码仓库",
++      aboutUpstreamRepositoryLabel: "上游代码仓库（Clawd on Desk）",
+       aboutLicenseLabel: "开源协议",
+       aboutAuthorLabel: "作者",
+       aboutMaintainersLabel: "维护者",
+       aboutContributorsLabel: "贡献者",
+-      aboutFooter: "Clawd 是开源项目 · 与社区一起打造。",
++      aboutFooter: "Mori Desk 是开源项目 · 与社区一起打造。",
+       aboutCleanupButton: "移除 Clawd 集成…",
+       aboutCleanupConfirmTitle: "移除 Clawd 集成？",
+       aboutCleanupConfirmDetail: "这会移除本机各 agent 中的 Clawd hooks / plugins，并在 Clawd 中将所有 agent 集成标记为未安装且禁用。不会删除 agent 应用或用户配置。",
+@@ -2453,7 +2465,7 @@
        sessionsSubtitle: "桌寵下方的工作階段 HUD、額度環，以及工作階段面板。",
        permissionsTitle: "權限與核准",
        permissionsSubtitle: "權限請求先在這台電腦怎麼處理，再決定要不要傳到手機上核准。",
@@ -1696,7 +1733,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "重新開啟新手指南",
        settingsTutorialReplayFailed: "無法開啟新手指南",
        sidebarGeneral: "一般",
-@@ -3015,7 +3025,12 @@
+@@ -3015,7 +3027,12 @@
        shortcutErrorReserved: "這是保留快速鍵，請改用其他組合鍵。",
        shortcutErrorInvalid: "暫時還不支援這個組合鍵。",
        shortcutErrorNeedsModifier: "快速鍵必須包含至少一個輔助鍵。",
@@ -1710,7 +1747,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "顯示/隱藏桌寵",
        shortcutLabelQuickSelectSession: "快速選擇工作階段",
        shortcutLabelPermissionAllow: "權限：允許",
-@@ -3671,7 +3686,7 @@
+@@ -3621,11 +3638,12 @@
+       autoUpdateCheck: "自動檢查更新",
+       autoUpdateCheckDescription: "每 12 小時靜默向 GitHub 查一次，發現新版本才會通知您。",
+       aboutRepositoryLabel: "程式碼儲存庫",
++      aboutUpstreamRepositoryLabel: "上游儲存庫（Clawd on Desk）",
+       aboutLicenseLabel: "開源授權",
+       aboutAuthorLabel: "作者",
+       aboutMaintainersLabel: "維護者",
+       aboutContributorsLabel: "貢獻者",
+-      aboutFooter: "Clawd 是開源專案 · 和社群一起做出來的。",
++      aboutFooter: "Mori Desk 是開源專案 · 和社群一起做出來的。",
+       aboutCleanupButton: "移除 Clawd 整合…",
+       aboutCleanupConfirmTitle: "移除 Clawd 整合？",
+       aboutCleanupConfirmDetail: "這會移除本機各 agent 中的 Clawd hooks / plugins，並在 Clawd 中將所有 agent 整合標記為未安裝且停用。不會刪除 agent 應用程式或使用者設定。",
+@@ -3671,7 +3689,7 @@
        sessionsSubtitle: "펫 아래의 세션 HUD와 할당량 링, 그리고 세션 대시보드.",
        permissionsTitle: "권한 및 승인",
        permissionsSubtitle: "권한 요청을 이 기기에서 먼저 처리한 뒤, 휴대폰에서 승인할지 결정합니다.",
@@ -1719,7 +1770,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "시작 가이드 다시 보기",
        settingsTutorialReplayFailed: "가이드를 열 수 없습니다",
        sidebarGeneral: "일반",
-@@ -4233,7 +4248,12 @@
+@@ -4233,7 +4251,12 @@
        shortcutErrorReserved: "예약된 단축키 조합입니다. 다른 키를 사용해 주세요.",
        shortcutErrorInvalid: "지원하지 않는 키 조합입니다.",
        shortcutErrorNeedsModifier: "단축키에는 하나 이상의 보조 키가 필요합니다.",
@@ -1733,7 +1784,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "펫 표시 전환",
        shortcutLabelQuickSelectSession: "세션 빠른 선택",
        shortcutLabelPermissionAllow: "권한: 허용",
-@@ -4889,7 +4909,7 @@
+@@ -4839,11 +4862,12 @@
+       autoUpdateCheck: "업데이트 자동 확인",
+       autoUpdateCheckDescription: "12시간마다 GitHub를 조용히 확인하고, 새 버전이 있을 때만 알려드립니다.",
+       aboutRepositoryLabel: "저장소",
++      aboutUpstreamRepositoryLabel: "업스트림 저장소 (Clawd on Desk)",
+       aboutLicenseLabel: "라이선스",
+       aboutAuthorLabel: "제작",
+       aboutMaintainersLabel: "메인테이너",
+       aboutContributorsLabel: "기여자",
+-      aboutFooter: "Clawd는 오픈 소스 · 커뮤니티와 함께 만듭니다.",
++      aboutFooter: "Mori Desk는 오픈 소스 · 커뮤니티와 함께 만듭니다.",
+       aboutCleanupButton: "Clawd 통합 제거…",
+       aboutCleanupConfirmTitle: "Clawd 통합을 제거할까요?",
+       aboutCleanupConfirmDetail: "로컬 에이전트에서 Clawd hooks/plugins를 제거하고 Clawd의 모든 에이전트 통합을 미설치 및 비활성 상태로 표시합니다. 에이전트 앱이나 사용자 설정은 삭제하지 않습니다.",
+@@ -4889,7 +4913,7 @@
        sessionsSubtitle: "ペットの下にあるセッション HUD とクォータリング、セッションダッシュボード。",
        permissionsTitle: "権限と承認",
        permissionsSubtitle: "権限リクエストをまずこのマシンでどう処理するか、そのうえでスマートフォンで承認するかを決めます。",
@@ -1742,7 +1807,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "はじめにガイドを開く",
        settingsTutorialReplayFailed: "ガイドを開けませんでした",
        sidebarGeneral: "一般",
-@@ -5451,7 +5471,12 @@
+@@ -5451,7 +5475,12 @@
        shortcutErrorReserved: "このキーの組み合わせは予約済みです。別のキーを試してください。",
        shortcutErrorInvalid: "このキーの組み合わせはサポートされていません。",
        shortcutErrorNeedsModifier: "ショートカットには修飾キーを少なくとも 1 つ含める必要があります。",
@@ -1756,7 +1821,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "ペット表示の切替",
        shortcutLabelQuickSelectSession: "セッションをクイック選択",
        shortcutLabelPermissionAllow: "権限: 許可",
-@@ -6109,7 +6134,7 @@
+@@ -6059,11 +6088,12 @@
+       autoUpdateCheck: "アップデートを自動で確認",
+       autoUpdateCheckDescription: "12 時間ごとに GitHub を静かに確認し、新しいバージョンがある時だけ通知します。",
+       aboutRepositoryLabel: "リポジトリ",
++      aboutUpstreamRepositoryLabel: "上流リポジトリ（Clawd on Desk）",
+       aboutLicenseLabel: "ライセンス",
+       aboutAuthorLabel: "制作",
+       aboutMaintainersLabel: "メンテナー",
+       aboutContributorsLabel: "コントリビューター",
+-      aboutFooter: "Clawd はオープンソース。コミュニティと一緒に作っています。",
++      aboutFooter: "Mori Desk はオープンソース。コミュニティと一緒に作っています。",
+       aboutCleanupButton: "Clawd 連携を削除…",
+       aboutCleanupConfirmTitle: "Clawd 連携を削除しますか？",
+       aboutCleanupConfirmDetail: "ローカル agent から Clawd hooks/plugins を削除し、Clawd のすべての agent 連携を未インストールかつ無効としてマークします。agent アプリやユーザー設定は削除しません。",
+@@ -6109,7 +6139,7 @@
        sessionsSubtitle: "O HUD de sessões e os anéis de cota sob o pet, além do painel de sessões.",
        permissionsTitle: "Permissões e aprovação",
        permissionsSubtitle: "Como os pedidos de permissão são tratados aqui primeiro e depois onde mais você pode aprová-los.",
@@ -1765,7 +1844,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "Mostrar o guia de primeiros passos",
        settingsTutorialReplayFailed: "Não foi possível abrir o guia",
        sidebarGeneral: "Geral",
-@@ -6667,7 +6692,12 @@
+@@ -6667,7 +6697,12 @@
        shortcutErrorReserved: "Esta combinação é reservada. Tente outra tecla.",
        shortcutErrorInvalid: "Essa combinação de teclas não é suportada.",
        shortcutErrorNeedsModifier: "O atalho precisa incluir pelo menos uma tecla modificadora.",
@@ -1779,7 +1858,21 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "Mostrar/ocultar o pet",
        shortcutLabelQuickSelectSession: "Seleção rápida de sessão",
        shortcutLabelPermissionAllow: "Permissão: permitir",
-@@ -7325,7 +7355,7 @@
+@@ -7275,11 +7310,12 @@
+       autoUpdateCheck: "Verificar atualizações automaticamente",
+       autoUpdateCheckDescription: "Consulta o GitHub silenciosamente a cada 12 horas. Só avisa quando há uma versão nova.",
+       aboutRepositoryLabel: "Repositório",
++      aboutUpstreamRepositoryLabel: "Repositório original (Clawd on Desk)",
+       aboutLicenseLabel: "Licença",
+       aboutAuthorLabel: "Feito por",
+       aboutMaintainersLabel: "Mantenedores",
+       aboutContributorsLabel: "Contribuidores",
+-      aboutFooter: "O Clawd é open source. Feito com carinho pela comunidade.",
++      aboutFooter: "O Mori Desk é open source. Feito com carinho pela comunidade.",
+       aboutCleanupButton: "Remover as integrações do Clawd…",
+       aboutCleanupConfirmTitle: "Remover as integrações do Clawd?",
+       aboutCleanupConfirmDetail: "Isso remove os hooks e plugins do Clawd dos agentes locais e marca todas as integrações de agente como desinstaladas e desativadas no Clawd. Os apps dos agentes e as configurações do usuário não são apagados.",
+@@ -7325,7 +7361,7 @@
        sessionsSubtitle: "El HUD de sesiones y los anillos de cuota bajo la mascota, más el panel de sesiones.",
        permissionsTitle: "Permisos y aprobación",
        permissionsSubtitle: "Cómo se gestionan aquí primero las solicitudes de permiso y luego dónde más puedes aprobarlas.",
@@ -1788,7 +1881,7 @@ index 9ef9cad..6a13ac4 100644
        settingsTutorialReplayLink: "Mostrar la guía de inicio",
        settingsTutorialReplayFailed: "No se pudo abrir la guía",
        sidebarGeneral: "General",
-@@ -7883,7 +7913,12 @@
+@@ -7883,7 +7919,12 @@
        shortcutErrorReserved: "Esta combinación está reservada. Prueba otra tecla.",
        shortcutErrorInvalid: "Esa combinación de teclas no es compatible.",
        shortcutErrorNeedsModifier: "El atajo debe incluir al menos una tecla modificadora.",
@@ -1802,8 +1895,36 @@ index 9ef9cad..6a13ac4 100644
        shortcutLabelTogglePet: "Alternar visibilidad de la mascota",
        shortcutLabelQuickSelectSession: "Selección rápida de sesión",
        shortcutLabelPermissionAllow: "Permiso: Permitir",
+@@ -8488,11 +8529,12 @@
+       autoUpdateCheck: "Buscar actualizaciones automáticamente",
+       autoUpdateCheckDescription: "Consulta GitHub en silencio cada 12 horas. Solo te avisa cuando hay una versión nueva disponible.",
+       aboutRepositoryLabel: "Repositorio",
++      aboutUpstreamRepositoryLabel: "Repositorio original (Clawd on Desk)",
+       aboutLicenseLabel: "Licencia",
+       aboutAuthorLabel: "Hecho por",
+       aboutMaintainersLabel: "Mantenedores",
+       aboutContributorsLabel: "Colaboradores",
+-      aboutFooter: "Clawd es de código abierto. Hecho con cariño por la comunidad.",
++      aboutFooter: "Mori Desk es de código abierto. Hecho con cariño por la comunidad.",
+       aboutCleanupButton: "Quitar integraciones de Clawd…",
+       aboutCleanupConfirmTitle: "¿Eliminar las integraciones de Clawd?",
+       aboutCleanupConfirmDetail: "Esto elimina los hooks y plugins de Clawd de los agentes locales y marca todas las integraciones de agentes como desinstaladas y desactivadas en Clawd. No se eliminan las aplicaciones de los agentes ni la configuración del usuario.",
+@@ -8554,7 +8596,13 @@
+     "hanzhe-one", "52mzd", "gzx19990101", "ypjn", "jin-codes", "LetitiaChan", "sanzanazaman",
+   ];
+
++  // Mori ownership is separate from the preserved upstream contributor credits.
++  const MORI_MAINTAINERS = ["kaduiro"];
++  const MORI_CONTRIBUTORS = ["kaduiro"];
++
+   root.ClawdSettingsI18n = {
++    MORI_MAINTAINERS,
++    MORI_CONTRIBUTORS,
+     STRINGS,
+     MAINTAINERS,
+     CONTRIBUTORS,
 diff --git a/src/settings-ipc.js b/src/settings-ipc.js
-index 7c31635..f2d737f 100644
+index 7c31635..c268c9b 100644
 --- a/src/settings-ipc.js
 +++ b/src/settings-ipc.js
 @@ -773,7 +773,7 @@ function registerSettingsIpc(options = {}) {
@@ -1837,12 +1958,12 @@ index 7c31635..f2d737f 100644
 +      upstreamRepoUrl: "https://github.com/rullerzhou-afk/clawd-on-desk",
 +      license: "AGPL-3.0-only",
 +      licenseUrl: "https://github.com/kaduiro/mori-desk/blob/main/LICENSE",
-+      copyright: "\u00a9 2026 Ruller_Lulu; Mori Desk modifications \u00a9 2026 Mori Desk contributors",
-+      authorName: "Mori Desk contributors",
-+      authorUrl: "https://github.com/kaduiro/mori-desk",
++      copyright: "\u00a9 2026 Ruller_Lulu; Mori Desk modifications \u00a9 2026 kaduiro",
++      authorName: "kaduiro",
++      authorUrl: "https://github.com/kaduiro",
 +      legalNotice: japanese
-+        ? "無保証で提供されます。AGPL-3.0-only の条件に従って再配布・改変できます。Mori Desk による変更日: 2026-10-19。"
-+        : "Provided without warranty. You may redistribute and modify this program under AGPL-3.0-only. Modified by Mori Desk contributors on 2026-10-19.",
++        ? "無保証で提供されます。AGPL-3.0-only の条件に従って再配布・改変できます。kaduiro による変更日: 2026-10-24。"
++        : "Provided without warranty. You may redistribute and modify this program under AGPL-3.0-only. Modified by kaduiro on 2026-10-24.",
        heroSvgContent,
 -      pendingUpdateVersion,
 -      autoUpdateCheck,
@@ -1856,7 +1977,7 @@ index 7c31635..f2d737f 100644
      };
    });
 diff --git a/src/settings-tab-about.js b/src/settings-tab-about.js
-index 6d14277..edd4232 100644
+index 6d14277..9322950 100644
 --- a/src/settings-tab-about.js
 +++ b/src/settings-tab-about.js
 @@ -138,7 +138,7 @@
@@ -1891,24 +2012,30 @@ index 6d14277..edd4232 100644
  
      const tagline = document.createElement("p");
      tagline.className = "about-tagline";
-@@ -324,7 +326,7 @@
-     maintainersRow.className = "about-info-row";
-     const maintainersLabel = document.createElement("div");
-     maintainersLabel.className = "about-info-label";
--    maintainersLabel.textContent = t("aboutMaintainersLabel");
-+    maintainersLabel.textContent = t("aboutMaintainersLabel") + " · clawd-on-desk";
-     const maintainersValue = document.createElement("div");
-     maintainersValue.className = "about-info-value";
-     maintainersValue.style.display = "flex";
-@@ -349,7 +351,7 @@
+@@ -331,7 +333,7 @@
+     maintainersValue.style.flexWrap = "wrap";
+     maintainersValue.style.gap = "12px";
+     maintainersValue.style.justifyContent = "flex-end";
+-    for (const name of i18n.MAINTAINERS) {
++    for (const name of i18n.MORI_MAINTAINERS) {
+       const link = document.createElement("a");
+       link.className = "about-contributor-link";
+       link.textContent = "@" + name;
+@@ -349,12 +351,12 @@
      contribRow.className = "about-info-row";
      const contribLabel = document.createElement("div");
      contribLabel.className = "about-info-label";
 -    contribLabel.textContent = t("aboutContributorsLabel") + " (" + i18n.CONTRIBUTORS.length + ")";
-+    contribLabel.textContent = t("aboutContributorsLabel") + " · clawd-on-desk (" + i18n.CONTRIBUTORS.length + ")";
++    contribLabel.textContent = t("aboutContributorsLabel") + " (" + i18n.MORI_CONTRIBUTORS.length + ")";
      contribRow.appendChild(contribLabel);
  
      const contribList = document.createElement("div");
+     contribList.className = "about-contributors-list";
+-    for (const name of i18n.CONTRIBUTORS) {
++    for (const name of i18n.MORI_CONTRIBUTORS) {
+       // Contributors whose GitHub account no longer resolves keep their credit but
+       // get plain text: a link to a deleted account only leads to a 404.
+       if (NO_GITHUB_ACCOUNT.has(name)) {
 @@ -404,149 +406,159 @@
        vv.className = "about-info-value";
        vv.textContent = "v" + (safe.version || "?");
@@ -2209,7 +2336,7 @@ index 6d14277..edd4232 100644
        }
 +      if (safe.upstreamRepoUrl) {
 +        infoSection.appendChild(buildAboutLinkRow(
-+          t("aboutRepositoryLabel") + " · clawd-on-desk",
++          t("aboutUpstreamRepositoryLabel"),
 +          safe.upstreamRepoUrl,
 +          safe.upstreamRepoUrl.replace(/^https?:\/\//, "")
 +        ));
@@ -2310,7 +2437,7 @@ index c128db9..630baf5 100644
  
    function runShortcutAction(action, payload) {
 diff --git a/src/settings-ui-core.js b/src/settings-ui-core.js
-index 1c885c6..c1ca082 100644
+index 1c885c6..d2e6ec5 100644
 --- a/src/settings-ui-core.js
 +++ b/src/settings-ui-core.js
 @@ -268,6 +268,14 @@
@@ -2368,6 +2495,15 @@ index 1c885c6..c1ca082 100644
      getLang,
      readThemeOverrideMap,
      hasAnyThemeOverride,
+@@ -3030,6 +3052,8 @@
+     STRINGS,
+     MAINTAINERS,
+     CONTRIBUTORS,
++    MORI_MAINTAINERS: i18nApi.MORI_MAINTAINERS,
++    MORI_CONTRIBUTORS: i18nApi.MORI_CONTRIBUTORS,
+     IS_MAC,
+     IS_WIN,
+     SHORTCUT_ACTIONS,
 diff --git a/src/settings-window-icon.js b/src/settings-window-icon.js
 index 5b00f5f..5492692 100644
 --- a/src/settings-window-icon.js
