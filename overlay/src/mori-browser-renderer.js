@@ -254,6 +254,7 @@ $("pair").addEventListener("click", async () => {
     $("code").value = result.code; $("pairing").hidden = false; feedback("2 分以内に拡張機能の設定画面へ貼り付けてください。");
   } catch { feedback("接続コードを作成できません。"); }
 });
+$("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
 $("copy").addEventListener("click", () => act("copy", $("copy"), () => window.mori.copy(), "コードをコピーしました。"));
 $("extension").addEventListener("click", () => act("extension", $("extension"), () => window.mori.openExtension(), "開いた browser-bridge フォルダーを Chrome で選択してください。"));
 window.mori.onChange(refresh);

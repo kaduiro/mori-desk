@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mori Desk · 今日の予定の設定</title>
+<link rel="stylesheet" href="mori-calendar-setup.css"></head><body>
+<main>
+  <header><p class="eyebrow">MORI DESK</p><h1>今日の予定を使う</h1>
+    <p>Google に接続し、HUD に表示するカレンダーを選びます。</p></header>
+  <nav aria-label="設定の進行状況"><ol id="steps"><li>設定確認</li><li>Google 連携</li><li>カレンダー選択</li><li>表示確認</li></ol></nav>
+  <p id="message" role="status" aria-live="polite">状態を確認しています…</p>
+  <section id="config-panel" class="panel" hidden><h2>1. 設定確認</h2>
+    <p id="config-description"></p><button id="import-config">管理者から受け取った設定ファイルを選ぶ</button>
+    <p class="hint">組織用の配布物に設定が含まれている場合、ファイル操作は不要です。</p></section>
+  <section id="connect-panel" class="panel" hidden><h2>2. Google 連携</h2><p id="connect-description"></p>
+    <button id="connect">Google Calendar に接続</button>
+    <p class="hint">OS のブラウザで本人のアカウントを選びます。予定とカレンダー一覧の読み取りだけを要求します。</p></section>
+  <section id="selection-panel" class="panel" hidden><h2>3. カレンダー選択</h2>
+    <p id="selection-description"></p><div id="calendar-options"></div>
+    <div class="actions"><button id="apply-selection">この選択で適用</button><button id="reload-calendars" class="secondary">候補を更新</button>
+    <button id="grant-scope" class="secondary" hidden>追加権限を許可</button></div>
+    <p class="hint">Google Calendar の画面上のチェック状態とは別です。選択時は通信せず、適用後に取得します。</p></section>
+  <section id="result-panel" class="panel" hidden><h2>4. 表示確認</h2><p id="result-description"></p>
+    <button id="open-calendar">今日の予定を開く</button><button id="change-selection" class="secondary">カレンダーを変更</button></section>
+  <section class="panel diagnostics"><h2>接続状態</h2><dl>
+    <div><dt>設定</dt><dd id="config-source">確認中</dd></div>
+    <div><dt>カレンダー</dt><dd id="selected-count">確認中</dd></div>
+    <div><dt>最終取得</dt><dd id="last-fetch">確認中</dd></div>
+    <div><dt>次の手動更新</dt><dd id="next-refresh">確認中</dd></div>
+    <div><dt>API 要求</dt><dd id="request-count">確認中</dd></div>
+  </dl><p id="source-statuses" class="hint"></p>
+  <button id="switch-config" class="secondary">設定ファイルを読み込む</button>
+  <button id="use-managed" class="secondary" hidden>組織の配布設定に切り替える</button>
+  <button id="disconnect" class="secondary" hidden>Google 連携を解除</button></section>
+  <p class="hint tail">ブラウザ通知は予定とは別に設定します。<button id="open-browser" class="secondary">ブラウザ連携を開く</button></p>
+</main><script src="mori-calendar-setup-renderer.js"></script></body></html>

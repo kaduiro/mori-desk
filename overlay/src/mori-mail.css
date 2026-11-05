@@ -1,0 +1,31 @@
+#events section h2 { margin: 5px 6px 2px; padding: 5px 4px 3px; border-bottom: 1px solid var(--divider); color: var(--muted); font-size: 10px; font-weight: 700; }
+#events section h2 span { font-weight: 400; }
+#events section + section { margin-top: 7px; }
+#priority-section h2 { color: #9a4a28; }
+@media (prefers-color-scheme: dark) { #priority-section h2 { color: #e6a47d; } }
+.mail-empty { margin: 5px 10px 9px; color: var(--muted); font-size: 10px; }
+.mail-from { flex: none; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; }
+.mail-subject { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.mail-time { flex: none; color: var(--muted); font-size: 10px; }
+.mail-unread .mail-subject { font-weight: 800; }
+.event[open] summary { flex-wrap: wrap; }
+.event[open] .mail-from, .event[open] .mail-subject {
+  max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere;
+}
+.mail-detail { padding: 3px 9px 9px 23px; border-top: 1px solid var(--divider); }
+.mail-detail .field { grid-template-columns: 34px minmax(0,1fr); }
+.mail-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.mail-actions button, #more, #settings button { border: 1px solid var(--hud-border); border-radius: 4px; background: transparent; color: var(--text); padding: 3px 6px; cursor: pointer; }
+.mail-actions button:hover, #more:hover, #settings button:hover { background: var(--row-hover); }
+#partial { margin: 8px 9px 4px; color: var(--muted); font-size: 10px; }
+#more { margin: 3px 9px 10px; }
+#settings { min-height: 0; max-height: 38%; overflow-y: auto; border-top: 1px solid var(--divider); padding: 7px 11px; font-size: 10px; }
+#settings[hidden], #partial[hidden], #more[hidden] { display: none; }
+#settings h2 { margin: 0 0 5px; font-size: 12px; }
+#settings p { line-height: 1.4; color: var(--muted); }
+#settings label { display: block; margin: 9px 0 3px; }
+.sender-add { display: flex; gap: 4px; }
+.sender-add input { min-width: 0; flex: 1; border: 1px solid var(--hud-border); border-radius: 4px; background: transparent; color: var(--text); padding: 3px 5px; }
+.sender-row { display: flex; justify-content: space-between; gap: 4px; align-items: center; margin-top: 4px; overflow-wrap: anywhere; }
+.sender-row span { min-width: 0; }
+#disconnect { margin: 4px 0 6px; }

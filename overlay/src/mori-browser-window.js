@@ -6,7 +6,9 @@ const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "",
-  getListenerStatus = () => null, getLoginStatus = () => null, getBuildInfo = () => null }) {
+  getListenerStatus = () => null, getLoginStatus = () => null, getBuildInfo = () => null,
+  getPetBounds = () => null, getCalendarSuppressed = () => false,
+  calendarDependencies = null }) {
   let window = null;
   let pairing = null;
   let selectedSessionId = null;
@@ -14,6 +16,48 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   const page = pathToFileURL(path.join(__dirname, "mori-browser.html")).toString();
   const hudPage = pathToFileURL(path.join(__dirname, "session-hud.html")).toString();
   const handlers = [];
+  let calendarRuntime = null;
+  let calendarWindow = null;
+  let calendarSetupWindow = null;
+  let mailRuntime = null;
+  let mailWindow = null;
+  function ensureCalendar() {
+    if (calendarRuntime) return;
+    const calendarElectron = calendarDependencies || require("electron");
+    const { createCalendarRuntime } = require("./mori-calendar-runtime");
+    const { createCalendarWindow } = require("./mori-calendar-window");
+    const { createCalendarSetupWindow } = require("./mori-calendar-setup-window");
+    const calendarDir = path.join(calendarElectron.app.getPath("userData"), "calendar");
+    const managedClientFile = calendarElectron.app.isPackaged && process.resourcesPath
+      ? path.join(process.resourcesPath, "mori-calendar-client.json") : null;
+    calendarRuntime = createCalendarRuntime({
+      dataDir: calendarDir,
+      safeStorage: calendarElectron.safeStorage, shell, managedClientFile,
+      onChange: () => { calendarWindow?.notify(); calendarSetupWindow?.notify(); },
+    });
+    calendarWindow = createCalendarWindow({
+      BrowserWindow, ipcMain, shell, screen: calendarElectron.screen,
+      runtime: calendarRuntime, getPetBounds, getOtherBounds: () => mailWindow?.getBounds(),
+      getSuppressed: getCalendarSuppressed,
+      dataDir: calendarDir, openSetup: () => calendarSetupWindow.open(),
+    });
+    calendarSetupWindow = createCalendarSetupWindow({ BrowserWindow, ipcMain,
+      dialog: calendarElectron.dialog, runtime: calendarRuntime, dataDir: calendarDir,
+      openCalendar: () => calendarWindow.open(), openBrowserPanel: () => open() });
+  }
+  function ensureMail() {
+    if (mailRuntime) return;
+    const electron = calendarDependencies || require("electron");
+    const { createMailRuntime } = require("./mori-mail-runtime");
+    const { createMailWindow } = require("./mori-mail-window");
+    const mailDir = path.join(electron.app.getPath("userData"), "mail");
+    mailRuntime = createMailRuntime({ dataDir: mailDir,
+      safeStorage: electron.safeStorage, shell, onChange: () => mailWindow?.notify() });
+    mailWindow = createMailWindow({ BrowserWindow, ipcMain, dialog: electron.dialog,
+      clipboard, shell, screen: electron.screen, runtime: mailRuntime, dataDir: mailDir,
+      getPetBounds, getOtherBounds: () => calendarWindow?.getBounds(),
+      getSuppressed: getCalendarSuppressed });
+  }
 
   function trusted(event, allowHud = false) {
     const frame = event?.senderFrame;
@@ -92,6 +136,11 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     if (payload !== undefined && (typeof payload?.id !== "string" || payload.id.length > 512)) return { ok: false, reason: "invalid-payload" };
     return open(payload);
   }, true);
+  handle("mori:open-mail", () => {
+    ensureMail();
+    mailRuntime.start();
+    return mailWindow.open();
+  });
 
   function open(options) {
     if (typeof options?.id === "string") {
@@ -117,8 +166,35 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
 
   function dispose() {
     handlers.forEach(channel => ipcMain.removeHandler(channel));
+    calendarWindow?.dispose();
+    calendarSetupWindow?.dispose();
+    calendarRuntime?.dispose();
+    mailWindow?.dispose();
+    mailRuntime?.dispose();
     if (window && !window.isDestroyed()) window.destroy();
     window = null; pairing = null;
   }
-  return { open, notify, dispose };
+  function startCalendar() {
+    ensureCalendar();
+    if (calendarWindow.autoOpenEnabled()) {
+      calendarWindow.open({ automatic: true });
+      calendarRuntime.start();
+    }
+    startMail();
+  }
+  function startMail() {
+    ensureMail();
+    if (!mailWindow.autoOpenEnabled()) return;
+    mailWindow.open({ automatic: true });
+    mailRuntime.start();
+  }
+  return { open, notify, dispose, startCalendar, startMail, openMail: () => {
+    ensureMail();
+    mailRuntime.start();
+    return mailWindow.open();
+  }, openCalendar: () => {
+    ensureCalendar();
+    calendarRuntime.start();
+    return calendarWindow.open();
+  } };
 };

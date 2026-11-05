@@ -253,6 +253,7 @@ index 1eabd64..485f808 100644
          "Hidden=false",
          "NoDisplay=false",
 diff --git a/src/main.js b/src/main.js
+index 6f84bbc..0ec8906 100644
 --- a/src/main.js
 +++ b/src/main.js
 @@ -1,4 +1,49 @@
@@ -367,12 +368,6 @@ diff --git a/src/main.js b/src/main.js
 -      appPath: app.getAppPath(),
 -    })
 -  );
--}
--function _readSystemOpenAtLogin() {
--  if (isLinux) return loginItemHelpers.linuxGetOpenAtLogin();
--  return app.getLoginItemSettings(
--    app.isPackaged ? {} : { path: process.execPath, args: [app.getAppPath()] }
--  ).openAtLogin;
 +  if (enabled && !app.isPackaged && isWin) {
 +    // A checkout can change while Mori is open. Do not register a login target
 +    // whose current source/runtime/entry point no longer passes the guard.
@@ -382,7 +377,12 @@ diff --git a/src/main.js b/src/main.js
 +  }
 +  moriLoginStatus = moriLoginItems.setEnabled(enabled);
 +  moriBrowserWindow?.notify();
-+}
+ }
+-function _readSystemOpenAtLogin() {
+-  if (isLinux) return loginItemHelpers.linuxGetOpenAtLogin();
+-  return app.getLoginItemSettings(
+-    app.isPackaged ? {} : { path: process.execPath, args: [app.getAppPath()] }
+-  ).openAtLogin;
 +function _readMoriLoginStatus() {
 +  if (isLinux) {
 +    try {
@@ -393,7 +393,7 @@ diff --git a/src/main.js b/src/main.js
 +  } else moriLoginStatus = moriLoginItems.getStatus();
 +  return moriLoginStatus;
  }
-
+ 
  function _getAgentIntegrationOptions(agentId) {
 @@ -523,14 +582,15 @@
    prefsPath: PREFS_PATH,
@@ -637,7 +637,7 @@ diff --git a/src/main.js b/src/main.js
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3189,28 @@
+@@ -3117,6 +3189,31 @@
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
@@ -654,6 +654,9 @@ diff --git a/src/main.js b/src/main.js
 +  getBuildInfo: () => moriBuildInfo,
 +  getListenerStatus: () => moriListenerStatus,
 +  getLoginStatus: _readMoriLoginStatus,
++  getPetBounds: () => getPetWindowBounds(),
++  getCalendarSuppressed: () => doNotDisturb || _mini.getMiniMode()
++    || sessionHudEnabled === false || petWindowRuntime.isPetEffectivelyHidden(),
 +});
 +const moriSessionNavigation = require("./mori-session-navigation")({
 +  cliEnabled: moriProduct.cliEnabled,
@@ -666,16 +669,18 @@ diff --git a/src/main.js b/src/main.js
  
  // ── LAN WebSocket bridge for PWA mobile clients (lazy-loaded) ──
  let _lanWss = null;
-@@ -4561,6 +4655,8 @@
+@@ -4561,6 +4658,10 @@
  }
  
  const _menuCtx = {
 +  moriCliEnabled: moriProduct.cliEnabled,
 +  openMoriBrowser: () => moriBrowserWindow.open(),
++  openMoriCalendar: () => moriBrowserWindow.openCalendar(),
++  openMoriMail: () => moriBrowserWindow.openMail(),
    get win() { return win; },
    get sessions() { return sessions; },
    cancelRoam: () => _roam.cancelRoam(),
-@@ -4739,7 +4835,7 @@
+@@ -4739,7 +4840,7 @@
    getSettingsWindow,
    getSystemVersion: () => process.getSystemVersion(),
    discoverThemes: () => themeLoader.discoverThemes(),
@@ -684,7 +689,7 @@ diff --git a/src/main.js b/src/main.js
    getActiveThemeCapabilities: () => themeRuntime.getActiveThemeCapabilities(),
    ensureUserThemesDir: () => themeLoader.ensureUserThemesDir(),
    openSettingsWindow: (options) => settingsWindowRuntime.open(options),
-@@ -4990,7 +5086,7 @@
+@@ -4990,7 +5091,7 @@
      try { _settingsController.applyUpdate(key, value); } catch {}
    },
  };
@@ -693,7 +698,7 @@ diff --git a/src/main.js b/src/main.js
  const {
    setupAutoUpdater,
    checkForUpdates,
-@@ -5197,7 +5293,7 @@
+@@ -5197,7 +5298,7 @@
      _tutorial.open();
      return { status: "ok" };
    },
@@ -702,7 +707,7 @@ diff --git a/src/main.js b/src/main.js
    getLanWsServer: () => _lanWss,
  });
  
-@@ -5455,7 +5551,7 @@
+@@ -5455,7 +5556,7 @@
      updateBubble: _updateBubble,
    });
  
@@ -711,7 +716,7 @@ diff --git a/src/main.js b/src/main.js
    startMainTick();
    // Silently connect any remote SSH profile flagged "connect on launch" once
    // the hook server is ACTUALLY listening and its real port is known.
-@@ -5467,7 +5563,12 @@
+@@ -5467,7 +5568,12 @@
    // Best-effort: failures fall back to the runtime's own reconnect/backoff and
    // never block startup.
    startHttpServer().then((port) => {
@@ -724,7 +729,7 @@ diff --git a/src/main.js b/src/main.js
      const restoredSessionIds = restoreSessionsFromRecoveryLeases(_state, {
        isAgentEnabled: (agentId) => (
          _runtimeAgentGate.isAgentEnabled(agentId)
-@@ -5478,7 +5579,7 @@
+@@ -5478,7 +5584,7 @@
        const recoveredSnapshot = _state.buildSessionSnapshot();
        reconcilePowerSaveBlocker();
        broadcastDashboardSessionSnapshot(recoveredSnapshot);
@@ -733,7 +738,7 @@ diff --git a/src/main.js b/src/main.js
        // The Slack notifier is not on the broadcast above, so without this its
        // first snapshot would be some later event — which its priming branch
        // swallows, losing the first completion after a restart. Prime it with
-@@ -5638,7 +5739,7 @@
+@@ -5638,7 +5744,7 @@
    get win() { return win; },
    get currentSize() { return currentSize; },
    get doNotDisturb() { return doNotDisturb; },
@@ -742,7 +747,7 @@ diff --git a/src/main.js b/src/main.js
    get currentState() { return _state.getCurrentState(); },
    get mouseOverPet() { return mouseOverPet; },
    get dragLocked() { return petWindowRuntime.isDragLocked(); },
-@@ -5835,17 +5936,14 @@
+@@ -5835,17 +5941,14 @@
  // ── Single instance lock ──
  app.on("open-url", (event, url) => {
    event.preventDefault();
@@ -764,7 +769,7 @@ diff --git a/src/main.js b/src/main.js
  } else {
    // Only the winning instance may publish the startup gate. A losing instance
    // can have a stale/default prefs snapshot and must never become the final
-@@ -5858,8 +5956,19 @@
+@@ -5858,8 +5961,19 @@
      || _initialPrefsLoad.recovered === true
      || _initialPrefsLoad.codexAutoStartAuthoritative === false
    ) ? null : _initialPrefsLoad.snapshot;
@@ -784,7 +789,7 @@ diff --git a/src/main.js b/src/main.js
      if (petWindowRuntime.isPetEffectivelyHidden()) {
        prepManualPetVisibility();
        petWindowRuntime.setPetHidden(false);
-@@ -5880,7 +5989,7 @@
+@@ -5880,7 +5994,7 @@
      if (shouldOpenSettingsWindowFromArgv(commandLine)) {
        settingsWindowRuntime.openWhenReady();
      }
@@ -793,7 +798,7 @@ diff --git a/src/main.js b/src/main.js
      reapplyMacVisibility();
    });
  
-@@ -5988,7 +6097,7 @@
+@@ -5988,7 +6102,7 @@
        installRuntimeIcon: installRuntimeDockIcon,
      });
  
@@ -802,7 +807,7 @@ diff --git a/src/main.js b/src/main.js
      if (process.argv.includes(REGISTER_PROTOCOL_DEV_ARG)) {
        console.log(`Clawd: clawd:// dev protocol registration ${protocolRegistered ? "succeeded" : "failed"}`);
        app.quit();
-@@ -6022,7 +6131,30 @@
+@@ -6022,7 +6136,34 @@
      try { syncDiscordPresence("startup"); }
      catch (err) { console.warn("Clawd: discord presence startup failed:", err && err.message); }
      queueFeishuApprovalSync("startup");
@@ -830,10 +835,14 @@ diff --git a/src/main.js b/src/main.js
 +    // This acknowledges only the validated build and product lock. Listener,
 +    // extension and observer readiness remain separate visible states.
 +    await moriStartup.report("started");
++    setTimeout(() => {
++      try { moriBrowserWindow.startCalendar(); }
++      catch (error) { console.warn("Mori Calendar startup failed:", error?.code || error?.message || "unknown"); }
++    }, 0);
      try { recapRuntime.start(); }
      catch (err) { console.warn("Clawd: local recap startup failed:", err && err.code ? err.code : "storage-error"); }
      // Reconcile the local quota binding only after the app has visible UI.
-@@ -6064,6 +6196,7 @@
+@@ -6064,6 +6205,7 @@
        ),
      });
      systemWakeRecovery.start();
@@ -841,7 +850,7 @@ diff --git a/src/main.js b/src/main.js
      // #525: sleep/wake and lock/unlock are prime DWM-cloak moments. Hang the
      // cloak recovery directly on powerMonitor rather than onRecovered above:
      // onRecovered only fires after a renderer round-trip and is skipped on
-@@ -6097,11 +6230,11 @@
+@@ -6097,11 +6239,11 @@
      // existing users who update also see it once on their next launch, then the
      // flag flips to true forever (any dismissal counts). See prefs.js SCHEMA.
      try {
@@ -855,7 +864,7 @@ diff --git a/src/main.js b/src/main.js
      codexPetMain.flushPendingImportUrls().catch((err) => {
        console.warn("Clawd: Codex Pet import queue failed:", err && err.message);
      });
-@@ -6115,10 +6248,10 @@
+@@ -6115,10 +6257,10 @@
      // cost at click time. Whether we call .start() right now depends on the
      // agent-gate snapshot — a user who disabled Codex at last shutdown
      // shouldn't see its file watcher spin up on the next launch.
@@ -868,7 +877,7 @@ diff --git a/src/main.js b/src/main.js
        console.warn("Clawd: failed to auto-install terminal-focus extension:", err.message);
      }
  
-@@ -6133,7 +6266,7 @@
+@@ -6133,7 +6275,7 @@
  
      // Deferred so any startup Codex hook sync has settled before we read the
      // on-disk hook state; unref'd so it never blocks a fast quit.
@@ -877,7 +886,7 @@ diff --git a/src/main.js b/src/main.js
      if (codexHookNudgeTimer && typeof codexHookNudgeTimer.unref === "function") codexHookNudgeTimer.unref();
    });
  
-@@ -6153,6 +6286,9 @@
+@@ -6153,6 +6295,9 @@
      }
      if (quitCleanupStarted) return;
      quitCleanupStarted = true;
@@ -888,38 +897,42 @@ diff --git a/src/main.js b/src/main.js
      quotaNotifications.dispose();
      // Cancel any live official-theme download and drop this round's `.part`.
 diff --git a/src/menu.js b/src/menu.js
-index dd2cb05..a7027f4 100644
+index dd2cb05..c9cf1ec 100644
 --- a/src/menu.js
 +++ b/src/menu.js
-@@ -275,6 +275,7 @@ module.exports = function initMenu(ctx) {
+@@ -275,6 +275,9 @@
      // Dashboard + the danger auto-approve toggle (danger last, as in the
      // context menu).
      const workGroup = [
 +      { label: "ブラウザ連携・セッション", click: () => ctx.openMoriBrowser?.() },
++      { label: "今日の予定", click: () => ctx.openMoriCalendar?.() },
++      { label: "受信メール", click: () => ctx.openMoriMail?.() },
        {
          label: t("openDashboard"),
          click: () => {
-@@ -283,6 +284,7 @@ module.exports = function initMenu(ctx) {
+@@ -283,6 +286,7 @@
        },
        buildPermissionAutomationMenuItem(),
      ];
-+    if (ctx.moriCliEnabled === false) workGroup.splice(1);
++    if (ctx.moriCliEnabled === false) workGroup.splice(3);
  
      // OS-integration / placement group: bring-to-primary, mac dock/menu-bar,
      // start-on-login.
-@@ -500,6 +502,7 @@ module.exports = function initMenu(ctx) {
+@@ -500,6 +504,9 @@
      ];
  
      const workGroup = [
 +      { label: "ブラウザ連携・セッション", click: () => ctx.openMoriBrowser?.() },
++      { label: "今日の予定", click: () => ctx.openMoriCalendar?.() },
++      { label: "受信メール", click: () => ctx.openMoriMail?.() },
        {
          label: t("openDashboard"),
          click: () => {
-@@ -532,6 +535,7 @@ module.exports = function initMenu(ctx) {
+@@ -532,6 +539,7 @@
        // near the top) makes it harder to hit by accident.
        buildPermissionAutomationMenuItem(),
      ];
-+    if (ctx.moriCliEnabled === false) workGroup.splice(1);
++    if (ctx.moriCliEnabled === false) workGroup.splice(3);
  
      // Display group: just the multi-display "send to display" entry. The mac
      // dock / menu-bar visibility toggles deliberately do NOT live here — they
