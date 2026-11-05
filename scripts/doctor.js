@@ -5,7 +5,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { ROOT, RUNTIME, assertSafePath, inspectRuntimeSource, inputFingerprint, buildArtifacts, run } = require("./prepare-runtime");
+const { ROOT, RUNTIME, assertSafePath, inspectRuntimeSource, inputFingerprint, buildArtifacts, run, launchReadinessFromSource } = require("./prepare-runtime");
 
 const sha256 = data => crypto.createHash("sha256").update(data).digest("hex");
 function versionIn(data) {
@@ -123,7 +123,7 @@ async function collectReport({ extensionDir } = {}) {
     schemaVersion: 1, diagnostic: "mori-disk-versions-v1", checkedAt: new Date().toISOString(),
     checkout: { ...await gitIdentity(), applicationVersion: packageVersion(checkoutPackage), extensionVersion: sourceVersion },
     runtime: { applicationVersion: packageVersion(runtimePackage), productIdentityMatches, source,
-      sourceMatches, extension: runtime, inheritedRuntimeFiles: "NOT_CHECKED", runningDesktop: "NOT_CHECKED" },
+      sourceMatches, launchReadiness: launchReadinessFromSource(source), extension: runtime, inheritedRuntimeFiles: "NOT_CHECKED", runningDesktop: "NOT_CHECKED" },
     selectedExtension: selected,
     diskChecksPassed: sourceMatches && productIdentityMatches && runtime.status === "matches_source" && (!selected || selected.status === "matches_source"),
     browserLoadedExtension: "NOT_CHECKED", providerAcceptance: "NOT_CHECKED", automaticRecovery: "NOT_CHECKED",
@@ -137,6 +137,8 @@ function printReport(report) {
   console.log(`ソース: 本体 ${report.checkout.applicationVersion || "不明"} / 拡張 ${report.checkout.extensionVersion || "不明"}`);
   console.log(`準備済み本体: ${report.runtime.applicationVersion || "不明"} / 拡張 ${report.runtime.extension.version || "不明"}`);
   console.log(`ソース入力と準備済みファイル: ${result(report.runtime.sourceMatches)}`);
+  console.log(`次回起動のソース検査: ${report.runtime.launchReadiness.status} (${report.runtime.launchReadiness.reason})`);
+  console.log("実際の本体起動・ログイン起動: 未確認（ディスク一致とは別の確認です）。");
   console.log(`準備済み本体の製品設定: ${result(report.runtime.productIdentityMatches)}`);
   console.log(`runtime の拡張フォルダー: ${report.runtime.extension.path}`);
   console.log(`runtime の拡張ファイル: ${report.runtime.extension.status}`);

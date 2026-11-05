@@ -45,10 +45,15 @@ function readStartupOwner(env, parentPid) {
 
 function verifySourceStartup({ appPath = prepare.RUNTIME, execPath, owner = null } = {}) {
   checkLaunchLock(owner);
+  if (fs.existsSync(path.join(prepare.ROOT, ".mori-development.json"))) throw failure("development_workspace");
   let runtime;
   try { runtime = prepare.requireRuntime(); }
   catch (error) {
-    throw failure(String(error.message).includes("MORI_RUNTIME_SOURCE_MISMATCH") ? "source_mismatch" : "runtime_unavailable");
+    const rejected = failure(String(error.message).includes("MORI_RUNTIME_SOURCE_MISMATCH") ? "source_mismatch" : "runtime_unavailable");
+    if (rejected.code === "source_mismatch") {
+      try { rejected.detail = prepare.launchReadinessFromSource(prepare.inspectRuntimeSource()); } catch {}
+    }
+    throw rejected;
   }
   if (path.resolve(appPath) !== runtime) throw failure("runtime_unavailable");
   const bootstrap = path.join(prepare.ROOT, "bootstrap");

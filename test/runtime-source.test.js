@@ -15,7 +15,7 @@ function fixture(t) {
     const file = path.join(root, relative); fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, typeof value === "object" ? JSON.stringify(value) : value);
   };
-  for (const name of ["prepare-runtime.js", "doctor.js"]) write(`scripts/${name}`, fs.readFileSync(path.join(sourceRoot, "scripts", name), "utf8"));
+  for (const name of ["prepare-runtime.js", "windows-process.js", "setup.js", "doctor.js", "prepare-development.js"]) write(`scripts/${name}`, fs.readFileSync(path.join(sourceRoot, "scripts", name), "utf8"));
   const lock = { schemaVersion: 1, project: "mori-desk", repository: "https://github.com/rullerzhou-afk/clawd-on-desk.git", commit: "1".repeat(40) };
   const pkg = { name: "mori-desk", version: "0.1.3-preview.1", build: { appId: "com.kaduiro.moridesk", publish: null } };
   write("upstream.lock.json", lock); write("patches/mori.patch", "source patch\n");
@@ -49,6 +49,47 @@ test("unchanged pinned inputs and overlay can start; unrelated documentation doe
   assert.equal(f.prepare.requireRuntime(), path.join(f.root, ".runtime"));
   f.write("docs/work-note.md", "A documentation-only change.");
   assert.equal(f.prepare.requireRuntime(), path.join(f.root, ".runtime"));
+});
+
+test("development source edits are physically independent and cannot invalidate production startup", t => {
+  const f = fixture(t);
+  const dev = require(path.join(f.root,"scripts/prepare-development")).prepareDevelopment();
+  assert.equal(dev.ready,true);assert.equal(dev.productionRoot,fs.realpathSync(f.root));
+  const api = require(path.join(dev.projectRoot,"scripts/prepare-runtime"));
+  assert.equal(api.requireRuntime(),path.join(dev.projectRoot,".runtime"));
+  const file = path.join(dev.projectRoot,"overlay/src/panel.js");fs.writeFileSync(file,"// independent development change\n");
+  assert.throws(()=>api.requireRuntime(),/MORI_RUNTIME_SOURCE_MISMATCH/);
+  assert.equal(f.prepare.requireRuntime(),path.join(f.root,".runtime"));
+  assert.equal(fs.readFileSync(path.join(f.root,"overlay/src/panel.js"),"utf8"),"// expected panel\n");
+  assert.equal(fs.readFileSync(path.join(dev.projectRoot,".runtime/src/panel.js"),"utf8"),"// expected panel\n");
+  assert.equal(require(path.join(dev.projectRoot,"scripts/prepare-development")).requireDevelopmentWorkspace().projectRoot,dev.projectRoot);
+});
+
+test("new development copies preserve edited predecessors; failed preparation preserves the selected copy", t => {
+  const f = fixture(t), api = require(path.join(f.root,"scripts/prepare-development"));
+  const first=api.prepareDevelopment();fs.writeFileSync(path.join(first.projectRoot,"overlay/src/panel.js"),"keep my edits");
+  const second=api.prepareDevelopment();assert.notEqual(first.projectRoot,second.projectRoot);
+  assert.equal(fs.readFileSync(path.join(first.projectRoot,"overlay/src/panel.js"),"utf8"),"keep my edits");
+  const selected=fs.readFileSync(path.join(f.root,".development/latest.json"));
+  f.write("overlay/src/panel.js","unbuilt source");assert.throws(()=>api.prepareDevelopment(),/MORI_RUNTIME_SOURCE_MISMATCH/);
+  assert.deepEqual(fs.readFileSync(path.join(f.root,".development/latest.json")),selected);
+  assert.equal(fs.existsSync(path.join(f.root,".mori-setup-lock")),false);
+});
+
+test("measurement preparation requires an owned development workspace before any capture or replacement", t => {
+  const f=fixture(t), api=require(path.join(f.root,"scripts/prepare-development"));
+  assert.throws(()=>api.requireDevelopmentWorkspace(),/開発専用コピー/);
+  f.write(".mori-development.json",{ready:true,projectRoot:f.root,productionRoot:"foreign"});
+  assert.throws(()=>api.requireDevelopmentWorkspace(),/開発専用コピー/);
+});
+
+test("startup disk readiness distinguishes pending source updates, modified artifacts and unobserved startup", t => {
+  const f=fixture(t), inspect=()=>f.prepare.launchReadinessFromSource(f.prepare.inspectRuntimeSource());
+  assert.equal(inspect().status,"source_check_passes");assert.equal(inspect().desktopStartup,"NOT_CHECKED");
+  f.write(".runtime/src/panel.js","modified runtime");assert.equal(inspect().reason,"runtime_artifact_mismatch");
+  f.write("overlay/src/panel.js","new source");assert.equal(inspect().reason,"source_update_pending");
+  assert.equal(inspect().status,"blocked");assert.equal(inspect().loginStartup,"NOT_CHECKED");
+  assert.equal(f.prepare.launchReadinessFromSource(null).status,"unknown");
 });
 
 test("pulling changed overlay with the same app/extension version blocks the old runtime without modifying it", t => {
@@ -157,4 +198,39 @@ test("an unassembled overlay extension is not approved as a loadable current bui
   assert.equal(report.runtime.sourceMatches, true);
   assert.deepEqual(report.selectedExtension.missing, ["build-info.js"]);
   assert.equal(report.diskChecksPassed, false);
+});
+
+function dependencyFixture(t) {
+  const f = fixture(t);
+  const stage = path.join(f.root, ".runtime-stage-reuse");
+  f.write(".runtime-stage-reuse/.mori-owned.json", { ...f.marker, kind: "runtime-stage", ready: false });
+  f.write(".runtime-stage-reuse/package.json", fs.readFileSync(path.join(f.root, ".runtime/package.json"), "utf8"));
+  f.write(".runtime/package-lock.json", { lockfileVersion: 3 });
+  f.write(".runtime-stage-reuse/package-lock.json", { lockfileVersion: 3 });
+  f.write(".runtime/node_modules/local-fixture/index.js", "verified dependency");
+  return { ...f, stage, setup: require(path.join(f.root, "scripts/setup")) };
+}
+
+test("local rebuild reuses only identical owned dependency inputs and preserves the previous runtime", t => {
+  const f = dependencyFixture(t);
+  f.setup.reuseLockedDependencies(f.stage);
+  assert.equal(fs.readFileSync(path.join(f.stage, "node_modules/local-fixture/index.js"), "utf8"), "verified dependency");
+  assert.equal(fs.readFileSync(path.join(f.root, ".runtime/node_modules/local-fixture/index.js"), "utf8"), "verified dependency");
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.root, ".runtime/.mori-owned.json"))).ready, true);
+});
+
+test("local rebuild rejects changed packages and locks before copying dependencies", t => {
+  for (const name of ["package.json", "package-lock.json"]) {
+    const f = dependencyFixture(t);
+    fs.appendFileSync(path.join(f.stage, name), "\n");
+    assert.throws(() => f.setup.reuseLockedDependencies(f.stage), /Cannot reuse dependencies/);
+    assert.equal(fs.existsSync(path.join(f.stage, "node_modules")), false);
+  }
+});
+
+test("local rebuild refuses an incomplete previous runtime", t => {
+  const f = dependencyFixture(t);
+  f.write(".runtime/.mori-owned.json", { ...f.marker, ready: false });
+  assert.throws(() => f.setup.reuseLockedDependencies(f.stage), /previous runtime is not verified/);
+  assert.equal(fs.existsSync(path.join(f.stage, "node_modules")), false);
 });

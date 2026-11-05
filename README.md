@@ -1,5 +1,7 @@
 # Mori Desk
 
+起動時のソース不一致と計測開発用コピーの分離については、[起動復旧・開発分離の手順](docs/startup-development-isolation-20261031-ja.md)を参照してください。
+
 **ブラウザ AI の待ち時間を、キャラクターとセッション一覧で確認するデスクトップアプリ。**
 
 ChatGPT / Claude の生成状態を自分で管理する Chrome 拡張機能から受け取り、
@@ -98,6 +100,11 @@ ZIP で取得する場合は **Code → Download ZIP → すべて展開** の�
 
 2 回目からは **`start-windows.bat`** を起動してください。
 通常起動でソースの再取得や依存関係の再インストールは行いません。
+
+依存関係を変更しないソース修正では、Mori Desk を終了してから `npm run rebuild` で
+再構築できます。既存 runtime と `package.json`・`package-lock.json` が完全一致する
+場合だけ依存関係を再利用し、固定上流・パッチ・overlay から組み立て直します。
+一致しない場合は通常の `setup-windows.bat` を実行してください。
 
 詳しい手順とトラブル対応は [Windows 手順書](docs/windows-ja.md) にあります。
 

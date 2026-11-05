@@ -5,7 +5,7 @@ const { app, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const guard = require("../scripts/startup-guard");
-const { parseStartupArgs, reasonOf, waitForStartup, failure } = require("../overlay/src/mori-startup-contract");
+const { parseStartupArgs, reasonOf, waitForStartup, failure, startupFailureMessage } = require("../overlay/src/mori-startup-contract");
 
 async function main() {
   let lock, child, result, startup;
@@ -46,7 +46,7 @@ async function main() {
     result = await waitForStartup(child, verified.buildInfo.buildId);
     if (result.status === "redirected_unknown" && !startup.isLogin)
       console.info("Mori Desk: 既存の Mori を使用しています。稼働版は未確認です。");
-  } catch (error) { result = { status: "blocked", reason: reasonOf(error) }; }
+  } catch (error) { result = { status: "blocked", reason: reasonOf(error), detail: error.detail }; }
   finally {
     if (child) {
       try { if (child.connected) child.disconnect(); } catch {}
@@ -58,8 +58,7 @@ async function main() {
     }
   }
   if (result.status === "blocked" || result.status === "startup_unconfirmed") {
-    dialog.showErrorBox("Mori Desk", `本体の起動を確認できませんでした（${result.reason}）。\n` +
-      "起動中の Mori とセットアップの状態を確認し、通常の setup-windows.bat と起動手順で修復してください。保存済みデータは初期化していません。");
+    dialog.showErrorBox("Mori Desk", startupFailureMessage(result.reason, result.detail));
     app.exit(1);
   } else app.exit(0);
 }

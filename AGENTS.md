@@ -40,6 +40,16 @@ authorization; ordinary reversible fixes do not require a separate approval.
 
 ## Verification and delivery
 
+Keep daily-use startup separate from measurement development. After rebuilding
+the normal runtime, `node scripts/prepare-development.js` creates an independent
+source/runtime copy under `.development/`; its location is recorded in
+`.development/latest.json`. Edit and run measurement development there.
+`prepare-native-measurement.js` requires that owned development workspace.
+Normal Mori/profile startup is blocked in that workspace. Never overwrite an
+existing development copy to refresh it; preserve edits and create a new copy.
+After source changes, report runtime file preservation and next-launch source
+consistency separately. A preserved runtime can still fail the source guard.
+
 Use Node 24.18+ within the 24.x line. `npm test` at this repository root runs
 the browser/Mori regression suite. Inspect the individual test assertions and
 the actual completion status; a test-file wrapper alone is not proof that its
