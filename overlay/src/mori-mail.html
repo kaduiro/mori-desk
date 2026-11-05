@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mori Desk · 受信メール</title>
+<link rel="stylesheet" href="mori-calendar.css"><link rel="stylesheet" href="mori-mail.css"></head>
+<body><main>
+<header aria-label="ドラッグして移動"><div class="heading"><h1>受信メール</h1><p id="account"></p></div><button id="close" aria-label="閉じる">×</button></header>
+<div class="meta"><p id="state" role="status" aria-live="polite">確認しています…</p><p id="updated"></p></div>
+<div id="events">
+  <section id="priority-section"><h2>優先送信者 <span id="priority-count"></span></h2><div id="priority"></div><p class="mail-empty">アドレスの一致は送信者の認証を意味しません。</p></section>
+  <section id="unread-section"><h2>その他の未読 <span id="unread-count"></span></h2><div id="unread"></div></section>
+  <p id="partial" hidden>以前の未読の一部は未取得です。</p>
+  <button id="more" hidden>さらに読み込む</button>
+</div>
+<section id="settings" hidden><h2>メール設定</h2>
+  <p>Gmail 用 Desktop OAuth 設定を使います。メール本文を読む権限が必要です。</p>
+  <button id="import">設定ファイルを選ぶ</button><button id="connect" hidden>Gmail と連携</button>
+  <label for="sender">優先する送信元アドレス</label>
+  <div class="sender-add"><input id="sender" type="email" maxlength="320" autocomplete="off"><button id="add-sender">追加</button></div>
+  <div id="senders"></div>
+  <p id="usage"></p><button id="disconnect" hidden>連携解除</button>
+</section>
+<footer><button id="refresh">更新</button><button id="settings-toggle">設定</button><label class="startup-control" title="次回起動から適用。オフにすると自動同期も停止します。"><input id="auto-open" type="checkbox">起動時に表示</label><label class="pin-control"><input id="pin" type="checkbox">前面</label><label class="text-size">文字 <select id="text-size" aria-label="文字の大きさ"><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><label class="window-size">窓サイズ <select id="window-size" aria-label="窓の大きさ" title="窓の大きさを選択。右下のハンドルでも自由に調整できます。"><option value="custom">自由</option><option value="standard">標準</option><option value="large">大</option><option value="extra">特大</option></select></label></footer>
+</main><button id="resize-grip" type="button" aria-label="ドラッグして窓サイズを自由に変更" title="ドラッグして窓サイズを自由に変更"></button><script src="mori-mail-renderer.js"></script></body></html>

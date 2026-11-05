@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mori Desk · 今日の予定</title>
+<link rel="stylesheet" href="mori-calendar.css"></head>
+<body><main>
+<header aria-label="ドラッグして移動"><div class="heading"><h1>今日の予定</h1><p id="date"></p></div><button id="close" aria-label="閉じる">×</button></header>
+<div class="meta"><p id="state" role="status" aria-live="polite">確認しています…</p><p id="updated"></p></div>
+<div id="source-status" class="source-status"></div>
+<section id="selection" class="selection" hidden aria-label="表示するカレンダー">
+  <p id="selection-note" role="status" aria-live="polite"></p><div id="calendar-options"></div>
+  <div class="selection-actions"><button id="apply-selection">適用</button><button id="reload-calendars">一覧を更新</button></div>
+</section>
+<div id="events"></div>
+<footer><button id="refresh">更新</button><button id="choose" hidden>カレンダー</button><button id="connect" hidden>Google Calendar を連携</button><button id="setup">設定</button><button id="disconnect" hidden>連携解除</button><label class="startup-control" title="次回起動から適用。オフにすると自動同期も停止します。"><input id="auto-open" type="checkbox">起動時に表示</label><label class="pin-control"><input id="pin" type="checkbox">前面</label><label class="text-size">文字 <select id="text-size" aria-label="文字の大きさ"><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><label class="window-size">窓サイズ <select id="window-size" aria-label="窓の大きさ" title="窓の大きさを選択。右下のハンドルでも自由に調整できます。"><option value="custom">自由</option><option value="standard">標準</option><option value="large">大</option><option value="extra">特大</option></select></label></footer>
+</main><button id="resize-grip" type="button" aria-label="ドラッグして窓サイズを自由に変更" title="ドラッグして窓サイズを自由に変更"></button><script src="mori-calendar-renderer.js"></script></body></html>
