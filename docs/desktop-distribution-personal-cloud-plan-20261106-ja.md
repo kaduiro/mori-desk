@@ -1,7 +1,7 @@
 # Mori Desk のデスクトップ配布・復旧・個人 Google Cloud 導入計画
 
 策定日: 2026-11-06（Asia/Tokyo）
-状態: 実装前の計画。署名済みインストーラー、Mac 実機、公開サイト、各利用者の Cloud プロジェクトの受入は未完了。
+状態: Windows x64 の未署名インストーラーと個人 Cloud ガイドまで実装。[実装記録](desktop-distribution-implementation-20261106-ja.md)を参照。署名済みインストーラー、Mac 実機、公開サイト、各利用者の Cloud プロジェクトの受入は未完了。
 
 ## 目的と前提
 

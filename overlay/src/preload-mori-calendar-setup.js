@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("moriCalendarSetup", {
   useManaged: () => ipcRenderer.invoke("mori-calendar-setup:use-managed"),
   openCalendar: () => ipcRenderer.invoke("mori-calendar-setup:open-calendar"),
   openBrowserPanel: () => ipcRenderer.invoke("mori-calendar-setup:open-browser"),
+  openGoogleSetup: () => ipcRenderer.invoke("mori-calendar-setup:open-google-setup"),
   onChange: callback => {
     const listener = () => callback();
     ipcRenderer.on("mori-calendar-setup:changed", listener);

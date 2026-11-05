@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("moriMail", {
   connect: () => ipcRenderer.invoke("mori-mail:connect"),
   disconnect: () => ipcRenderer.invoke("mori-mail:disconnect"),
   importConfig: () => ipcRenderer.invoke("mori-mail:import"),
+  openGoogleSetup: () => ipcRenderer.invoke("mori-mail:open-google-setup"),
   senders: senders => ipcRenderer.invoke("mori-mail:senders", { senders }),
   hide: id => ipcRenderer.invoke("mori-mail:hide", { id }),
   detail: id => ipcRenderer.invoke("mori-mail:detail", { id }),

@@ -5,7 +5,8 @@ const { pathToFileURL } = require("node:url");
 const { installClientConfig } = require("./mori-calendar-client-config");
 
 function createCalendarSetupWindow({ BrowserWindow, ipcMain, dialog, runtime, dataDir,
-  openCalendar, openBrowserPanel = () => ({ ok: false, reason: "unavailable" }) }) {
+  openCalendar, openBrowserPanel = () => ({ ok: false, reason: "unavailable" }),
+  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
   let window = null;
   const pagePath = path.join(__dirname, "mori-calendar-setup.html");
   const pageUrl = pathToFileURL(pagePath).href;
@@ -55,6 +56,7 @@ function createCalendarSetupWindow({ BrowserWindow, ipcMain, dialog, runtime, da
   handle("mori-calendar-setup:use-managed", () => runtime.switchToManaged());
   handle("mori-calendar-setup:open-calendar", () => openCalendar());
   handle("mori-calendar-setup:open-browser", () => openBrowserPanel());
+  handle("mori-calendar-setup:open-google-setup", () => openGoogleSetup());
   function open() {
     if (window && !window.isDestroyed()) { window.show(); window.focus(); return { ok: true }; }
     window = new BrowserWindow({ width: 540, height: 650, minWidth: 480, minHeight: 530,

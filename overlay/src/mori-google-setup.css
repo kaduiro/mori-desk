@@ -1,0 +1,14 @@
+:root { color-scheme: dark; font-family: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", system-ui, sans-serif; }
+body { margin: 0; background: #20252b; color: #f0f2ee; line-height: 1.65; }
+main { max-width: 760px; margin: auto; padding: 26px 32px 42px; }
+header { padding-bottom: 14px; border-bottom: 1px solid #556258; }
+.eyebrow { margin: 0; color: #a5caa0; font-size: .78rem; letter-spacing: .15em; }
+h1 { margin: 4px 0 8px; font-size: 1.65rem; }
+h2 { font-size: 1.12rem; margin: 0 0 6px; }
+section { margin-top: 18px; padding: 16px 18px; border: 1px solid #48564d; border-radius: 12px; background: #2a3235; }
+p { margin: 8px 0; }
+a { color: #addaa7; text-underline-offset: 3px; }
+a:focus-visible, textarea:focus-visible { outline: 3px solid #b9e6ae; outline-offset: 2px; }
+code { font-size: .91em; overflow-wrap: anywhere; }
+textarea { box-sizing: border-box; width: 100%; padding: 12px; resize: vertical; border: 1px solid #718b75; border-radius: 8px; background: #17201d; color: #f0f2ee; font: inherit; font-size: .9rem; }
+.foot { margin-top: 20px; color: #b9c5bd; font-size: .9rem; }

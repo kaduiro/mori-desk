@@ -135,7 +135,7 @@ test("first-run view advances from connection to explicit calendar choice and di
       addEventListener(name, fn) { this.listeners[name] = fn; } };
   }
   const ids = Object.fromEntries(["steps", "message", "config-panel", "connect-panel", "selection-panel",
-    "result-panel", "config-description", "import-config", "connect-description", "connect", "selection-description",
+    "result-panel", "config-description", "import-config", "google-setup", "connect-description", "connect", "selection-description",
     "calendar-options", "apply-selection", "reload-calendars", "grant-scope", "result-description",
     "open-calendar", "change-selection", "config-source", "selected-count", "last-fetch", "next-refresh",
     "request-count", "source-statuses", "disconnect", "switch-config", "use-managed", "open-browser"].map(id => [id, element()]));

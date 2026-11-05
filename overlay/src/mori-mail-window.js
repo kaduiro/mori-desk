@@ -8,7 +8,8 @@ const { openJsonFile } = require("./browser-bridge-persistence");
 const hudLayout = require("./mori-hud-layout");
 
 function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, screen,
-  runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false }) {
+  runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false,
+  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
   let window = null, positionTimer = null, automaticSession = false;
   let autoWanted = false, disposed = false, focusOnLoad = false, suppressionClosing = false;
   let acceptManualMove = false, lastPlacedBounds = null, resizeGesture = null, layout = null;
@@ -110,6 +111,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     catch { return { ok: false, reason: "invalid-config-file" }; }
     return runtime.reloadClient();
   });
+  handle("mori-mail:open-google-setup", () => openGoogleSetup());
   handle("mori-mail:open-link", async payload => {
     if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
     const url = runtime.link(payload.id);

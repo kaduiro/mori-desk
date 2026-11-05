@@ -77,7 +77,7 @@ function render(data) {
   current = data;
   if (![...data.priority, ...data.unread].some(row => row.id === expandedId)) expandedId = null;
   $("account").textContent = data.account || "Gmail を連携してください";
-  const labels = { "config-needed": "Gmail 用の組織設定が必要です。", unlinked: "Gmail を連携してください。",
+  const labels = { "config-needed": "Gmail 用 Desktop OAuth 設定が必要です。", unlinked: "Gmail を連携してください。",
     authorizing: "Google アカウントの同意を待っています。", loading: "メールを取得しています…",
     ready: `${data.priority.length}件の優先メール・${data.unread.length}件のその他の未読`,
     partial: data.gap ? "同期履歴に欠落の可能性があります。"
@@ -183,6 +183,7 @@ $("connect").addEventListener("click", () => action(async () => {
 }));
 $("disconnect").addEventListener("click", () => action(() => window.moriMail.disconnect()));
 $("import").addEventListener("click", () => action(() => window.moriMail.importConfig()));
+$("google-setup").addEventListener("click", () => action(() => window.moriMail.openGoogleSetup()));
 $("add-sender").addEventListener("click", () => action(async () => {
   const value = $("sender").value.trim().toLowerCase();
   const result = await window.moriMail.senders([...new Set([...(current?.senders || []), value])]);

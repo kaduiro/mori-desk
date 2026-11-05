@@ -124,12 +124,14 @@ index e7a7fc7..ed42f13 100644
        "target": [
          {
            "target": "AppImage",
-@@ -164,32 +159,46 @@
+@@ -164,32 +159,48 @@
        "installerIcon": "assets/icon.ico",
        "uninstallerIcon": "assets/icon.ico",
        "installerHeaderIcon": "assets/icon.ico",
 -      "include": "build/installer.nsh"
-+      "deleteAppDataOnUninstall": false
++      "deleteAppDataOnUninstall": false,
++      "createStartMenuShortcut": true,
++      "createDesktopShortcut": true
      },
      "files": [
 +      "LICENSE",
