@@ -169,6 +169,22 @@ test("a failed durable write does not consume the terminal or create an unread r
   assert.equal(f.store.getSnapshot()[0].unreadCount, 1);
 });
 
+test('persistence diagnostics report only a fixed category while preserving failed receipts for retry', t => {
+  let fail = false; const categories = [];
+  const injectedFs = { ...fs, renameSync(from, to) {
+    if (fail && to.endsWith('sessions.json')) throw Object.assign(new Error('PRIVATE_PATH_OR_TEXT'), { code: 'EBUSY' });
+    return fs.renameSync(from, to);
+  } };
+  const f = fixture(t, { fs: injectedFs, onPersistenceError: category => categories.push(category) });
+  f.store.ingest('client-1', f.event()); fail = true;
+  assert.throws(() => f.store.ingest('client-1', f.terminal()), { code: 'session_store_write_failed' });
+  assert.deepEqual(categories, ['rename_EBUSY']);
+  assert.equal(f.store.getSnapshot()[0].unreadCount, 0);
+  fail = false; f.store.ingest('client-1', f.terminal());
+  assert.equal(f.store.getSnapshot()[0].unreadCount, 1);
+  assert.equal(f.store.getStatus().error, null);
+});
+
 test("unread receipt corruption fails closed or restores only a known-good backup", (t) => {
   const f = fixture(t);
   f.store.ingest("client-1", f.event());

@@ -39,11 +39,36 @@
   });
 
   function getMoriHudStatus(snapshot) {
-    if (!snapshot || !Array.isArray(snapshot.sessions) || snapshot.sessions.length !== 0) return null;
+    if (!snapshot || !Array.isArray(snapshot.sessions)) return null;
     const status = snapshot.moriBrowserStatus;
     if (!status || status.dnd === true || typeof status.state !== "string"
         || !Object.prototype.hasOwnProperty.call(notices, status.state)) return null;
-    return notices[status.state];
+    if (status.state === "ready" && Array.isArray(status.providers)) {
+      // Use only the current, sanitized provider summary from the desktop.
+      // A socket alone is not evidence that either page is being observed.
+      const names = { chatgpt: "ChatGPT", claude: "Claude" };
+      const providers = status.providers.filter(row => row && Object.hasOwn(names, row.provider));
+      const detailed = providers.filter(row => Number.isSafeInteger(row.fresh));
+      if (detailed.length === providers.length && detailed.length) return {
+        label: detailed.map(row => `${names[row.provider]} 監視中${row.fresh}件`).join('・'),
+        detail: detailed.map(row => `${names[row.provider]}：${row.detail || row.label}`).join('。'),
+      };
+      if (providers.some(row => row.state === 'unknown')) return {
+        label: 'タブの確認状況は不明',
+        detail: '対象タブの取得またはサイトへのアクセスを確認できていません。クリックしてサービス別の確認状況を開いてください。',
+      };
+      if (snapshot.sessions.length) return null;
+      const blocked = providers.filter(row => row.state === "unconfirmed");
+      if (blocked.length) return {
+        label: `${[...new Set(blocked.map(row => names[row.provider]))].join("・")}：監視を保留`,
+        detail: "会話の所属を確認できないため、生成状態を観測していません。再接続だけでは解消しません。クリックしてサービス別の確認状況を開いてください。",
+      };
+      if (providers.some(row => row.state === "unknown")) return {
+        label: "タブの確認状況は不明",
+        detail: "Chrome との通信は接続済みですが、対象タブの取得またはサイトへのアクセスを確認できていません。クリックしてサービス別の確認状況を開いてください。",
+      };
+    }
+    return snapshot.sessions.length ? null : notices[status.state];
   }
 
   function isBrowserHistory(row) {

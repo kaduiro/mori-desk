@@ -117,6 +117,11 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     if (typeof payload?.id !== "string" || payload.id.length > 512) return { ok: false, reason: "invalid-payload" };
     return getBridge()?.dismiss(payload.id) || { ok: false, reason: "not-ready" };
   });
+  handle('mori:ack-gap', payload => {
+    if (typeof payload?.id !== 'string' || payload.id.length > 512
+      || typeof payload.eventId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.eventId)) return { ok: false, reason: 'invalid-payload' };
+    return getBridge()?.acknowledgeGap(payload.id, payload.eventId) || { ok: false, reason: 'not-ready' };
+  });
   handle("mori:set-label", payload => {
     if (typeof payload?.id !== "string" || payload.id.length > 512
       || typeof payload.label !== "string" || payload.label.length > 80) return { ok: false, reason: "invalid-payload" };

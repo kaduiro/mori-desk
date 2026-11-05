@@ -179,3 +179,15 @@ test('Claude uses its submitted user-message marker and exact chat history link'
   assert.deepEqual(createReader().sample(doc, 'https://claude.ai/project/claude-1'),
     { conversationTitle: '', requestPreview: '' });
 });
+
+test('verified current ChatGPT bubble supplies a bounded preview while unrelated page messages remain unread', () => {
+  const scope = documentWith(element('div', { 'data-user-message-bubble': '' }, text('送信済み依頼'.repeat(100))),
+    element('div', { 'data-conversation-role': 'assistant' }, text('PRIVATE_ANSWER', true)),
+    element('div', { contenteditable: 'true', role: 'textbox' }, text('PRIVATE_DRAFT', true)));
+  const doc = documentWith(history(['/c/a', '現在の会話']), user('PRIVATE_OTHER_CHAT'));
+  const metadata = createReader().sample(doc, 'https://chatgpt.com/c/a', { scope });
+  assert.equal(metadata.conversationTitle, '現在の会話');
+  assert.equal(metadata.requestPreview, utils.metadataText('送信済み依頼'.repeat(100)));
+  assert.ok(metadata.requestPreview.length <= 160);
+  assert.doesNotMatch(JSON.stringify(metadata), /PRIVATE/);
+});

@@ -1,7 +1,13 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
-(() => {
+(function (factory) {
+  if (typeof module === 'object' && module.exports) module.exports = { createObserver: factory };
+  else factory();
+})(function (measurement) {
   'use strict';
-  const observerVersion = '0.1.8';
+  const observerVersion = '0.1.15';
+  const REGISTRATION_RETRY_MS = 500;
+  const TRANSIENT_REGISTRATION_FAILURES = new Set(['registration_failed', 'lease_invalid',
+    'lease_expired', 'tab_unavailable', 'observation_failed', 'initialization_failed']);
   // Loading the packaged files has no observation side effects. Recovery must
   // explicitly start them with a worker-owned attempt ticket; a timed-out
   // executeScript(files) cannot later become an ordinary manifest start.
@@ -19,14 +25,30 @@
   }
 
   function install(initialAttemptId) {
+    // Only an explicitly instrumented development factory supplies a sink.
+    // No page message, manifest start or recovery ticket can enable it.
+    function measure(stage, fields = {}) { try { measurement?.record(stage, fields); } catch (_) {} }
+    function measurementFailure() { try { measurement?.seriesFailure?.('missing_hook'); } catch (_) {} }
+    function registrationMeasured(status, reason) {
+      try {
+        if (typeof measurement?.registrationResult === 'function') measurement.registrationResult({ status, reason });
+        else measure('registration_result', { status, reason: status === 'ok' ? 'none'
+          : reason === 'binding_unconfirmed' ? 'scope_unconfirmed' : 'unclassified' });
+      } catch (_) {}
+    }
     const utils = MoriProviderUtils;
     let pageInstanceId = crypto.randomUUID();
     const controller = MoriObservationController.createController();
     let metadataReader = MoriConversationMetadata.createReader();
-    const bindingTracker = MoriConversationBinding.createTracker();
+    const bindingTracker = MoriConversationBinding.createTracker({ detailed: true, allowView: true });
     let route = utils.routeForUrl(location.href);
     let binding = bindingTracker.sample(document, location.href);
     let lease = null;
+    let scopeObservation = false;
+    let samplingEpoch = crypto.randomUUID();
+    let lastSampleMono = null;
+    let seenIdle = false;
+    let startUnobserved = true;
     let attemptId = initialAttemptId;
     let sequence = 0;
     let timeout = null;
@@ -46,10 +68,12 @@
     let registrationSerial = 0;
     let registrationPending = null;
     let lastRegistrationAt = -Infinity;
+    let fastRegistrationFailures = 0;
+    let admittedDomUnknown = false;
     let lastRegistrationResult = { ok: false, reason: 'binding_unconfirmed' };
     const observer = new MutationObserver(() => schedule());
     const owner = { version: observerVersion, isActive: () => !stopped && !!runtimeId(),
-      stop: stopInvalidatedObserver, register: requestRegistration };
+      stop: stopInvalidatedObserver, register: requestRegistration, identity };
     globalThis.__moriBrowserObserverLifecycle = owner;
     globalThis.__moriBrowserObserverInstalled = true;
 
@@ -80,15 +104,19 @@
 
     function handleRuntimeFailure(error) {
       if (!runtimeId() || /Extension context invalidated/i.test(error?.message || '')) stopInvalidatedObserver();
-      // A worker restart alone preserves this observer's controller/history.
+      // A worker restart needs a new lease and a separate sampling series.
     }
 
-    function breakSamplingContinuity() {
+    function breakSamplingContinuity({ preservePage = false } = {}) {
       if (!samplingContinuity) return;
+      measure('continuity_broken');
+      samplingEpoch = crypto.randomUUID(); lastSampleMono = null; seenIdle = false; startUnobserved = true;
       samplingContinuity = false; controller.reset();
-      pageInstanceId = crypto.randomUUID(); lastSignature = null;
+      if (!preservePage) pageInstanceId = crypto.randomUUID(); lastSignature = null;
       knownBeforeGeneration = new Set(); sampled = false;
-      registrationSerial++; registrationPending = null; lastRegistrationAt = -Infinity;
+      // A sampling/page break revokes admission, but is not permission to
+      // bypass registration backoff on every mutation of an unknown layout.
+      registrationSerial++; registrationPending = null;
       clearTimeout(verificationTimeout); verificationTimeout = null;
       // A new lease cannot prove what happened during unsampled time. Rotate
       // identity so a previously running turn cannot become a terminal event
@@ -108,6 +136,7 @@
           && controller.isRunning() && utils.canAssignConversation(route, location.href)
           && explicitNavigation !== true && explicitNavigation !== nextKey && !knownBeforeGeneration.has(nextKey);
         if (!assignedNewConversation) {
+          samplingEpoch = crypto.randomUUID(); lastSampleMono = null; seenIdle = false; startUnobserved = true;
           controller.reset(); samplingContinuity = false;
           generationFence ||= new WeakSet();
           for (const node of previousGenerationNodes) generationFence.add(node);
@@ -117,6 +146,8 @@
         route = nextRoute; binding = nextBinding; lease = null;
         lastSignature = null; explicitNavigation = null;
         lastRegistrationAt = -Infinity; registrationSerial++; registrationPending = null;
+        fastRegistrationFailures = 0;
+        admittedDomUnknown = false;
         clearTimeout(verificationTimeout); verificationTimeout = null;
       }
       if (!route || binding.state !== 'confirmed' || lease?.bindingEpoch !== binding.epoch) lease = null;
@@ -125,19 +156,39 @@
     function identity() {
       refreshIdentity();
       return { observerVersion, pageInstanceId, route: route ? { ...route } : null,
-        binding: { state: binding.state, epoch: binding.epoch }, lease: lease ? { ...lease } : null };
+        binding: { state: binding.state, epoch: binding.epoch, kind: binding.kind,
+          viewEpoch: binding.viewEpoch, reason: binding.reason }, samplingEpoch, lease: lease ? { ...lease } : null };
+    }
+
+    function canRetryRegistrationQuickly() {
+      return fastRegistrationFailures > 0 && fastRegistrationFailures <= 3
+        && (admittedDomUnknown || TRANSIENT_REGISTRATION_FAILURES.has(lastRegistrationResult.reason));
     }
 
     function requestRegistration(nextAttempt = attemptId, force = false) {
-      if (stopped || !runtimeId()) return Promise.resolve({ ok: false, reason: 'registration_failed' });
+      if (stopped || !runtimeId()) {
+        registrationMeasured('failed', stopped ? 'stopped' : 'runtime_unavailable');
+        return Promise.resolve({ ok: false, reason: 'registration_failed' });
+      }
+      // A real manifest start can arrive after an early recovery installer.
+      // Retain its unticketed origin even if the empty page has no binding yet.
+      if (force && nextAttempt === null) attemptId = null;
       refreshIdentity();
       if (registrationPending?.attemptId === nextAttempt) return registrationPending.promise;
-      if (!force && Date.now() - lastRegistrationAt < 10000) return Promise.resolve(lastRegistrationResult);
+      const retryDelay = canRetryRegistrationQuickly() ? REGISTRATION_RETRY_MS : 10000;
+      const remaining = retryDelay - (Date.now() - lastRegistrationAt);
+      if (!force && remaining > 0) {
+        if (canRetryRegistrationQuickly()) schedule(remaining);
+        return Promise.resolve(lastRegistrationResult);
+      }
       lastRegistrationAt = Date.now();
       const serial = ++registrationSerial;
       const expected = { pageInstanceId, route, bindingEpoch: binding.epoch };
       const message = { type: 'mori.observer.register', v: 1, pageInstanceId, observerVersion, attemptId: nextAttempt };
-      const unavailable = error => { handleRuntimeFailure(error); return { ok: false, reason: 'registration_failed' }; };
+      measure('registration_requested');
+      let localFailure = null;
+      const unavailable = error => { handleRuntimeFailure(error); localFailure = runtimeId() ? 'message_failed' : 'runtime_unavailable';
+        return { ok: false, reason: 'registration_failed' }; };
       let sent;
       try { sent = Promise.resolve(chrome.runtime.sendMessage(message)).catch(unavailable); }
       catch (error) { sent = Promise.resolve(unavailable(error)); }
@@ -145,41 +196,89 @@
         refreshIdentity();
         if (stopped || serial !== registrationSerial || expected.pageInstanceId !== pageInstanceId
           || expected.bindingEpoch !== binding.epoch || !utils.sameRoute(expected.route, route)) {
+          registrationMeasured('failed', stopped ? 'stopped' : serial !== registrationSerial ? 'registration_replaced'
+            : expected.pageInstanceId !== pageInstanceId ? 'page_changed'
+              : expected.bindingEpoch !== binding.epoch ? 'binding_changed' : 'route_changed');
+          // Preserve this negative worker result for the recovery caller: it
+          // can finish verified document ownership after an SPA transition.
+          // It grants no scope/lease here, and the worker still checks its live
+          // candidate, document, control generation and deadline at handoff.
+          if (result?.ok === false && result.reason === 'binding_unconfirmed')
+            return { ok: false, reason: 'binding_unconfirmed' };
           return { ok: false, reason: 'lease_invalid' };
         }
         const granted = result?.ok === true && result.v === 1 && result.pageInstanceId === pageInstanceId
           ? utils.safeLease(result) : null;
         if (granted && binding.state === 'confirmed' && granted.bindingEpoch === binding.epoch) {
+          if (lease && !['workerEpoch', 'leaseId', 'bindingEpoch'].every(field => lease[field] === granted[field])) {
+            lease = null; breakSamplingContinuity({ preservePage: true });
+          }
           lease = granted; attemptId = nextAttempt; lastSignature = null;
+          scopeObservation = result.scopeObservation === true;
           lastRegistrationResult = { ok: true, v: 1, pageInstanceId, ...granted };
+          measure('lease_received');
           observe(true);
         } else {
           lastRegistrationResult = utils.safeObservationAck(result);
           if (lastRegistrationResult.ok !== false) lastRegistrationResult = { ok: false, reason: 'registration_failed' };
+          fastRegistrationFailures++;
+          admittedDomUnknown = false;
           // A late, expired recovery attempt must not revoke a newer live lease.
           if (['paused', 'old_document', 'invalid_sender'].includes(lastRegistrationResult.reason)) {
             lease = null; breakSamplingContinuity();
           }
+          if (binding.state === 'confirmed' && route && canRetryRegistrationQuickly()) schedule(REGISTRATION_RETRY_MS);
         }
+        registrationMeasured(lastRegistrationResult.ok === true ? 'ok' : 'failed',
+          lastRegistrationResult.ok === true ? 'none' : localFailure || lastRegistrationResult.reason);
         return lastRegistrationResult;
       }).finally(() => { if (registrationPending?.serial === serial) registrationPending = null; });
       registrationPending = { serial, attemptId: nextAttempt, promise };
       return promise;
     }
 
-    function sendObservation(message) {
+    function sendObservation(message, adoptedSubject) {
       const capturedLease = lease;
+      let measuredDispatch = null;
+      if (measurement) {
+        try {
+          const fields = ['type','v','pageInstanceId','contentSequence','observedAt','status','generationToken','outcome',
+            'workerEpoch','leaseId','bindingEpoch','scopeKind','viewEpoch','samplingEpoch','startUnobserved'];
+          const descriptors = Object.getOwnPropertyDescriptors(message);
+          const names=Reflect.ownKeys(descriptors),prototype=Object.getPrototypeOf(message);
+          const valid=(prototype===null||prototype===Object.prototype)&&fields.every(key=>Object.hasOwn(descriptors,key))
+            &&names.every(key=>typeof key==='string'&&[...fields,'conversationTitle','requestPreview'].includes(key)&&Object.hasOwn(descriptors[key],'value'));
+          const projected = valid ? Object.fromEntries(fields.map(key => [key, descriptors[key].value])) : null;
+          measuredDispatch = measurement.dispatchBegin?.(projected, adoptedSubject,
+            { provider: route.provider, kind: binding.kind, conversationRef: binding.kind === 'view' ? null : route.conversationRef });
+        } catch (_) { measurementFailure(); }
+      }
+      // Private development constructor only. Never pass display metadata to a
+      // diagnostic sink, and never await measurement before normal delivery.
+      try { measurement?.observation?.(Object.fromEntries([
+        'contentSequence', 'pageInstanceId', 'generationToken', 'samplingEpoch',
+        'workerEpoch', 'leaseId', 'bindingEpoch', 'viewEpoch', 'scopeKind', 'startUnobserved',
+      ].map(key => [key, message[key]]))); } catch (_) {}
       const unavailable = error => { handleRuntimeFailure(error); return { ok: null, reason: 'worker_unavailable' }; };
       let sent;
-      try { sent = Promise.resolve(chrome.runtime.sendMessage(message)).catch(unavailable); }
-      catch (error) { sent = Promise.resolve(unavailable(error)); }
+      try {
+        const returned = chrome.runtime.sendMessage(message);
+        try { measurement?.dispatchEnd?.(measuredDispatch, adoptedSubject, 'returned'); } catch (_) { measurementFailure(); }
+        sent = Promise.resolve(returned).catch(unavailable);
+      }
+      catch (error) {
+        try { measurement?.dispatchEnd?.(measuredDispatch, adoptedSubject, 'threw'); } catch (_) { measurementFailure(); }
+        sent = Promise.resolve(unavailable(error));
+      }
       return sent.then(value => {
         const ack = utils.safeObservationAck(value);
         if (ack.ok !== true) {
           lastSignature = null;
           if (lease === capturedLease && ['lease_invalid', 'lease_expired', 'binding_unconfirmed',
-            'paused', 'old_document', 'invalid_sender'].includes(ack.reason)) {
+            'paused', 'old_document', 'invalid_sender', 'observer_queue_full'].includes(ack.reason)) {
             lease = null; breakSamplingContinuity();
+            lastRegistrationResult = ack; fastRegistrationFailures++;
+            if (binding.state === 'confirmed' && route && canRetryRegistrationQuickly()) schedule(REGISTRATION_RETRY_MS);
           }
         }
         return ack;
@@ -190,24 +289,30 @@
       return value?.provider === 'chatgpt' ? MoriChatgptAdapter : value?.provider === 'claude' ? MoriClaudeAdapter : null;
     }
 
-    function generationNodes(adapter) {
+    function generationNodes(adapter, scope = document) {
       if (!adapter) return [];
       const selectors = [...adapter.selectors.STOP, ...(adapter.selectors.SHORT_STOP || []),
         ...(adapter.selectors.BUSY || []), ...(adapter.provider === 'claude' ? ['[data-is-streaming="true"]'] : [])];
       const nodes = new Set();
       for (const selector of selectors) {
-        for (const node of document.querySelectorAll(selector)) if (utils.isVisible(node)) nodes.add(node);
+        for (const node of scope.querySelectorAll(selector)) if (utils.isVisible(node)) nodes.add(node);
       }
       return [...nodes];
     }
 
     function bindObserver() {
       const target = document.body;
-      if (!target || target === observerRoot) return;
+      if (!target) { measure('observer_install_deferred', { reason: 'initializing' }); return; }
+      if (target === observerRoot) return;
       observer.disconnect(); observerRoot = target;
       observer.observe(target, { subtree: true, childList: true, characterData: true, attributes: true,
         attributeFilter: ['aria-label', 'aria-hidden', 'aria-busy', 'role', 'contenteditable',
-          'data-testid', 'data-is-streaming', 'data-message-author-role', 'data-sidebar-item', 'href', 'hidden', 'disabled'] });
+          'data-testid', 'data-is-streaming', 'data-message-author-role', 'data-sidebar-item', 'href', 'hidden', 'disabled',
+          'data-chatgpt-conversation-selection-target', 'data-map-composer-conversation',
+          'data-chatgpt-selection-conversation-id', 'data-conv-id', 'data-hub-ready',
+          'data-hub-awaiting-creation', 'data-hub-draft', 'data-talvt-turn-state',
+          'data-thread-user-message-navigation-content', 'data-chatgpt-composer', 'data-composer-placement'] });
+      measure('observer_installed');
     }
 
     function schedule(delay = 180) {
@@ -218,10 +323,22 @@
     function observe(force) {
       if (stopped) return;
       if (!runtimeId()) { stopInvalidatedObserver(); return; }
+      measure('product_inspection_started');
+      let measuredSubject = null;
+      try {
       refreshIdentity(); bindObserver();
+      const monotonic = globalThis.performance?.now?.() ?? Date.now();
+      if (lastSampleMono !== null && (monotonic < lastSampleMono || monotonic - lastSampleMono > 15000)) {
+        lease = null; breakSamplingContinuity();
+      }
       if (!lease || binding.state !== 'confirmed' || !route) {
         breakSamplingContinuity();
-        void requestRegistration();
+        if (binding.state === 'confirmed' && route) {
+          // A transient failure must not wait for another mutation or the
+          // ten-second heartbeat. Bounded retries share one pending request;
+          // stable failures and admitted-but-unknown DOM use ordinary polling.
+          void requestRegistration();
+        }
         // All entry points share this gate. No adapter, user excerpt, generation
         // reducer, or terminal message is evaluated before current admission.
         return { status: route ? 'unknown' : 'unsupported_route', identity: identity(),
@@ -230,17 +347,30 @@
       const previousKnownKeys = metadataReader.knownConversationKeys();
       samplingContinuity = true;
       const adapter = adapterForRoute(route);
+      const verifiedScope = bindingTracker.scope?.(measurement ? subject => { measuredSubject = { ...subject, document }; } : undefined,
+        measurement ? measurementFailure : undefined);
+      if (typeof bindingTracker.scope === 'function' && !verifiedScope) {
+        lease = null; breakSamplingContinuity();
+        return { status: 'unknown', identity: identity() };
+      }
+      const scope = verifiedScope || document;
       const now = Date.now();
-      let observation = adapter ? adapter.observe(document, location.href) : { supported: false };
-      const markers = generationNodes(adapter);
+      let observation = adapter ? adapter.observe(scope, location.href, { continuing: controller.isRunning() }) : { supported: false };
+      const markers = generationNodes(adapter, scope);
       if (generationFence) {
         if (markers.some(node => generationFence.has(node))) observation = { supported: false, generating: false };
         else generationFence = null;
       }
       previousGenerationNodes = markers;
       const wasRunning = controller.isRunning();
-      const state = controller.sample(observation, now);
-      const metadata = metadataReader.sample(document, location.href, { assignedNewConversation });
+      const state = controller.sample(observation, monotonic);
+      if (observation.supported) { lastSampleMono = monotonic; fastRegistrationFailures = 0; admittedDomUnknown = false; }
+      if (observation.supported) measure('sample_valid');
+      if (!wasRunning && state.status === 'running') startUnobserved = !seenIdle;
+      if (['idle', 'settled'].includes(state.status) && observation.supported) seenIdle = true;
+      const metadata = binding.kind === 'conversation'
+        ? metadataReader.sample(document, location.href, { assignedNewConversation, scope, verifiedBinding: !!verifiedScope })
+        : { conversationTitle: '', requestPreview: '' };
       assignedNewConversation = false;
       if (!wasRunning && state.status === 'running') knownBeforeGeneration = new Set(sampled ? previousKnownKeys : metadataReader.knownConversationKeys());
       sampled = true;
@@ -249,14 +379,21 @@
       let acknowledgement;
       if (force || signature !== lastSignature || now - lastSentAt >= 10000) {
         lastSignature = signature; lastSentAt = now;
-        acknowledgement = sendObservation({ type: 'mori.observation', v: 1, pageInstanceId,
-          contentSequence: ++sequence, observedAt: now, ...lease, ...state, ...metadata });
+        acknowledgement = sendObservation({ type: 'mori.observation', v: scopeObservation ? 2 : 1, pageInstanceId,
+          contentSequence: ++sequence, observedAt: now, ...lease, ...state, ...metadata,
+          ...(scopeObservation ? { scopeKind: binding.kind, viewEpoch: binding.viewEpoch, samplingEpoch, startUnobserved } : {}) }, measuredSubject);
+        if (state.status === 'unknown') {
+          lease = null; breakSamplingContinuity();
+          admittedDomUnknown = true; fastRegistrationFailures++;
+          if (canRetryRegistrationQuickly()) schedule(REGISTRATION_RETRY_MS);
+        }
       }
       if (stopped) return;
       if (controller.isRunning() && !observation.generating && verificationTimeout === null) {
         verificationTimeout = setTimeout(() => { verificationTimeout = null; observe(false); }, 900);
       }
       return { status: !observation.supported ? 'unknown' : state.status, acknowledgement, identity: identity() };
+      } finally { measuredSubject = null; measure('product_inspection_finished'); }
     }
 
     function onPageClick(event) {
@@ -273,7 +410,7 @@
         }
       }
       refreshIdentity();
-      if (lease && event.isTrusted && adapterForRoute(route)?.isStopTarget(event.target, document, location.href)) {
+      if (lease && event.isTrusted && adapterForRoute(route)?.isStopTarget(event.target, bindingTracker.scope?.() || document, location.href, { continuing: controller.isRunning() })) {
         controller.stopRequested(); schedule();
       }
     }
@@ -285,6 +422,7 @@
     function onPageHide() {
       observer.disconnect(); observerRoot = null; lease = null;
       controller.reset(); samplingContinuity = false; metadataReader = MoriConversationMetadata.createReader();
+      samplingEpoch = crypto.randomUUID(); lastSampleMono = null; seenIdle = false; startUnobserved = true;
       pageInstanceId = crypto.randomUUID(); lastSignature = null;
       registrationSerial++; registrationPending = null; lastRegistrationAt = -Infinity;
     }
@@ -329,4 +467,4 @@
     observationInterval = setInterval(observeNow, 10000);
     return requestRegistration(initialAttemptId, true);
   }
-})();
+});

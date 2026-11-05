@@ -13,17 +13,18 @@
       <div><p class="eyebrow">BROWSER BRIDGE · プレビュー</p><h1>回答を待つ時間に、別の仕事を。</h1></div>
     </header>
     <p class="intro">ChatGPT と Claude の状態と会話の目印を、デスクトップで確認するための開発候補です。</p>
-    <p class="notice"><strong>この版のページ監視は未完成です。</strong>会話の所属を確認する処理が未実装のため、新しいページの監視結果を受け付けません。本体との接続は確認できますが、再接続やページの再読み込みでは監視は有効になりません。</p>
+    <p class="notice"><strong>ページ監視は実験用です。</strong>表示領域と入力欄の所属を確認して監視します。ChatGPT の新規会話では、会話所属が未確定の表示領域として監視する場合があります。その記録にはタイトル・依頼の抜粋を表示できず、会話への移動も保留します。読み込み中や判定できない画面は、下に理由を表示します。</p>
 
     <section class="status-card" aria-labelledby="status-heading">
       <div class="status-heading"><h2 id="status-heading">本体との接続</h2><span id="connection" class="pill">読み込み中</span></div>
       <p id="connection-detail" role="status" aria-live="polite">拡張機能を確認しています。</p>
       <div class="metrics">
-        <div><strong id="tracked">0</strong><span>監視中のタブ</span></div>
+        <div><strong id="tracked">0</strong><span>登録中のタブ</span></div>
         <div><strong id="running">0</strong><span>生成中</span></div>
         <div><strong id="pending">0</strong><span>未送信の通知</span></div>
       </div>
       <p id="diagnostic" class="notice" hidden></p>
+      <p id="monitoring-summary" aria-live="polite"></p>
       <div class="actions"><button id="retry" type="button">本体に再接続</button><button id="pause" type="button" class="secondary">監視を一時停止</button></div>
       <div class="actions"><button id="check-tabs" type="button" class="secondary" aria-describedby="check-tabs-help">タブの監視を確認・復旧</button></div>
       <p id="check-tabs-help" class="small">開いている AI タブの監視を確認し、必要なら復旧を試みます。ページの再読み込みや、入力・送信は行いません。</p>
@@ -66,6 +67,7 @@
     </section>
     <footer><span id="version"></span><span id="extension-id"></span></footer>
   </main>
+  <script src="monitoring-contract.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

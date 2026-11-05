@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (function (root, factory) {
   const api = factory(typeof module === 'object' && module.exports
-    ? require('./provider-utils.js') : root.MoriProviderUtils);
+    ? require('./provider-utils.js') : root.MoriProviderUtils,
+    typeof module === 'object' && module.exports ? require('./monitoring-contract') : root.MoriMonitoringContract);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MoriSessionCoordinator = api;
-})(typeof globalThis === 'object' ? globalThis : this, function (utils) {
+})(typeof globalThis === 'object' ? globalThis : this, function (utils, contract) {
   'use strict';
   const MAX_TABS = 20;
   const MAX_RECORDS = 200;
@@ -12,7 +13,7 @@
   const defaultUuid = () => crypto.randomUUID();
   function newState(browserRunId) { return { v: 1, browserRunId, tabs: {}, sessions: {} }; }
   function validState(state) {
-    if (!state || state.v !== 1 || !utils.ID.test(state.browserRunId || '')
+    if (!state || ![1, 2].includes(state.v) || !utils.ID.test(state.browserRunId || '')
       || !state.tabs || !state.sessions || Array.isArray(state.sessions)
       || Object.keys(state.sessions).length > MAX_RECORDS) return false;
     for (const [id, session] of Object.entries(state.sessions)) {
@@ -26,6 +27,7 @@
         || !['idle', 'running', 'settled'].includes(session.phase)
         || ![null, 'interrupted', 'error', 'unverified'].includes(session.outcome)
         || !['fresh', 'stale', 'closed', 'unsupported'].includes(session.observation)) return false;
+      if (session.eventSchema === 2 && !contract.validScope(session.scope)) return false;
       for (const field of ['conversationTitle', 'requestPreview']) {
         if (Object.hasOwn(session, field) && !utils.validMetadataText(session[field])) return false;
       }
@@ -51,12 +53,25 @@
       observation: record.observation, observedAt, replay,
       conversationTitle: record.conversationTitle ?? '', requestPreview: record.requestPreview ?? '',
     };
+    if (record.eventSchema === 2) Object.assign(event, { type: 'scope.event', schema: 2,
+      scope: { ...record.scope }, gap: kind === 'gap' ? { turnId: record.turnId,
+        reason: record.gapReason || 'sampling_gap', observedAt } : null });
     record.latestEvent = event;
     return event;
   }
 
+  function breakTurn(state, record, events, uuid, now, reason) {
+    if (!record || record.phase !== 'running' || record.unknownAfterReload) return;
+    if (record.eventSchema === 2 && record.turnId) {
+      record.gapReason = reason; record.observation = 'stale';
+      events.push(makeEvent(state, record, 'gap', uuid, now));
+    }
+    record.unknownAfterReload = true; record.contentGenerationToken = null;
+  }
+
   function closeRecord(state, record, events, uuid, now) {
     if (!record || record.closed) return;
+    breakTurn(state, record, events, uuid, now, 'scope_lost');
     record.closed = true; record.observation = 'closed';
     delete state.tabs[record.tabId];
     if (record.announced) events.push(makeEvent(state, record, 'closed', uuid, now));
@@ -65,7 +80,7 @@
 
   function reduceObservation(original, input, context, { uuid = defaultUuid, now = Date.now() } = {}) {
     const observation = utils.safeObservation(input);
-    const route = context.route;
+    const route = context.scope?.kind === 'view' ? { ...context.route, conversationRef: null } : context.route;
     if (!observation || !route || !utils.ID.test(context.documentId || '')
       || !Number.isSafeInteger(context.tabId) || context.tabId < 0) {
       return { state: original, events: [], diagnostic: 'invalid_observation' };
@@ -74,15 +89,22 @@
       return { state: original, events: [], diagnostic: 'old_observation' };
     }
     const state = clone(original);
+    if (context.scope) state.v = 2;
     const events = [];
     let record = state.sessions[state.tabs[context.tabId]];
     if (record) {
+      const changedSeries = (record.eventSchema === 2) !== !!context.scope
+        || record.scope && context.scope && (record.scope.kind !== context.scope.kind
+          || record.scope.viewEpoch !== context.scope.viewEpoch);
+      if (changedSeries) { closeRecord(state, record, events, uuid, now); record = null; }
+    }
+    if (record) {
       const changedConversation = record.provider !== route.provider
         || record.conversationRef !== route.conversationRef;
-      const assignment = record.provider === route.provider && record.conversationRef === null
+      const assignment = !context.scope && record.provider === route.provider && record.conversationRef === null
         && route.conversationRef !== null && record.phase === 'running'
         && record.documentId === context.documentId && record.pageInstanceId === observation.pageInstanceId;
-      const changedEmptyScope = record.conversationRef === null && route.conversationRef === null
+      const changedEmptyScope = !context.scope && record.conversationRef === null && route.conversationRef === null
         && record.documentId === context.documentId && record.pageInstanceId !== observation.pageInstanceId;
       if ((changedConversation && !assignment) || changedEmptyScope) {
         closeRecord(state, record, events, uuid, now); record = null;
@@ -93,7 +115,8 @@
     }
     if (!record) {
       if (Object.keys(state.tabs).length >= MAX_TABS || Object.keys(state.sessions).length >= MAX_RECORDS) {
-        return { state, events, diagnostic: 'capacity' };
+        return { state, events, diagnostic: 'capacity', owner: 'coordinator',
+          resource: Object.keys(state.tabs).length >= MAX_TABS ? 'active_tabs' : 'session_records' };
       }
       const sessionId = uuid();
       record = {
@@ -105,12 +128,15 @@
         lastContentSequence: 0, phase: 'idle', outcome: null, observation: 'fresh',
         lastObservationAt: observation.observedAt, announced: false, closed: false,
         unknownAfterReload: false,
+        ...(context.scope ? { eventSchema: 2, scope: { ...context.scope } } : {}),
       };
       state.sessions[sessionId] = record;
       state.tabs[context.tabId] = sessionId;
     }
     let newDocument = false;
-    if (record.documentId !== context.documentId || record.pageInstanceId !== observation.pageInstanceId) {
+    if (record.documentId !== context.documentId || record.pageInstanceId !== observation.pageInstanceId
+      || context.scope && record.scope && contract.scopeOwnerKey(record.scope) !== contract.scopeOwnerKey(context.scope)) {
+      breakTurn(state, record, events, uuid, now, 'sampling_gap');
       newDocument = true;
       record.documentId = context.documentId;
       record.pageInstanceId = observation.pageInstanceId;
@@ -120,6 +146,7 @@
       record.unknownAfterReload = record.phase === 'running';
       record.conversationTitle = ''; record.requestPreview = '';
     }
+    if (context.scope) record.scope = { ...context.scope };
     if (observation.contentSequence <= record.lastContentSequence) {
       return { state: original, events: [], diagnostic: 'duplicate_observation' };
     }
@@ -131,16 +158,20 @@
     let kind = 'observation';
     if (observation.status === 'running') {
       if (!observation.generationToken) return { state: original, events: [], diagnostic: 'invalid_observation' };
-      const continuingAfterReload = newDocument && record.phase === 'running';
-      const newTurn = record.phase !== 'running'
+      const newTurn = newDocument || record.unknownAfterReload || record.phase !== 'running'
         || (record.contentGenerationToken !== null && record.contentGenerationToken !== observation.generationToken);
-      if (newTurn && !continuingAfterReload) {
+      if (newTurn) {
         record.generation++; record.turnId = uuid();
       }
       if (!record.turnId) { record.generation++; record.turnId = uuid(); }
       record.contentGenerationToken = observation.generationToken;
       record.phase = 'running'; record.outcome = null; record.observation = 'fresh';
       record.unknownAfterReload = false; record.announced = true;
+      if (record.eventSchema === 2 && record.scope.startUnobserved && record.startGapTurnId !== record.turnId) {
+        record.gapReason = 'start_unobserved'; record.observation = 'stale';
+        events.push(makeEvent(state, record, 'gap', uuid, observation.observedAt));
+        record.observation = 'fresh'; record.startGapTurnId = record.turnId;
+      }
     } else if (observation.status === 'settled') {
       if (record.phase === 'running' && !newDocument && !record.unknownAfterReload
         && record.contentGenerationToken === observation.generationToken && record.turnId) {
@@ -153,6 +184,7 @@
         record.observation = record.phase === 'running' ? 'unsupported' : 'fresh';
       }
     } else if (observation.status === 'unknown') {
+      breakTurn(state, record, events, uuid, now, 'sampling_gap');
       record.observation = 'unsupported';
     } else if (record.phase === 'running') {
       record.unknownAfterReload = true;
@@ -179,6 +211,7 @@
     const state = clone(original); const events = [];
     const record = state.sessions[state.tabs[tabId]];
     if (record?.announced) {
+      breakTurn(state, record, events, uuid, now, 'scope_lost');
       record.observation = 'stale';
       record.routeRevision++;
       events.push(makeEvent(state, record, 'observation', uuid, record.lastObservationAt || now, true));
@@ -201,9 +234,27 @@
     let changed = false;
     for (const event of events) {
       if (event.browserRunId !== state.browserRunId) continue;
-      const record = state.sessions[event.sessionId];
+      let record = state.sessions[event.sessionId];
+      // A new scope's journal may have committed before its first session
+      // write. Recover it as history, never as proof of the current document.
+      if (!record && event.type === 'scope.event' && contract.validScope(event.scope)
+        && Object.keys(state.sessions).length < MAX_RECORDS) {
+        record = { sessionId: event.sessionId, provider: event.provider, tabId: event.tabId,
+          documentId: event.scope.documentId, pageInstanceId: event.pageInstanceId,
+          routeRevision: event.routeRevision, conversationRef: event.conversationRef,
+          conversationTitle: event.conversationTitle ?? '', requestPreview: event.requestPreview ?? '',
+          sequence: event.sequence, generation: event.generation, turnId: event.turnId,
+          contentGenerationToken: null, lastContentSequence: 0, phase: event.phase, outcome: event.outcome,
+          observation: event.kind === 'closed' ? 'closed' : 'stale', lastObservationAt: event.observedAt,
+          announced: true, closed: true, recoveredJournal: true, unknownAfterReload: true, eventSchema: 2,
+          scope: { ...event.scope }, latestEvent: { ...event } };
+        state.sessions[event.sessionId] = record; state.v = 2; changed = true;
+      }
       if (!record || record.provider !== event.provider || record.tabId !== event.tabId
         || event.sequence <= record.sequence) continue;
+      if (event.type === 'scope.event' && contract.validScope(event.scope)) {
+        state.v = 2; record.eventSchema = 2; record.scope = { ...event.scope };
+      }
       // A local outbox write can have succeeded just before storage.session
       // failed. Reconcile that journal before snapshots or fresh observations,
       // so a repeated terminal cannot reuse its ID with a new timestamp.
@@ -219,14 +270,18 @@
         record.sequence = event.sequence; record.latestEvent = { ...event };
         if (state.tabs[record.tabId] === record.sessionId) delete state.tabs[record.tabId];
         changed = true;
+      } else if (event.kind === 'gap' && event.turnId === record.turnId && event.generation === record.generation) {
+        record.observation = 'stale'; record.unknownAfterReload = true; record.contentGenerationToken = null;
+        record.sequence = event.sequence; record.latestEvent = { ...event }; changed = true;
       }
     }
     return changed ? state : original;
   }
 
   function removeAcknowledgedClosed(original, event) {
-    if (event.kind !== 'closed' || event.browserRunId !== original.browserRunId) return original;
+    if (event.browserRunId !== original.browserRunId) return original;
     const record = original.sessions[event.sessionId];
+    if (event.kind !== 'closed' && !record?.recoveredJournal) return original;
     if (!record?.closed || record.sequence > event.sequence) return original;
     const state = clone(original); delete state.sessions[event.sessionId]; return state;
   }
@@ -235,7 +290,7 @@
     if (!request || request.browserRunId !== state.browserRunId || !utils.ID.test(request.requestId || '')
       || (request.noticeSequence !== null && (!Number.isSafeInteger(request.noticeSequence) || request.noticeSequence < 1))) return false;
     const record = state.sessions[request.sessionId];
-    return !!record && !record.closed && state.tabs[request.tabId] === request.sessionId
+    return !!record && record.scope?.kind !== 'view' && !record.closed && state.tabs[request.tabId] === request.sessionId
       && record.tabId === request.tabId && record.pageInstanceId === request.pageInstanceId
       && record.routeRevision === request.routeRevision && record.conversationRef === request.conversationRef;
   }

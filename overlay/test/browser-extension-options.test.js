@@ -227,12 +227,12 @@ test('query faults remain distinct from storage faults and keep permitted recove
   }
 });
 
-test('unconfirmed conversation binding is not a recovered observer or an invitation to repeat F5', async () => {
+test('unconfirmed conversation binding explains the current DOM requirement and conditional reload', async () => {
   const f = await fixture(health({ counts: { idle: 0, unknown: 1 }, observationDelivery: { accepted: 0 },
     observerRecovery: { deferred: 1, reasons: { binding_unconfirmed: 1 } } }));
   await f.click('check-tabs');
   assert.match(f.diagnostic, /復旧 0 件・待機 1 件/);
-  assert.match(f.diagnostic, /会話の所属確認が未実装/);
-  assert.match(f.diagnostic, /再接続や F5 では解消しません/);
+  assert.match(f.diagnostic, /現在の会話に属することを確認できない/);
+  assert.match(f.diagnostic, /生成終了後にページを再読み込み/);
   assert.doesNotMatch(f.diagnostic, /復旧が必要なタブは見つかりません|復旧したタブの観測/);
 });

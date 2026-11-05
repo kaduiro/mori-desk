@@ -10,7 +10,8 @@ const register = { type: 'mori.observer.register', v: 1, pageInstanceId: 'page-a
 const lease = { workerEpoch: 'worker-a', leaseId: 'lease-a', bindingEpoch: 'binding-a' };
 const identity = { ok: true, v: 1, observerVersion: CURRENT_VERSION, pageInstanceId: 'page-a',
   route: { provider: 'chatgpt', path: '/c/a', conversationRef: '/c/a' },
-  binding: { state: 'confirmed', epoch: 'binding-a' }, lease };
+  binding: { state: 'confirmed', epoch: 'binding-a', kind: 'conversation', viewEpoch: 'view-a', reason: null },
+  samplingEpoch: 'sampling-a', lease };
 const observation = { type: 'mori.observation', v: 1, pageInstanceId: 'page-a',
   contentSequence: 1, observedAt: 1000, status: 'idle', generationToken: null, outcome: null };
 
@@ -24,7 +25,7 @@ test('registration schema requires the version, an explicit ticket origin, and n
 
 test('bootstrap schema cannot turn an unconfirmed binding, inconsistent route or epoch into an admitted identity', () => {
   assert.deepEqual(utils.safeObserverIdentity(identity), identity);
-  assert.ok(utils.safeObserverIdentity({ ...identity, binding: { state: 'unconfirmed', epoch: 'binding-a' }, lease: null }));
+  assert.ok(utils.safeObserverIdentity({ ...identity, binding: { ...identity.binding, state: 'unconfirmed', kind: 'unknown', reason: 'scope_unconfirmed' }, lease: null }));
   for (const input of [{ ...identity, binding: { state: 'unconfirmed', epoch: 'binding-a' } },
     { ...identity, binding: { state: 'confirmed', epoch: 'different' } },
     { ...identity, route: { ...identity.route, conversationRef: '/c/b' } },
@@ -47,7 +48,7 @@ test('observation projects all three lease fields together and never forwards ar
   assert.doesNotMatch(JSON.stringify(projected), /PRIVATE/);
 });
 
-test('production verifier never treats URL, fake DOM attributes, or elapsed samples as conversation proof', () => {
+test('unsupported DOM cannot gain conversation proof through URL changes or elapsed samples', () => {
   let ids = 0;
   const tracker = binding.createTracker({ uuid: () => `binding-${++ids}` });
   const doc = new Proxy({}, { get() { throw new Error('No unreviewed DOM source may be read'); } });

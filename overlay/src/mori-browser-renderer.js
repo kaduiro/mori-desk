@@ -25,7 +25,7 @@ function statusLabel(row) {
 async function act(key, button, fn, success) {
   if (pending.has(key)) return;
   pending.add(key); button.disabled = true;
-  try { const result = await fn(); feedback(result?.ok || result?.status === "ok" ? success : result?.message || `操作できませんでした（${result?.reason || "unknown"}）。未読は保持されます。`); }
+  try { const result = await fn(); const reason = ({unread_notice:'未確認の通知を先に確認してください',unread_gap:'結果未確認の記録を先に確認してください',cleanup_limit:'履歴の整理記録が保存上限に達しました'})[result?.reason]; feedback(result?.ok || result?.status === "ok" ? success : result?.message || reason || `操作できませんでした（${result?.reason || "unknown"}）。未読は保持されます。`); }
   catch { feedback("操作に失敗しました。接続状態を確認してください。"); }
   finally { pending.delete(key); button.disabled = false; refresh(); }
 }
@@ -59,6 +59,7 @@ function createSessionView(row) {
   const detail = document.createElement("p"); detail.className = "session-detail";
   const preview = document.createElement("p"); preview.className = "session-request-preview";
   const recovery = document.createElement("p"); recovery.className = "session-recovery";
+  const gaps = document.createElement('div'); gaps.className = 'session-result-gaps';
   const metadata = document.createElement("dl"); metadata.className = "session-metadata";
   const fields = new Map();
   for (const [key, label] of [
@@ -73,7 +74,7 @@ function createSessionView(row) {
     item.append(term, value); metadata.append(item);
   }
   const actions = document.createElement("div"); actions.className = "session-actions";
-  const view = { row, card, name, sourceName, state, unread, detail, preview, recovery, fields, draftDirty: false, composing: false, savedLabel: "" };
+  const view = { row, card, name, sourceName, state, unread, detail, preview, recovery, gaps, fields, draftDirty: false, composing: false, savedLabel: "" };
   view.focusButton = actionButton("タブへ戻る", row, "focus", () => {
     const current = view.row;
     if (current.canFocus !== true) return { ok: false, message: current.focusUnavailableReason || "このタブへ戻れる接続がありません。" };
@@ -85,6 +86,7 @@ function createSessionView(row) {
   view.navigationHint = document.createElement("p"); view.navigationHint.className = "session-navigation-hint";
 
   const editor = document.createElement("form"); editor.className = "session-label-editor";
+  view.labelEditor = editor;
   const label = document.createElement("label"); label.className = "session-label-field";
   const labelText = document.createElement("span"); labelText.textContent = "この PC だけの表示名";
   const input = document.createElement("input"); input.className = "session-label-input";
@@ -111,23 +113,40 @@ function createSessionView(row) {
   editor.append(label, saveButton);
   const editorHint = document.createElement("p"); editorHint.className = "session-label-hint";
   editorHint.textContent = "入力した表示名を優先します。空欄で保存すると会話名に戻り、未取得の場合はサービス名と番号を表示します。";
-  card.append(top, preview, detail, recovery, metadata, actions, view.navigationHint, editor, editorHint);
+  view.labelHint = editorHint;
+  card.append(top, preview, detail, recovery, gaps, metadata, actions, view.navigationHint, editor, editorHint);
   return view;
 }
 
 function updateSessionView(view, row) {
   view.row = row;
+  view.labelEditor.hidden = row.scopeKind === 'view'; view.labelHint.hidden = row.scopeKind === 'view';
   view.name.textContent = row.displayTitle || row.label || row.provider || "ブラウザ";
   view.sourceName.textContent = [row.label || row.provider || "ブラウザ",
     row.conversationTitle ? (row.customLabel ? `会話名：${row.conversationTitle}` : "") : "会話名は未取得"].filter(Boolean).join(" · ");
   view.sourceName.hidden = false;
   view.preview.textContent = row.requestPreview ? `直近の依頼：${row.requestPreview}` : "直近の依頼は未取得です。";
+  if (row.scopeKind === 'view') {
+    view.sourceName.textContent = `${row.label}・表示中の画面・会話所属未確定`;
+    view.preview.textContent = '会話の所属を確認できるまで、タイトルと依頼の抜粋を取得しません。';
+  }
   view.preview.classList.toggle("preview-unavailable", !row.requestPreview);
   view.state.textContent = statusLabel(row);
   view.card.dataset.status = row.status || "unknown";
   view.card.dataset.history = String(isHistory(row));
   view.detail.textContent = row.statusDetail || "現在の状態は、タブへ戻って確認してください。";
   view.recovery.textContent = row.recoveryHint || ""; view.recovery.hidden = !row.recoveryHint;
+  view.gaps.replaceChildren();
+  if (row.startUnobserved) {
+    const note = document.createElement('p'); note.textContent = '途中から観測・開始時点未確認'; view.gaps.append(note);
+  }
+  for (const gap of row.resultGaps || []) {
+    const note = document.createElement('p');
+    note.textContent = `追跡が途切れたため結果未確認（${observedTime(gap.observedAt)}）。現在の監視が復旧しても、この結果は未確認です。`;
+    note.append(actionButton('この不足記録を確認済みにする', row, `gap-${gap.eventId}`,
+      () => window.mori.acknowledgeGap(row.id, gap.eventId), '選んだ不足記録を確認済みにしました。'));
+    view.gaps.append(note);
+  }
   const unread = unreadCount(row);
   view.unread.textContent = `未確認 ${unread} 件`; view.unread.hidden = unread === 0;
   view.fields.get("lastState").textContent = lastObservedState(row);
@@ -142,7 +161,7 @@ function updateSessionView(view, row) {
   view.ackButton.hidden = !(row.requiresCompletionAck || row.pendingNotice);
   view.ackButton.disabled = pending.has(`${row.id}/ack`);
   view.dismissButton.hidden = !(row.observation === "closed" || row.observation === "stale");
-  view.dismissButton.disabled = pending.has(`${row.id}/dismiss`);
+  view.dismissButton.disabled = pending.has(`${row.id}/dismiss`) || row.scopeKind && (unread > 0 || row.resultGaps?.length > 0);
   view.navigationHint.hidden = row.canFocus === true;
   view.navigationHint.textContent = row.canFocus === true ? "" : row.focusUnavailableReason || "このタブへ戻れる接続がありません。上の案内を確認してください。";
   view.savedLabel = row.customLabel || "";
@@ -254,8 +273,8 @@ $("pair").addEventListener("click", async () => {
     $("code").value = result.code; $("pairing").hidden = false; feedback("2 分以内に拡張機能の設定画面へ貼り付けてください。");
   } catch { feedback("接続コードを作成できません。"); }
 });
-$("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
 $("copy").addEventListener("click", () => act("copy", $("copy"), () => window.mori.copy(), "コードをコピーしました。"));
 $("extension").addEventListener("click", () => act("extension", $("extension"), () => window.mori.openExtension(), "開いた browser-bridge フォルダーを Chrome で選択してください。"));
+$("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
 window.mori.onChange(refresh);
 refresh();

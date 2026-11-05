@@ -15,7 +15,7 @@
     'button[aria-label="生成を停止する"]',
   ];
   const COMPOSER = ['#prompt-textarea', '[data-testid="prompt-textarea"]'];
-  const ASSISTANT = ['[data-message-author-role="assistant"]'];
+  const ASSISTANT = ['[data-message-author-role="assistant"]', '[data-conversation-role="assistant"]'];
   const ERROR = ['[data-testid="conversation-turn-error"]'];
   // An account reported no legacy composer/assistant markers, but a single
   // editable control plus a short stop button and aria-busy during generation.
@@ -49,7 +49,7 @@
     };
   }
 
-  function observe(doc, url) {
+  function observe(doc, url, { continuing = false } = {}) {
     const route = utils.routeForUrl(url);
     if (!route || route.provider !== 'chatgpt') return { supported: false, generating: false };
     const stop = utils.findVisible(doc, STOP);
@@ -61,7 +61,7 @@
     // the alternate path below requires the independent paired evidence.
     const scopedStart = route.conversationRef === null && route.path.startsWith('/g/');
     const legacySupported = scopedStart ? !!composer : !!(stop || composer);
-    const alternateGenerating = !stop && alternate.ready && !!alternate.stop && alternate.busy;
+    const alternateGenerating = !stop && alternate.ready && !!alternate.stop && (alternate.busy || continuing);
     const controlsIdle = alternate.ready && !stop && alternate.stopCount === 0 && !alternate.busy;
     // Half of the alternate activity evidence is ambiguous, including on
     // initial injection. Report unknown rather than calling that page idle.
@@ -80,15 +80,16 @@
     };
   }
 
-  function isStopTarget(element, doc, url) {
-    if (element?.closest?.(STOP.join(','))) return true;
+  function isStopTarget(element, doc, url, { continuing = false } = {}) {
+    const legacyTarget = element?.closest?.(STOP.join(','));
+    if (legacyTarget) return !!doc && visibleElements(doc, STOP).includes(legacyTarget);
     const route = utils.routeForUrl(url);
     if (!doc || route?.provider !== 'chatgpt') return false;
     const target = element?.closest?.(SHORT_STOP.join(','));
     if (!target) return false;
     if (utils.findVisible(doc, STOP)) return false;
     const alternate = alternateControls(doc);
-    return alternate.ready && alternate.busy && target === alternate.stop;
+    return alternate.ready && (alternate.busy || continuing) && target === alternate.stop;
   }
 
   return { provider: 'chatgpt', observe, isStopTarget,

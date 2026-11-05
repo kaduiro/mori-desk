@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module === 'object' && module.exports ? require('./monitoring-contract') : root.MoriMonitoringContract);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MoriProviderUtils = api;
-})(typeof globalThis === 'object' ? globalThis : this, function () {
+})(typeof globalThis === 'object' ? globalThis : this, function (contract) {
   'use strict';
   const ID = /^[A-Za-z0-9_-]{1,128}$/;
   const CONVERSATION_ID = /^[A-Za-z0-9-]{1,128}$/;
@@ -15,7 +15,7 @@
     'invalid_observation', 'old_observation', 'duplicate_observation', 'capacity',
     'outbox_full', 'storage_failed', 'local_data_invalid', 'tab_unavailable', 'observation_failed',
     'binding_unconfirmed', 'lease_invalid', 'lease_expired', 'attempt_expired', 'observer_version',
-    'initialization_failed', 'registration_failed']);
+    'initialization_failed', 'registration_failed', 'observer_queue_full', 'ack_unavailable', 'peer_unsupported']);
 
   const LEASE_FIELDS = ['workerEpoch', 'leaseId', 'bindingEpoch'];
   function safeLease(input) {
@@ -26,7 +26,7 @@
   function safeObserverRegister(input) {
     if (!input || input.type !== 'mori.observer.register' || input.v !== 1
       || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
-      || input.observerVersion !== '0.1.8'
+      || !['0.1.9', '0.1.10', '0.1.11', '0.1.12', '0.1.13', '0.1.14', '0.1.15'].includes(input.observerVersion)
       || !Object.hasOwn(input, 'attemptId')
       || (input.attemptId !== null && (typeof input.attemptId !== 'string' || !ID.test(input.attemptId)))
       || Object.keys(input).some(key => !['type', 'v', 'pageInstanceId', 'observerVersion', 'attemptId'].includes(key))) return null;
@@ -34,7 +34,7 @@
   }
 
   function safeObserverIdentity(input) {
-    if (!input || input.ok !== true || input.v !== 1 || input.observerVersion !== '0.1.8'
+    if (!input || input.ok !== true || input.v !== 1 || !['0.1.9', '0.1.10', '0.1.11', '0.1.12', '0.1.13', '0.1.14', '0.1.15'].includes(input.observerVersion)
       || typeof input.pageInstanceId !== 'string' || !ID.test(input.pageInstanceId)
       || !['confirmed', 'unconfirmed'].includes(input.binding?.state)
       || typeof input.binding.epoch !== 'string' || !ID.test(input.binding.epoch)) return null;
@@ -49,8 +49,17 @@
     const lease = input.lease === null ? null : safeLease(input.lease);
     if (input.lease !== null && !lease) return null;
     if (lease && (input.binding.state !== 'confirmed' || lease.bindingEpoch !== input.binding.epoch)) return null;
+    const binding = { state: input.binding.state, epoch: input.binding.epoch };
+    if (['0.1.10', '0.1.11', '0.1.12', '0.1.13', '0.1.14', '0.1.15'].includes(input.observerVersion)) {
+      if (!['view', 'conversation', 'unknown'].includes(input.binding.kind)
+        || !ID.test(input.binding.viewEpoch || '') || !ID.test(input.samplingEpoch || '')
+        || input.binding.reason !== null && !contract.REASONS.includes(input.binding.reason)
+        || input.binding.state === 'confirmed' && (input.binding.kind === 'unknown' || input.binding.reason !== null)
+        || input.binding.state === 'unconfirmed' && input.binding.kind !== 'unknown') return null;
+      Object.assign(binding, { kind: input.binding.kind, viewEpoch: input.binding.viewEpoch, reason: input.binding.reason });
+    }
     return { ok: true, v: 1, observerVersion: input.observerVersion, pageInstanceId: input.pageInstanceId,
-      route, binding: { state: input.binding.state, epoch: input.binding.epoch }, lease };
+      route, binding, lease, ...(input.samplingEpoch ? { samplingEpoch: input.samplingEpoch } : {}) };
   }
 
   function safeObservationAck(value) {
@@ -162,7 +171,14 @@
   }
 
   function safeObservation(input) {
-    if (!input || input.type !== 'mori.observation' || input.v !== 1) return null;
+    if (!input || input.type !== 'mori.observation' || ![1, 2].includes(input.v)) return null;
+    const v2 = input.v === 2;
+    if (v2 && (!['view', 'conversation'].includes(input.scopeKind) || !ID.test(input.viewEpoch || '')
+      || !ID.test(input.samplingEpoch || '') || typeof input.startUnobserved !== 'boolean'
+      || Object.keys(input).some(k => !['type', 'v', 'pageInstanceId', 'contentSequence', 'observedAt', 'status',
+        'generationToken', 'outcome', 'conversationTitle', 'requestPreview', ...LEASE_FIELDS,
+        'scopeKind', 'viewEpoch', 'samplingEpoch', 'startUnobserved'].includes(k))
+      || input.scopeKind === 'view' && (input.conversationTitle !== '' || input.requestPreview !== ''))) return null;
     if (!ID.test(input.pageInstanceId || '') || !Number.isSafeInteger(input.contentSequence)
       || input.contentSequence < 1 || !Number.isSafeInteger(input.observedAt) || input.observedAt < 1) return null;
     if (!['idle', 'running', 'settled', 'unknown'].includes(input.status)) return null;
@@ -185,6 +201,8 @@
       status: input.status,
       generationToken: input.generationToken,
       outcome: input.outcome,
+      ...(v2 ? { schema: 2, scopeKind: input.scopeKind, viewEpoch: input.viewEpoch,
+        samplingEpoch: input.samplingEpoch, startUnobserved: input.startUnobserved } : {}),
       ...(lease || {}),
       ...(Object.hasOwn(input, 'conversationTitle') ? { conversationTitle: input.conversationTitle } : {}),
       ...(Object.hasOwn(input, 'requestPreview') ? { requestPreview: input.requestPreview } : {}),

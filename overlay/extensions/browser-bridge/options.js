@@ -21,7 +21,7 @@
     connection_closed: '接続が切れました。保存した通知を保持して、自動的に再接続します。',
     heartbeat_timeout: '接続を確認できません。MORI Desk の状態を確認して再接続します。',
     outbox_full: '未送信の通知が上限に達しました。MORI Desk に接続するまで新しい記録を保留しています。',
-    capacity: '監視できるのは最大 20 タブです。不要な AI タブを閉じてください。',
+    capacity: '容量不足の種類を確認中です。監視タブ数と保存記録数の上限を個別に確認してください。',
     unsupported: '一部のページで生成状態を読み取れません。通常のテキスト会話で確認してください。',
     storage_failed: 'データの保存に失敗したため監視を停止しました。空き容量を確認して拡張機能を再読み込みしてください。',
     tab_query_failed: 'Chrome のタブ一覧を取得できませんでした。保存データと接続は保持し、自動的に再試行します。',
@@ -29,7 +29,7 @@
     alarm_failed: '定期確認を準備できませんでした。保存データは保持しています。Chrome の拡張機能画面でエラーを確認してください。',
     recovery_failed: 'ページ内の監視の復旧を完了できませんでした。保存データは保持し、次の機会に再試行します。',
     initialization_failed: '拡張機能の初期化を完了できませんでした。保存障害かどうかは確認できていません。拡張機能のエラーを確認してください。',
-    binding_unconfirmed: '画面の内容が現在の会話に属することを確認できないため、観測を保留しています。この試験版では会話の所属確認が未実装です。再接続や F5 では解消しません。',
+    binding_unconfirmed: '画面と入力欄が現在の会話に属することを確認できないため、観測を保留しています。会話の読み込み完了を待ってください。ChatGPT の新規会話で続く場合は、生成終了後にページを再読み込みしてください。画面構造が非対応の場合も保留します。',
     lease_invalid: '現在のページの観測許可を確認し直しています。既存の通知を保持して、自動的に再登録します。',
     lease_expired: 'ページの観測許可を更新しています。既存の通知を保持して、自動的に再登録します。',
     attempt_expired: '以前の復旧処理は期限切れになりました。現在の状態を確認して再試行します。',
@@ -80,7 +80,8 @@
   };
   const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
 
-  function friendly(code) { return Object.hasOwn(errors, code) ? errors[code] : '処理を完了できませんでした。MORI Desk と拡張機能のバージョンを確認してください。'; }
+  function friendly(code) { return Object.hasOwn(errors, code) ? errors[code]
+    : globalThis.MoriMonitoringContract?.REASON_LABELS[code] || '処理を完了できませんでした。MORI Desk と拡張機能のバージョンを確認してください。'; }
   async function send(type, extra = {}) { return chrome.runtime.sendMessage({ type: `mori.options.${type}`, ...extra }); }
   function showResult(text, error = false) {
     $('action-result').textContent = text;
@@ -163,6 +164,14 @@
             : snapshot.connection.code ? friendly(snapshot.connection.code)
               : 'MORI Desk への接続を確認しています。';
       $('tracked').textContent = snapshot.trackedTabs;
+      const summaries = (snapshot.providers || []).map(row => {
+        const name = row.provider === 'chatgpt' ? 'ChatGPT' : 'Claude';
+        if (row.inventory !== 'known') return `${name}：対象件数は不明`;
+        const reasons = Object.entries(row.reasons || {}).filter(([, n]) => n > 0)
+          .map(([key, n]) => `${globalThis.MoriMonitoringContract?.REASON_LABELS[key] || key} ${n}件`).join('、');
+        return `${name}：監視中 ${row.fresh} / 対象 ${row.discovered}件・保留 ${row.unmonitored}件${reasons ? '（' + reasons + '）' : ''}`;
+      });
+      $('monitoring-summary').textContent = summaries.join('。');
       $('running').textContent = snapshot.running;
       $('pending').textContent = snapshot.pending;
       $('pause').textContent = snapshot.enabled ? '監視を一時停止' : '監視を再開';
