@@ -11,6 +11,15 @@ const contract = require("../src/mori-startup-contract");
 const { initializeStartup, bridgeBuildInfo } = require("../src/mori-startup");
 const buildId = "7".repeat(64);
 
+test("startup messages distinguish unbuilt source from artifact mismatch and never echo unknown details",()=>{
+  const pending=contract.startupFailureMessage("source_mismatch",{reason:"source_update_pending",changedFiles:7,missingFiles:31,builtBuildId:buildId,currentBuildId:"8".repeat(64)});
+  assert.match(pending,/未反映/);assert.match(pending,/変更 7 件・未追加 31 件/);assert.match(pending,/check-windows\.bat/);
+  const changed=contract.startupFailureMessage("source_mismatch",{reason:"runtime_artifact_mismatch",changedFiles:"private",builtBuildId:"private"});
+  assert.match(changed,/ファイル/);assert.doesNotMatch(changed,/未反映|private/);
+  assert.match(contract.startupFailureMessage("development_workspace"),/計測開発専用/);
+  assert.doesNotMatch(contract.startupFailureMessage("private-error"),/private-error/);
+});
+
 test("startup reasons are bounded and login cannot enable CLI", () => {
   assert.deepEqual(contract.parseStartupArgs([]), { reason: "manual", cli: false, isLogin: false });
   assert.equal(contract.parseStartupArgs(["--mori-startup=login"]).isLogin, true);
