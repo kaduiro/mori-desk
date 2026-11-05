@@ -1,6 +1,6 @@
 # Calendar・Gmail HUD の実装と本番受入計画
 
-作成日: 2026-11-04（Asia/Tokyo）。[UX と複数アカウントの設計案](calendar-mail-ux-and-account-roadmap-ja.md)、[Calendar 残タスク](../calendar/remaining-tasks-ja.md)、[Gmail 個人実機試験](../../reports/gmail-personal-live-test-20261104-ja.md)、[Gmail 社内導入条件](../mail/gmail-hud-deployment-ja.md)を統合した実行計画。この文書は計画であり、下記のソース変更・法人環境での操作を完了したという記録ではない。
+作成日: 2026-11-04（Asia/Tokyo）。[UX と複数アカウントの設計案](calendar-mail-ux-and-account-roadmap-ja.md)、[残存タスク](../remaining-tasks-20261105-ja.md)、[Gmail 社内導入条件](../mail/gmail-hud-deployment-ja.md)を統合した実行計画。この文書は計画であり、下記のソース変更・法人環境での操作を完了したという記録ではない。
 
 ## 前提と達成条件
 
