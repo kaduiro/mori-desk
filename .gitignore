@@ -4,6 +4,7 @@
 .upstream/
 .tools/
 .mori-setup-lock/
+.development/
 node_modules/
 dist/
 *.log

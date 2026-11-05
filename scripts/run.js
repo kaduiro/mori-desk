@@ -34,9 +34,10 @@ async function main(args = process.argv.slice(2)) {
     await run(electron.executablePath, [path.join(ROOT, "bootstrap"), "--mori-startup=manual", ...launchArgs],
       { cwd: ROOT, capture: false, env });
   } else if (command === "test") {
-    const files = [...testFiles(runtime), ...["runtime-source.test.js", "startup-guard.test.js", "prepare-publication.test.js"].map(name => path.join(ROOT, "test", name))];
+    const files = [...testFiles(runtime), ...["runtime-source.test.js", "startup-guard.test.js", "prepare-publication.test.js", "windows-process.test.js"].map(name => path.join(ROOT, "test", name))];
     console.log(`Running ${files.length} browser/Mori and source verification test files.`);
-    await run(process.execPath, ["--test", ...files], { cwd: runtime, capture: false });
+    const isolation = process.platform === "win32" ? ["--test-isolation=none"] : [];
+    await run(process.execPath, ["--test", ...isolation, ...files], { cwd: runtime, capture: false });
   } else if (command === "verify:electron") {
     await run(process.execPath, ["scripts/verify-electron-install.js", "--context", "verify"], { cwd: runtime, capture: false });
   } else {

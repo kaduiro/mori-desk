@@ -94,6 +94,10 @@ function childEnvironment() {
 }
 
 function run(command, args, options = {}) {
+  if (process.platform === "win32" && (options.capture !== false || options.input)) {
+    return require("./windows-process").runWithFiles(command, args,
+      { ...options, root: ROOT, env: options.env || childEnvironment() });
+  }
   return new Promise((resolve, reject) => {
     const capture = options.capture !== false;
     const child = spawn(command, args, {
@@ -296,6 +300,24 @@ function inspectRuntimeSource() {
   };
 }
 
+// A disk prerequisite, not evidence of a running desktop or successful login.
+function launchReadinessFromSource(source) {
+  const known = source && typeof source.ready === "boolean" && source.overlay && source.generated;
+  const ids = value => /^[a-f0-9]{64}$/.test(value || "") ? value : null;
+  const counts = (group, key) => Array.isArray(group?.[key]) ? group[key].length : null;
+  const matches = known && source.ready && source.upstreamMatches && source.inputMatches
+    && !source.overlay.changed.length && !source.overlay.missing.length
+    && !source.generated.changed.length && !source.generated.missing.length;
+  const reason = !known ? "inspection_unavailable" : !source.ready ? "runtime_incomplete"
+    : !source.upstreamMatches ? "upstream_mismatch" : !ids(source.builtInputFingerprint) ? "build_stamp_missing"
+    : !source.inputMatches ? "source_update_pending" : !matches ? "runtime_artifact_mismatch" : "source_matches";
+  return { status: !known ? "unknown" : matches ? "source_check_passes" : "blocked", reason,
+    builtBuildId: ids(source?.builtInputFingerprint), currentBuildId: ids(source?.currentInputFingerprint),
+    changedFiles: counts(source?.overlay,"changed"), missingFiles: counts(source?.overlay,"missing"),
+    changedGenerated: counts(source?.generated,"changed"), missingGenerated: counts(source?.generated,"missing"),
+    desktopStartup: "NOT_CHECKED", loginStartup: "NOT_CHECKED" };
+}
+
 async function prepareRuntime() {
   const lock = readLock();
   const patch = assertSafePath(path.join(ROOT, "patches", "mori.patch"));
@@ -406,7 +428,7 @@ function acquireSetupLock() {
 module.exports = {
   ROOT, RUNTIME, readLock, run, assertSafePath, requireOwner, removeOwned,
   sourcePathAllowed, prepareRuntime, setStageReady, promoteRuntime,
-  requireRuntime, acquireSetupLock, inputFingerprint, inspectRuntimeSource, buildArtifacts,
+  requireRuntime, acquireSetupLock, inputFingerprint, inspectRuntimeSource, buildArtifacts, launchReadinessFromSource,
 };
 
 if (require.main === module) {

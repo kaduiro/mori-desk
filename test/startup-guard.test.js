@@ -105,3 +105,15 @@ test("changing source after the first verification invalidates the final handoff
   assert.throws(() => f.guard.verifySourceStartup({ owner: lock.owner }), { code: "source_mismatch" });
   lock.release();
 });
+
+test("development workspace cannot start a normal profile even with otherwise matching source",t=>{
+  const f=fixture(t);f.write(".mori-development.json",{kind:"development-workspace"});
+  assert.throws(()=>f.guard.verifySourceStartup(),{code:"development_workspace"});
+});
+
+test("source rejection carries bounded disk details separately from the startup IPC grammar",t=>{
+  const f=fixture(t);f.write("patches/mori.patch","unbuilt change\n");
+  let failure;try{f.guard.verifySourceStartup();}catch(error){failure=error;}
+  assert.equal(failure.code,"source_mismatch");assert.equal(failure.detail.reason,"source_update_pending");
+  assert.equal(failure.detail.desktopStartup,"NOT_CHECKED");assert.equal(failure.detail.builtBuildId,f.buildId);
+});

@@ -3,7 +3,7 @@
 // This is a process-local handoff contract, not a network health endpoint.
 const RESULT_TYPE = "mori.startup";
 const REASONS = new Set(["invalid_arguments", "setup_busy", "source_mismatch", "runtime_unavailable",
-  "electron_invalid", "build_invalid", "spawn_failed", "startup_unconfirmed"]);
+  "electron_invalid", "build_invalid", "spawn_failed", "startup_unconfirmed", "development_workspace"]);
 const BUILD_ID = /^[a-f0-9]{64}$/;
 function failure(reason) {
   const error = new Error(`MORI_STARTUP_${reason.toUpperCase()}`);
@@ -11,6 +11,22 @@ function failure(reason) {
   return error;
 }
 function reasonOf(error) { return REASONS.has(error?.code) ? error.code : "runtime_unavailable"; }
+function startupFailureMessage(reason, detail = null) {
+  if (reason === "development_workspace") return "この作業場所は計測開発専用です。通常の Mori Desk は常用側の start-windows.bat から起動してください。";
+  if (reason === "source_mismatch") {
+    const cause = detail?.reason === "source_update_pending"
+      ? "ソース更新が本体へ未反映のため、起動を保留しています。"
+      : detail?.reason === "runtime_artifact_mismatch"
+        ? "準備済み本体のファイルが構築時のソースと一致しないため、起動を保留しています。"
+        : "ソースと準備済み本体の整合性を確認できないため、起動を保留しています。";
+    const count = n => Number.isSafeInteger(n) && n >= 0 && n <= 1000000 ? n : "不明";
+    const id = value => /^[a-f0-9]{64}$/.test(value || "") ? value.slice(0,12) : "不明";
+    return cause + (detail ? `\n変更 ${count(detail.changedFiles)} 件・未追加 ${count(detail.missingFiles)} 件。構築 ${id(detail.builtBuildId)} / 現在 ${id(detail.currentBuildId)}。` : "")
+      + "\nsetup-windows.bat で再構築してください。詳細確認: check-windows.bat。保存済みデータは初期化していません。";
+  }
+  return `本体の起動を確認できませんでした（${REASONS.has(reason) ? reason : "runtime_unavailable"}）。\n`
+    + "起動中の Mori とセットアップの状態を確認し、通常の setup-windows.bat と起動手順で修復してください。保存済みデータは初期化していません。";
+}
 function parseStartupArgs(argv, { strict = false } = {}) {
   if (!Array.isArray(argv) || argv.some(arg => typeof arg !== "string")) throw failure("invalid_arguments");
   let reason = "manual", seen = false, cli = false;
@@ -83,4 +99,4 @@ function waitForStartup(child, expectedBuildId, { timeoutMs = 15000 } = {}) {
     child.on("message", onMessage); child.once("exit", onExit); child.on("error", onError);
   });
 }
-module.exports = { failure, reasonOf, parseStartupArgs, validBuildInfo, makeResult, validResult, createReporter, waitForStartup };
+module.exports = { failure, reasonOf, startupFailureMessage, parseStartupArgs, validBuildInfo, makeResult, validResult, createReporter, waitForStartup };

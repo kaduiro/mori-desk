@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { failure, parseStartupArgs, validBuildInfo, createReporter, reasonOf } = require("./mori-startup-contract");
+const { failure, parseStartupArgs, validBuildInfo, createReporter, reasonOf, startupFailureMessage } = require("./mori-startup-contract");
 
 function initializeStartup({ app, processObject = process }) {
   const startup = parseStartupArgs(processObject.argv.slice(app.isPackaged ? 1 : 2));
@@ -40,8 +40,7 @@ async function reportStartupFailure({ app, dialog, error, startup, processObject
   await reporter.report("blocked", reasonOf(error));
   if (!reporter.hasParent) {
     await app.whenReady();
-    dialog.showErrorBox("Mori Desk", `本体を起動できません（${reasonOf(error)}）。\n` +
-      "通常のセットアップと起動手順を確認してください。保存済みデータは初期化していません。");
+    dialog.showErrorBox("Mori Desk", startupFailureMessage(reasonOf(error), error.detail));
   }
   app.exit(1);
 }
