@@ -10,7 +10,7 @@
   const ATTEMPT_TTL_MS = 10000;
   // These packaged installers do not start observation. Only the manifest
   // includes content-start.js; recovery starts with a worker-owned ticket.
-  const FILES = Object.freeze(['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
+  const FILES = Object.freeze(['monitoring-contract.js', 'provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
     'observation-controller.js', 'conversation-metadata.js', 'conversation-binding.js', 'content-script.js']);
 
   // Chrome serializes these fixed functions. Neither depends on a worker
@@ -31,7 +31,7 @@
   }
 
   function createRecovery({ chrome, within, getBlockReason, beginAttempt, endAttempt,
-    isAdmitted, now = () => Date.now() }) {
+    completeAttempt, waitForRegistration, isAdmitted, now = () => Date.now() }) {
     const pending = new Map();
     const attemptedAt = new Map();
     const result = (disposition, reason = null, attempted = false, extra = {}) => ({
@@ -137,7 +137,15 @@
         }
         const blocked = getBlockReason();
         if (blocked) return result('deferred', blocked);
-        if (identity.binding.state !== 'confirmed') return result('deferred', 'binding_unconfirmed');
+        if (identity.binding.state !== 'confirmed') return result('deferred', 'binding_unconfirmed', false,
+          { bindingReason: identity.binding.reason || 'scope_unconfirmed' });
+        const registering = waitForRegistration?.(tab.id);
+        if (registering) {
+          try { await within(Promise.resolve(registering), 500); }
+          catch (_) { return result('deferred', 'lease_pending'); }
+          identity = await currentIdentity(tab.id, route, identity);
+          if (!identity) return result('deferred', 'navigation_changed');
+        }
         if (isAdmitted?.({ tabId: tab.id, route, identity })) {
           await triggerObservation(tab.id);
           if (getBlockReason() || !isAdmitted?.({ tabId: tab.id, route, identity })) {
@@ -199,7 +207,8 @@
         await current(entry, route);
         blocked = getBlockReason();
         if (blocked) return result('deferred', blocked, true);
-        if (identity.binding.state !== 'confirmed') return result('deferred', 'binding_unconfirmed', true);
+        if (identity.binding.state !== 'confirmed') return result('deferred', 'binding_unconfirmed', true,
+          { bindingReason: identity.binding.reason || 'scope_unconfirmed' });
         if (!isAdmitted?.({ tabId: tab.id, documentId, route, identity })) {
           return result('failed', 'lease_invalid', true);
         }
@@ -207,12 +216,21 @@
         if (getBlockReason() || !isAdmitted?.({ tabId: tab.id, documentId, route, identity })) {
           return result('deferred', getBlockReason() || 'attempt_expired', true);
         }
+        if (completeAttempt) {
+          const retained = completeAttempt(entry.attemptId);
+          entry.attemptId = null;
+          if (!retained) return result('deferred', 'attempt_expired', true);
+        }
         entry.completed = true;
         return result('recovered', null, true, { route, identity, documentId });
       } catch (error) {
         // A timeout does not cancel Chrome's pending execution. Revoke before
         // awaiting diagnostic API calls, which may themselves be unavailable.
-        if (entry.attemptId) endAttempt(entry.attemptId, { retainLease: false });
+        if (entry.attemptId) {
+          endAttempt(entry.attemptId, { retainLease: false,
+            retainObserver: error?.message === 'binding_unconfirmed' && !entry.invalidated && !getBlockReason() });
+          entry.attemptId = null;
+        }
         return await injectionFailure(entry, route, error);
       }
       finally { if (entry.attemptId) endAttempt(entry.attemptId, { retainLease: entry.completed === true }); }

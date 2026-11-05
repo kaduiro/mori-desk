@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 (function (root, factory) {
-  const api = factory(typeof module === 'object' && module.exports ? require('./provider-utils') : root.MoriProviderUtils);
+  const api = factory(typeof module === 'object' && module.exports ? require('./provider-utils') : root.MoriProviderUtils,
+    typeof module === 'object' && module.exports ? require('./monitoring-contract') : root.MoriMonitoringContract);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.MoriRestartHealth = api;
-})(globalThis, function (utils) {
+})(globalThis, function (utils, contract) {
   'use strict';
   const CAPABILITY = 'restart-health-v1';
   const REASONS = Object.freeze(['checking', 'unconfirmed', 'loading', 'discarded', 'frozen',
@@ -69,5 +70,33 @@
     }
     return { capabilities: [...message.capabilities], build: { ...build } };
   }
-  return { CAPABILITY, REASONS, PROVIDERS, unknownProviders, summarize, safePeer };
+  function summarizeV2(tabs, results, { enabled = true, access = { chatgpt: true, claude: true },
+    evidence = new Map(), context = {} } = {}) {
+    if (!Array.isArray(tabs) || tabs.length > 100000) return unknownProviders();
+    const rows = PROVIDERS.map(provider => ({ provider, inventory: 'known', discovered: 0, eligible: 0,
+      admitted: 0, fresh: 0, unmonitored: 0, reasons: Object.fromEntries(contract.REASONS.map(k => [k, 0])) }));
+    let selected = 0;
+    for (const tab of tabs) {
+      const row = rows.find(r => r.provider === utils.routeForUrl(tab?.url)?.provider);
+      if (!row) continue;
+      const r = results?.get(tab.id);
+      const eligible = !r?.overLimit && selected < 20;
+      if (eligible) { row.eligible++; selected++; }
+      row.discovered++;
+      const admitted = eligible && r?.ok;
+      if (admitted) row.admitted++;
+      const proof = evidence.get(tab.id);
+      if (admitted && proof && enabled && context.connected !== false && !context.fault && access[row.provider] === true) {
+        row.fresh++; continue;
+      }
+      const raw = tab.discarded ? 'discarded' : tab.frozen ? 'frozen' : tab.status === 'loading' ? 'loading'
+        : !eligible ? 'capacity' : r?.reason;
+      const reason = contract.primaryReason(raw, { ...context, enabled,
+        owner: !eligible ? 'coordinator' : r?.owner, resource: !eligible ? 'active_tabs' : r?.resource,
+        bindingReason: r?.bindingReason });
+      row.reasons[reason]++; row.unmonitored++;
+    }
+    return rows.map(row => access[row.provider] === true ? row : unknownProviders().find(r => r.provider === row.provider));
+  }
+  return { CAPABILITY, REASONS, PROVIDERS, unknownProviders, summarize, summarizeV2, safePeer };
 });

@@ -129,8 +129,9 @@ test('confirmed protocol boundary rotates empty scopes, retains proved assignmen
   assert.doesNotMatch(JSON.stringify(f.messages), /PRIVATE_|https:|\/g\//);
 });
 
-async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https://chatgpt.com/c/test', { productionBinding = false } = {}) {
+async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = 'https://chatgpt.com/c/test', { productionBinding = false, initialRegistrationReply = null, clock = null } = {}) {
   const timeouts = new Map();
+  const timeoutDelays = new Map();
   const intervals = new Map();
   const documentListeners = new Map();
   const windowListeners = new Map();
@@ -140,6 +141,7 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
   let nextTimer = 0;
   let failure = null;
   let reply = { ok: true };
+  let registrationReply = initialRegistrationReply;
   let activeObserver = false;
   let observedTarget = null;
   let observedOptions = null;
@@ -164,7 +166,7 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
     querySelector: selector => selector === 'main' ? main : null,
     querySelectorAll: selector => {
       if (selector === 'a[href]') return metadataNodes.links;
-      if (selector === '[data-message-author-role="user"]') return metadataNodes.users;
+      if (selector === '[data-message-author-role="user"], [data-user-message-bubble]') return metadataNodes.users;
       if (['idle', 'running', 'settling'].includes(layout) && selector === '#prompt-textarea') return [visibleElement];
       if (layout === 'running' && selector === 'button[data-testid="stop-button"]') return [visibleElement];
       if (layout === 'settling' && selector === '[data-message-author-role="assistant"]') return [visibleElement];
@@ -182,6 +184,7 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
     sendMessage(message) {
       if (message.type === 'mori.observer.register') {
         registrations.push(structuredClone(message));
+        if (registrationReply) return Promise.resolve(registrationReply(message));
         if (productionBinding) return Promise.resolve({ ok: false, reason: 'binding_unconfirmed' });
         return Promise.resolve({ ok: true, v: 1, pageInstanceId: message.pageInstanceId,
           workerEpoch: 'worker-fixture', leaseId: 'lease-fixture', bindingEpoch: 'binding-fixture' });
@@ -194,10 +197,11 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
   };
   const context = vm.createContext({
     crypto: crypto.webcrypto, URL, location, document,
+    Date: clock ? class extends Date { static now() { return clock.now; } } : Date,
     addEventListener: (type, callback) => listen(windowListeners, type, callback),
     removeEventListener: (type, callback) => unlisten(windowListeners, type, callback),
-    setTimeout: callback => { const id = ++nextTimer; timeouts.set(id, callback); return id; },
-    clearTimeout: id => timeouts.delete(id),
+    setTimeout: (callback, delay) => { const id = ++nextTimer; timeouts.set(id, callback); timeoutDelays.set(id, delay); return id; },
+    clearTimeout: id => { timeoutDelays.delete(id); timeouts.delete(id); },
     setInterval: callback => { const id = ++nextTimer; intervals.set(id, callback); return id; },
     clearInterval: id => intervals.delete(id),
     MutationObserver: class {
@@ -212,12 +216,13 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
   // exercise admitted lifecycle behavior, not provider ownership detection.
   // Independent acceptance runs the real unconfirmed production binding.
   const reinject = async ({ start = true, attemptId = null } = {}) => {
-    for (const file of ['provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
+    for (const file of ['monitoring-contract.js', 'provider-utils.js', 'adapters/chatgpt.js', 'adapters/claude.js',
       'observation-controller.js', 'conversation-metadata.js', 'conversation-binding.js', 'content-script.js']) {
       vm.runInContext(fs.readFileSync(path.join(base, file), 'utf8'), context, { filename: file });
     }
     if (!productionBinding) context.MoriConversationBinding = {
-      createTracker: () => ({ sample: () => ({ state: 'confirmed', epoch: 'binding-fixture' }) }),
+      createTracker: () => ({ sample: () => ({ state: 'confirmed', epoch: 'binding-fixture',
+        kind: 'conversation', viewEpoch: 'view-fixture', reason: null }) }),
     };
     if (start) await context.MoriBrowserObserver.start({ attemptId });
   };
@@ -231,7 +236,7 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
   });
 
   return {
-    messages, registrations, timeouts, intervals, runtime, location, document, draft, reinject, rawHealth,
+    messages, registrations, timeouts, timeoutDelays, intervals, runtime, location, document, draft, reinject, rawHealth,
     get lifecycle() { return context.__moriBrowserObserverLifecycle; },
     orphanLegacyGuard() {
       context.__moriBrowserObserverLifecycle?.stop();
@@ -254,6 +259,7 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
     },
     fail: value => { failure = value; },
     reply: value => { reply = value; },
+    registrationReply: value => { registrationReply = value; },
     async health() {
       // Synchronize the explicit protocol stand-in before asserting admitted
       // samples. rawHealth exercises quarantine without this test-driver step.
@@ -290,14 +296,18 @@ async function contentLifecycleFixture(initialLayout = 'unknown', initialUrl = '
   };
 }
 
-test('a busy change beside main starts an alternate session through the mutation debounce, before the heartbeat', async () => {
-  const f = await contentLifecycleFixture('alternate-stop-only');
+test('a busy change beside main starts an alternate session within the bounded registration retry, before the heartbeat', async () => {
+  const clock = { now: 1000 };
+  const f = await contentLifecycleFixture('alternate-stop-only', 'https://chatgpt.com/c/test', { clock });
   assert.equal(f.messages.at(-1).status, 'unknown');
   f.showLayout('alternate-running');
   f.mutateOutsideMain('aria-busy');
   assert.equal(f.timeouts.size, 1, 'the body sibling attribute change must schedule an observation');
   const [id, callback] = f.timeouts.entries().next().value;
+  assert.ok(f.timeoutDelays.get(id) <= 500);
+  clock.now += f.timeoutDelays.get(id);
   f.timeouts.delete(id); callback();
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.messages.at(-1).status, 'running');
   assert.deepEqual(Object.keys(f.messages.at(-1)).sort(), ['type', 'v', 'pageInstanceId',
     'contentSequence', 'observedAt', 'status', 'generationToken', 'outcome',
@@ -438,10 +448,12 @@ for (const kind of ['sync', 'async']) {
 }
 
 test('temporary content message failures preserve the observer and recover on the next poll', async () => {
-  const f = await contentLifecycleFixture();
+  const clock = { now: 1000 };
+  const f = await contentLifecycleFixture('unknown', 'https://chatgpt.com/c/test', { clock });
   const poll = f.intervals.values().next().value;
   for (const kind of ['sync', 'async']) {
     f.fail({ kind, message: 'Could not establish connection. Receiving end does not exist.' });
+    clock.now += 10000;
     assert.doesNotThrow(() => poll());
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(f.activeObserver, true);
@@ -450,6 +462,7 @@ test('temporary content message failures preserve the observer and recover on th
   }
   const beforeRecovery = f.messages.length;
   f.fail(null);
+  clock.now += 10000;
   assert.doesNotThrow(() => poll());
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.messages.length, beforeRecovery + 1);
@@ -528,13 +541,25 @@ test('reinjection preserves a healthy observer, its running identity, timers, an
   assert.equal(f.listenerCount, listeners);
   assert.equal(f.intervals.size, 1);
   const ready = f.ready();
-  assert.equal(ready.observerVersion, '0.1.8');
+  assert.equal(ready.observerVersion, '0.1.15');
   assert.equal(ready.pageInstanceId, original.pageInstanceId);
   assert.equal(f.messages.at(-1).generationToken, original.generationToken);
   assert.equal(f.document.activeElement, f.draft);
   assert.deepEqual({ value: f.draft.value, selectionStart: f.draft.selectionStart,
     selectionEnd: f.draft.selectionEnd, composing: f.draft.composing }, input);
   assert.doesNotMatch(JSON.stringify(f.messages), /IME_DRAFT/);
+});
+
+test('an explicitly renewed lease resets sampling without invalidating the page for which the new grant was issued', async () => {
+  const f=await contentLifecycleFixture('running');const first=f.messages.at(-1);
+  f.registrationReply(message=>({ok:true,v:1,pageInstanceId:message.pageInstanceId,
+    workerEpoch:'worker-renewed',leaseId:'lease-renewed',bindingEpoch:'binding-fixture'}));
+  const result=await f.lifecycle.register('fresh-ticket',true);
+  assert.equal(result.ok,true);const next=f.messages.at(-1);
+  assert.equal(next.pageInstanceId,first.pageInstanceId);
+  assert.notEqual(next.generationToken,first.generationToken);
+  assert.equal(next.status,'running');assert.equal(next.leaseId,'lease-renewed');
+  assert.equal(f.messages.some(m=>m.status==='settled'),false);
 });
 
 test('a stopped observer or orphaned 0.1.5 boolean guard can recover without reload or a fabricated completion', async () => {
@@ -645,4 +670,105 @@ test('lease loss breaks generation continuity while worker-only renewal preserve
   const terminals = continuous.messages.filter(message => message.status === 'settled');
   assert.equal(terminals.length, 1);
   assert.equal(terminals[0].generationToken, running.generationToken);
+});
+
+test('a confirmed scope retries a failed initial registration after 500ms without another DOM mutation or heartbeat', async () => {
+  const clock = { now: 1000 }; let calls = 0;
+  const f = await contentLifecycleFixture('running', 'https://chatgpt.com/c/test', {
+    clock, initialRegistrationReply: message => ++calls === 1
+      ? { ok: false, reason: 'lease_pending' }
+      : { ok: true, v: 1, pageInstanceId: message.pageInstanceId,
+        workerEpoch: 'worker-fixture', leaseId: 'lease-fixture', bindingEpoch: 'binding-fixture' },
+  });
+  assert.equal(f.registrations.length, 1); assert.equal(f.messages.length, 0);
+  const retry = [...f.timeouts].find(([id]) => f.timeoutDelays.get(id) === 500);
+  assert.ok(retry, 'initial rejection arms a bounded retry');
+  clock.now += 500; f.timeouts.delete(retry[0]); retry[1]();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.registrations.length, 2);
+  assert.equal(f.messages.at(-1).status, 'running');
+  assert.equal(f.messages.at(-1).observedAt, 1500);
+});
+
+test('an unconfirmed production binding does not poll registration at the confirmed retry rate', async () => {
+  const f = await contentLifecycleFixture('running', 'https://chatgpt.com/c/test', { productionBinding: true });
+  assert.equal(f.registrations.length, 1);
+  assert.equal([...f.timeouts.keys()].filter(id => f.timeoutDelays.get(id) === 500).length, 0);
+  f.ready();
+  assert.equal(f.registrations.length, 1);
+  assert.equal(f.messages.length, 0);
+});
+
+test('a late explicit manifest start replaces failed recovery ticket origin for future automatic registration', async () => {
+  // Protocol lifecycle regression only; the stand-in rejects every grant.
+  const clock={now:1000};
+  const f=await contentLifecycleFixture('idle','https://chatgpt.com/c/test',{
+    clock,initialRegistrationReply:()=>({ok:false,reason:'binding_unconfirmed'}),
+  });
+  await f.reinject({attemptId:'early-recovery-ticket'});
+  assert.equal(f.registrations.at(-1).attemptId,'early-recovery-ticket');
+  await f.reinject({attemptId:null});
+  assert.equal(f.registrations.at(-1).attemptId,null);
+  clock.now+=10000;await f.rawHealth();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(f.registrations.at(-1).attemptId,null);
+  assert.equal(f.registrations.length,4);
+  assert.equal(f.messages.length,0);
+});
+
+test('a stale SPA registration forwards only the negative binding result and never adopts a stale grant', async () => {
+  for(const negative of [true,false]){
+    const f=await contentLifecycleFixture('idle');let release;
+    f.registrationReply(()=>new Promise(resolve=>release=resolve));
+    const pending=f.lifecycle.register('recovery-during-SPA',true);
+    const request=f.registrations.at(-1);const messages=f.messages.length;
+    f.location.href='https://chatgpt.com/c/changed-before-registration-reply';
+    release(negative?{ok:false,reason:'binding_unconfirmed'}:{ok:true,v:1,pageInstanceId:request.pageInstanceId,
+      workerEpoch:'worker-fixture',leaseId:'stale-lease',bindingEpoch:'binding-fixture'});
+    const result=await pending;
+    assert.equal(result.ok,false);
+    assert.equal(result.reason,negative?'binding_unconfirmed':'lease_invalid');
+    assert.equal(f.lifecycle.identity().lease,null);
+    assert.equal(f.messages.length,messages);
+  }
+});
+
+test('fast registration retries are bounded and stable failures do not arm them', async () => {
+  for (const reason of ['paused', 'attempt_expired']) {
+    const f = await contentLifecycleFixture('running', 'https://chatgpt.com/c/test', {
+      initialRegistrationReply: () => ({ ok: false, reason }),
+    });
+    assert.equal(f.registrations.length, 1);
+    assert.equal(f.timeouts.size, 0);
+    f.ready(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.registrations.length, 1);
+    assert.equal(f.timeouts.size, 0);
+  }
+  const clock = { now: 1000 };
+  const f = await contentLifecycleFixture('running', 'https://chatgpt.com/c/test', {
+    clock, initialRegistrationReply: () => ({ ok: false, reason: 'registration_failed' }),
+  });
+  for (let i = 0; i < 3; i++) {
+    const timer = [...f.timeouts].find(([id]) => f.timeoutDelays.get(id) === 500);
+    assert.ok(timer); clock.now += 500; f.timeouts.delete(timer[0]); timer[1]();
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.equal(f.registrations.length, 4);
+  assert.equal(f.timeouts.size, 0, 'after three fast retries normal polling takes over');
+  assert.equal(f.messages.length, 0);
+});
+
+test('repeated unknown DOM grants and mutations exhaust the same bounded retry budget', async () => {
+  const clock = { now: 1000 };
+  const f = await contentLifecycleFixture('unknown', 'https://chatgpt.com/c/test', { clock });
+  assert.equal(f.messages.at(-1).status, 'unknown');
+  for (let i = 0; i < 8; i++) {
+    f.mutate();
+    clock.now += 500;
+    for (const [id, callback] of [...f.timeouts]) { f.timeouts.delete(id); callback(); }
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.equal(f.registrations.length, 4, 'unknown DOM cannot reset backoff or the three-retry budget');
+  assert.equal(f.timeouts.size, 0);
+  assert.equal(f.messages.some(m => m.status === 'running' || m.status === 'settled'), false);
 });

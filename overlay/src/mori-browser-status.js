@@ -2,6 +2,7 @@
 
 const PROVIDERS = ["chatgpt", "claude"];
 const NAMES = { chatgpt: "ChatGPT", claude: "Claude" };
+const monitoring = require('../extensions/browser-bridge/monitoring-contract');
 
 function healthFor(bridge, client) {
   return bridge?.clientHealth?.find(item => item.clientId === client.clientId
@@ -15,9 +16,21 @@ function providerStatuses(bridge, clients) {
     const unknown = reports.length - known.length;
     const discovered = known.reduce((sum, row) => sum + row.discovered, 0);
     const admitted = known.reduce((sum, row) => sum + row.admitted, 0);
-    const unconfirmed = known.reduce((sum, row) => sum + row.reasons.unconfirmed, 0);
-    const unavailable = known.reduce((sum, row) => sum + row.reasons.unavailable, 0);
-    const overLimit = known.reduce((sum, row) => sum + row.reasons.over_limit, 0);
+    const fresh = known.reduce((sum, row) => sum + row.fresh, 0);
+    const unmonitored = known.reduce((sum, row) => sum + row.unmonitored, 0);
+    const reasons = {};
+    for (const row of known) for (const [key, count] of Object.entries(row.reasons)) reasons[key] = (reasons[key] || 0) + count;
+    const unconfirmed = known.reduce((sum, row) => sum + (row.reasons.unconfirmed || 0), 0);
+    const unavailable = known.reduce((sum, row) => sum + (row.reasons.unavailable || 0), 0);
+    const overLimit = known.reduce((sum, row) => sum + (row.reasons.over_limit || 0), 0);
+    const v2 = clients.length && clients.every(client => healthFor(bridge, client)?.schema === 2);
+    if (v2 && !unknown) {
+      const descriptions = Object.entries(reasons).filter(([,n]) => n > 0).map(([key,n]) => `${monitoring.REASON_LABELS[key] || '原因を確認中'} ${n}件`);
+      return { provider, name: NAMES[provider], state: !discovered ? 'no_tabs' : fresh === discovered ? 'monitoring' : fresh ? 'partial' : 'deferred',
+        label: !discovered ? '対象タブなし' : `監視中 ${fresh} / 対象 ${discovered}件・保留 ${unmonitored}件`,
+        detail: descriptions.length ? descriptions.join('。') : '現在の表示領域の観測を本体へ保存済みです。過去の結果未確認記録は各行で確認できます。',
+        discovered, admitted, fresh, unmonitored, reasons };
+    }
     let state = "checking";
     let label = "新しい観測は未確認";
     let detail = `対象 ${discovered} 件・ページの登録 ${admitted} 件。会話ごとの生成状態は下の一覧で確認します。`;
@@ -26,7 +39,7 @@ function providerStatuses(bridge, clients) {
       detail = "対象の Chrome プロファイルとページが利用可能になると、確認を進めます。";
     } else if (unknown) {
       state = "unknown"; label = known.length ? "一部の確認が未完了" : "確認状況は不明";
-      detail = `${unknown} ブラウザで、対象タブの取得またはサイトへのアクセスを確認できていません。${known.length ? `確認済みの範囲では対象 ${discovered} 件です。` : "対象が 0 件と確認できた状態ではありません。"}`;
+      detail = `${unknown} ブラウザで、対象タブの取得またはサイトへのアクセスを確認できていません。${known.length ? `確認済みの範囲では対象 ${discovered} 件・監視中 ${fresh} 件・保留 ${unmonitored} 件です。` : "対象が 0 件と確認できた状態ではありません。"}`;
     } else if (!discovered) {
       state = "no_tabs"; label = "対象タブなし";
       detail = "接続中のブラウザで対象の会話タブを開くと、確認を進めます。";
@@ -40,7 +53,9 @@ function providerStatuses(bridge, clients) {
     if (overLimit) detail += ` ${overLimit} 件は監視タブ数の上限を超えています。`;
     // Aggregate health never promotes a row or claims end-to-end recovery.
     return { provider, name: NAMES[provider], state, label, detail,
-      discovered: !clients.length || unknown ? null : discovered, admitted: !clients.length || unknown ? null : admitted };
+      discovered: !clients.length || unknown ? null : discovered, admitted: !clients.length || unknown ? null : admitted,
+      fresh: !clients.length || unknown ? null : fresh, unmonitored: !clients.length || unknown ? null : unmonitored,
+      knownFresh: fresh, reasons };
   });
 }
 
@@ -53,6 +68,9 @@ function deliveryStatus(bridge, clients) {
     return { state: "unknown", label: "保存済み通知の同期状況は未確認" };
   }
   const remaining = values.reduce((sum, value) => sum + value.remainingReplay, 0);
+  const held = values.reduce((sum, value) => sum + (value.unsupportedHeld || 0), 0);
+  const deferred = values.reduce((sum, value) => sum + (value.retryDeferred || 0), 0);
+  if (held || deferred) return { state: 'syncing', label: `接続先が未対応の通知 ${held}件・保存再試行待ち ${deferred}件。保持して再送します。` };
   const livePending = values.reduce((sum, value) => sum + value.livePending, 0);
   return remaining ? { state: "syncing", label: `保存済み通知を同期中：残り ${remaining} 件` }
     : livePending ? { state: "syncing", label: `新しく受け付けた通知を送信中：残り ${livePending} 件` }

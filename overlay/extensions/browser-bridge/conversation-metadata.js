@@ -7,7 +7,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function (utils) {
   'use strict';
   const USER = {
-    chatgpt: '[data-message-author-role="user"]',
+    chatgpt: '[data-message-author-role="user"], [data-user-message-bubble]',
     claude: '[data-testid="user-message"], [data-message-author-role="user"]',
   };
   const EDITOR = 'input, textarea, [contenteditable]:not([contenteditable="false"]), [role="textbox"]';
@@ -88,14 +88,15 @@
     let knownKeys = [];
     return {
       knownConversationKeys() { return [...knownKeys]; },
-      sample(doc, url, { assignedNewConversation = false } = {}) {
+      sample(doc, url, { assignedNewConversation = false, scope = doc, verifiedBinding = false } = {}) {
         const current = utils.routeForUrl(url);
         const links = current ? conversationLinks(doc, url) : [];
         knownKeys = links.map(({ route: target }) => `${target.provider}:${target.conversationRef}`);
-        const nodes = userMessages(doc, current);
+        const nodes = userMessages(scope, current);
         const latest = nodes.at(-1);
         const preview = latest ? boundedText(latest) : '';
-        if (initialized && !utils.sameRoute(route, current) && !assignedNewConversation) {
+        if (verifiedBinding) fence = null;
+        if (!verifiedBinding && initialized && !utils.sameRoute(route, current) && !assignedNewConversation) {
           // Navigation can change the URL before React replaces any messages.
           // Keep only references to the old submitted nodes, plus its already
           // authorized latest excerpt, and fence them from the new route.

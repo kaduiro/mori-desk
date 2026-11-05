@@ -33,8 +33,9 @@
     };
   }
 
-  function isStopTarget(element) {
-    return !!element?.closest?.(STOP.join(','));
+  function isStopTarget(element, doc) {
+    const target = element?.closest?.(STOP.join(','));
+    return !!target && !!doc && STOP.some(selector => [...doc.querySelectorAll(selector)].includes(target));
   }
 
   return { provider: 'claude', observe, isStopTarget, selectors: { STOP, COMPOSER, ASSISTANT, ERROR } };

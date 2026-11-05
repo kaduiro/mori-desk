@@ -1,5 +1,6 @@
 // Browser metadata has its own protocol. Never pass it to the CLI /state route.
 const crypto = require("node:crypto");
+const monitoring = require('../extensions/browser-bridge/monitoring-contract');
 
 const VERSION = 1;
 const PRODUCT_ID = "mori-desk";
@@ -82,6 +83,7 @@ function normalizeConversationRef(provider, ref) {
 }
 
 function validateEvent(input) {
+  if (input?.type === 'scope.event') return validateScopeEvent(input);
   assertKeys(input, ["type", "v", "eventId", "browserRunId", "sessionId", "sequence", "kind",
     "provider", "tabId", "pageInstanceId", "routeRevision", "conversationRef", "turnId", "generation",
     "phase", "outcome", "observation", "observedAt", "replay", "conversationTitle", "requestPreview"]);
@@ -104,6 +106,64 @@ function validateEvent(input) {
     if (Object.hasOwn(input, key) && !isConversationMetadata(input[key])) throw protocolError("invalid_metadata");
   }
   return { ...input, conversationRef: normalizeConversationRef(input.provider, input.conversationRef) };
+}
+
+function validateScopeEvent(input) {
+  assertKeys(input, ['type', 'v', 'schema', 'scope', 'gap', 'eventId', 'browserRunId', 'sessionId', 'sequence', 'kind',
+    'provider', 'tabId', 'pageInstanceId', 'routeRevision', 'conversationRef', 'turnId', 'generation',
+    'phase', 'outcome', 'observation', 'observedAt', 'replay', 'conversationTitle', 'requestPreview']);
+  if (input.v !== VERSION || input.schema !== 2 || !monitoring.validScope(input.scope)) throw protocolError('invalid_scope');
+  const { schema, scope, gap, ...body } = input;
+  if (input.kind === 'gap') {
+    assertKeys(gap, ['turnId', 'reason', 'observedAt']);
+    if (!isId(gap.turnId) || !monitoring.GAP_REASONS.includes(gap.reason) || !isInteger(gap.observedAt, 1)
+      || input.observation === 'fresh' || gap.turnId !== input.turnId) throw protocolError('invalid_gap');
+  } else if (gap !== null) throw protocolError('invalid_gap');
+  const base = validateEvent({ ...body, type: 'event', kind: input.kind === 'gap' ? 'observation' : input.kind });
+  if (scope.kind === 'view' && (base.conversationRef !== null || base.conversationTitle !== '' || base.requestPreview !== '')
+    || scope.kind === 'conversation' && base.conversationRef === null
+    || base.outcome === 'completed') throw protocolError('invalid_scope');
+  return { ...base, type: 'scope.event', schema, scope: { ...scope }, kind: input.kind, gap: gap ? { ...gap } : null };
+}
+
+function validateObservationHealth(input) {
+  assertKeys(input, ['type', 'v', 'schema', 'browserRunId', 'workerEpoch', 'sequence', 'extensionVersion',
+    'observerVersion', 'buildId', 'observerContract', 'providers', 'delivery', 'proofs', 'revokedProofs']);
+  if (input.type !== 'client.health' || input.v !== VERSION || input.schema !== 2
+    || !isId(input.browserRunId) || !isId(input.workerEpoch) || !isInteger(input.sequence, 1)
+    || !VERSION_TEXT.test(input.extensionVersion || '') || !VERSION_TEXT.test(input.observerVersion || '')
+    || !/^[a-f0-9]{64}$/.test(input.buildId || '') || input.observerContract !== 1
+    || !Array.isArray(input.providers) || input.providers.length !== 2 || !Array.isArray(input.proofs)
+    || input.proofs.length > 20 || new Set(input.proofs).size !== input.proofs.length || !input.proofs.every(isId)
+    || !Array.isArray(input.revokedProofs) || input.revokedProofs.length > 20 || !input.revokedProofs.every(isId)
+    || new Set(input.revokedProofs).size !== input.revokedProofs.length || input.revokedProofs.some(p => input.proofs.includes(p))) throw protocolError('invalid_health');
+  const providers = new Set();
+  let admitted = 0, eligible = 0;
+  for (const row of input.providers) {
+    assertKeys(row, ['provider', 'inventory', 'discovered', 'eligible', 'admitted', 'fresh', 'unmonitored', 'reasons']);
+    if (!['chatgpt', 'claude'].includes(row.provider) || providers.has(row.provider)) throw protocolError('invalid_health');
+    providers.add(row.provider);
+    const fields = ['discovered', 'eligible', 'admitted', 'fresh', 'unmonitored'];
+    if (row.inventory === 'unknown') {
+      if (fields.some(k => row[k] !== null) || row.reasons !== null) throw protocolError('invalid_health');
+      continue;
+    }
+    if (row.inventory !== 'known' || fields.some(k => !isInteger(row[k]) || row[k] > 100000)
+      || row.fresh > row.admitted || row.admitted > row.eligible || row.eligible > row.discovered
+      || row.unmonitored !== row.discovered - row.fresh) throw protocolError('invalid_health');
+    assertKeys(row.reasons, monitoring.REASONS);
+    if (monitoring.REASONS.some(k => !isInteger(row.reasons[k]))
+      || monitoring.REASONS.reduce((n,k) => n + row.reasons[k], 0) !== row.unmonitored) throw protocolError('invalid_health');
+    admitted += row.admitted;
+    eligible += row.eligible;
+  }
+  if (admitted > 20 || eligible > 20) throw protocolError('invalid_health');
+  assertKeys(input.delivery, ['state', 'remainingReplay', 'livePending', 'reserveUsed', 'sendablePending', 'unsupportedHeld', 'retryDeferred', 'capacityBlocked']);
+  if (!['unknown', 'syncing', 'current', 'capacity_blocked'].includes(input.delivery.state)
+    || ['remainingReplay', 'livePending', 'reserveUsed', 'sendablePending', 'unsupportedHeld', 'retryDeferred', 'capacityBlocked']
+      .some(k => !isInteger(input.delivery[k]) || input.delivery[k] > 220)
+    || input.delivery.state === 'current' && (input.delivery.remainingReplay || input.delivery.unsupportedHeld || input.delivery.retryDeferred)) throw protocolError('invalid_health');
+  return structuredClone(input);
 }
 
 function validateDesktopBuild(input) {
@@ -174,4 +234,5 @@ module.exports = {
   authText, mac, verifyMac, validateHello, validateEvent,
   normalizeConversationRef, decodeFrame, desktopSessionId,
   RESTART_HEALTH_CAPABILITY, HEALTH_REASONS, validateDesktopBuild, validateClientHealth,
+  monitoring, validateScopeEvent, validateObservationHealth,
 };

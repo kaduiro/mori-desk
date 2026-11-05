@@ -1,7 +1,8 @@
 const crypto = require("node:crypto");
 const path = require("node:path");
-const { openJsonFile } = require("./browser-bridge-persistence");
-const { VERSION, isId, isInteger, isConversationMetadata, desktopSessionId, validateEvent, normalizeConversationRef, protocolError } = require("./browser-bridge-protocol");
+const { openJsonFile, atomicWrite } = require("./browser-bridge-persistence");
+const { VERSION, isId, isInteger, isConversationMetadata, desktopSessionId, validateEvent, normalizeConversationRef, protocolError, monitoring } = require("./browser-bridge-protocol");
+const STORAGE_VERSION = 2;
 
 const STALE_MS = 90 * 1000;
 const MAX_ACTIVE = 20;
@@ -27,15 +28,31 @@ function eventFingerprint(event) {
   if (Object.hasOwn(body, "conversationTitle") || Object.hasOwn(body, "requestPreview")) {
     fields.push("conversation-metadata", body.conversationTitle ?? null, body.requestPreview ?? null);
   }
+  if (body.type === 'scope.event') fields.push('scope-v2', monitoring.scopeKey(body.scope),
+    body.gap ? [body.gap.turnId, body.gap.reason, body.gap.observedAt] : null);
   return crypto.createHash("sha256").update(JSON.stringify(fields)).digest("hex");
 }
 
 function validateStore(value) {
-  if (value?.version !== VERSION || !Array.isArray(value.sessions) || value.sessions.length > MAX_SESSIONS
+  if (![VERSION, STORAGE_VERSION].includes(value?.version) || !Array.isArray(value.sessions) || value.sessions.length > MAX_SESSIONS
     || !Array.isArray(value.receipts) || value.receipts.length > MAX_RECEIPTS
     || !isInteger(value.nextNoticeSequence) || !isInteger(value.labels?.chatgpt) || !isInteger(value.labels?.claude)
     || (value.nextLabelSequence !== undefined && !isInteger(value.nextLabelSequence))) throw new Error("Invalid browser session store");
   const ids = new Set();
+  if (value.cleaned !== undefined) {
+    if (!Array.isArray(value.cleaned) || value.cleaned.length > MAX_RECEIPTS
+      || value.cleaned.reduce((n,r) => n + (r.events?.length || 0) + 1, 0) > MAX_RECEIPTS) throw new Error('Invalid cleanup ledger');
+    const cleanedIds = new Set();
+    for (const r of value.cleaned) {
+      if (![r.clientId,r.browserRunId,r.sessionId].every(isId)
+        || r.id !== desktopSessionId(r.clientId,r.browserRunId,r.sessionId) || cleanedIds.has(r.id)
+        || !['chatgpt','claude'].includes(r.provider) || !isInteger(r.tabId) || !['view','conversation'].includes(r.scopeKind)
+        || !isInteger(r.lastSequence) || !Array.isArray(r.events)
+        || r.events.some(e => !isId(e.eventId) || !/^[a-f0-9]{64}$/.test(e.fingerprint || ''))
+        || new Set(r.events.map(e=>e.eventId)).size !== r.events.length) throw new Error('Invalid cleanup entry');
+      cleanedIds.add(r.id);
+    }
+  }
   for (const row of value.sessions) {
     if (![row.clientId, row.browserRunId, row.sessionId, row.pageInstanceId].every(isId)
       || row.id !== desktopSessionId(row.clientId, row.browserRunId, row.sessionId)
@@ -56,8 +73,17 @@ function validateStore(value) {
       || !["idle", "running", "settled"].includes(row.phase)
       || !["fresh", "stale", "closed", "unsupported"].includes(row.observation)) throw new Error("Invalid browser session record");
     normalizeConversationRef(row.provider, row.conversationRef);
+    if (row.scope !== undefined && (!monitoring.validScope(row.scope)
+      || row.scope.kind === 'view' && (row.conversationRef !== null || row.conversationTitle || row.requestPreview))) throw new Error('Invalid browser scope');
+    if (row.retired !== undefined && typeof row.retired !== 'boolean') throw new Error('Invalid retired browser scope');
+    if (row.closedEvent !== undefined && (!isId(row.closedEvent.eventId)
+      || !/^[a-f0-9]{64}$/.test(row.closedEvent.fingerprint || ''))) throw new Error('Invalid closed event');
+    if (row.gaps !== undefined && (!Array.isArray(row.gaps) || row.gaps.some(g => !isId(g.eventId) || !isId(g.turnId)
+      || !monitoring.GAP_REASONS.includes(g.reason) || !isInteger(g.observedAt, 1) || typeof g.acknowledged !== 'boolean'
+      || !/^[a-f0-9]{64}$/.test(g.fingerprint || '')))) throw new Error('Invalid observation gap');
     ids.add(row.id);
   }
+  if (value.sessions.reduce((n, r) => n + (r.gaps?.length || 0), 0) > MAX_SESSIONS) throw new Error('Invalid gap capacity');
   const receiptIds = new Set();
   const noticeSequences = new Set();
   for (const receipt of value.receipts) {
@@ -181,11 +207,17 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
   else if (row.phase === "running") status = "generating";
   else if (row.phase === "settled" && row.outcome) status = row.outcome;
   const details = observationDetails(row, status, now, activeRuns, restored);
+  const view = row.scope?.kind === 'view';
+  if (view) {
+    details.focusUnavailableReason = '会話への移動は所属確認待ちです。';
+    if (status === 'unverified') details.statusLabel = '生成終了候補（結果未検証・会話所属未確定）';
+    else details.statusLabel += '・会話所属未確定';
+  }
   if (status === "completed" && pending) details.statusLabel = "回答完了・未確認";
   const conversationTitle = row.conversationTitle || "";
   const requestPreview = row.requestPreview || "";
-  const displayTitle = row.customLabel || conversationTitle || row.label;
-  const isCurrent = activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed";
+  const displayTitle = view ? `${row.label}・表示中の画面` : row.customLabel || conversationTitle || row.label;
+  const isCurrent = activeRuns.get(row.clientId) === row.browserRunId && observation !== "closed" && !row.retired;
   return {
     id: row.id, source: "browser", platform: "webui", agentId: `browser-${row.provider}`,
     provider: row.provider, label: row.label, customLabel: row.customLabel || "", sessionTitle: displayTitle, displayTitle,
@@ -194,6 +226,8 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
     tabId: row.tabId, pageInstanceId: row.pageInstanceId, routeRevision: row.routeRevision,
     conversationRef: row.conversationRef, currentTurnId: row.currentTurnId, generation: row.generation,
     phase: row.phase, outcome: row.outcome, observation, status, ...details,
+    scopeKind: row.scope?.kind || 'conversation', startUnobserved: row.scope?.startUnobserved || false,
+    resultGaps: (row.gaps || []).filter(g => !g.acknowledged).map(({ eventId, turnId, reason, observedAt }) => ({ eventId, turnId, reason, observedAt })),
     state: status === "generating" ? "working" : status === "error" ? "error" : pending ? "attention" : "idle",
     badge: status === "generating" ? "running" : status === "unknown" ? "unknown" : status === "error" ? "error" : row.phase === "settled" ? "done" : "idle",
     requiresCompletionAck: !!pending, unreadCount: receipts.length,
@@ -202,17 +236,28 @@ function projectRow(data, row, now, activeRuns, restored, connectionTimes) {
     acknowledgedThrough: row.acknowledgedThrough,
     // Generation certainty does not determine whether an existing tab can be
     // visited. The extension still checks the exact tab/document/route twice.
-    canFocus: isCurrent,
-    capabilities: { focus: true, acknowledge: true, dismiss: true, directSend: false, permission: false },
+    canFocus: isCurrent && !view,
+    capabilities: { focus: !view, acknowledge: true, dismiss: true, directSend: false, permission: false },
     lastConnectionAt: connectionTimes.get(row.clientId) || 0,
     lastObservationAt: row.lastObservationAt, phaseChangedAt: row.phaseChangedAt,
     turnStartedAt: row.turnStartedAt, updatedAt: row.phaseChangedAt, createdAt: row.createdAt,
   };
 }
 
-function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () => {}, onNotice = () => {} } = {}) {
+function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () => {}, onNotice = () => {}, onPersistenceError = () => {}, measurement = null } = {}) {
   const file = openJsonFile(path.join(dataDir, "sessions.json"), validateStore, fs ? { fs } : {});
   let data = file.value || { version: VERSION, sessions: [], receipts: [], nextNoticeSequence: 0, nextLabelSequence: 0, labels: { chatgpt: 0, claude: 0 } };
+  // Preserve the validated pre-migration source separately. Complete both
+  // primary and backup migration before accepting any new v2 receipt. An old
+  // binary must fail closed rather than recover a stale v1 backup as current.
+  if (file.value && data.version === VERSION) {
+    const fsImpl = fs || require('node:fs');
+    const original = path.join(dataDir, 'sessions.pre-v2.json');
+    try { validateStore(JSON.parse(fsImpl.readFileSync(original, 'utf8'))); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; atomicWrite(original, JSON.stringify(data), fsImpl); }
+    data = { ...data, version: STORAGE_VERSION }; file.write(data); file.write(data);
+  }
+  if (!file.value) data.version = STORAGE_VERSION;
   const activeRuns = new Map();
   const connectionTimes = new Map();
   const restored = new Set(data.sessions.map((row) => row.id));
@@ -238,7 +283,15 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
     }
   }
   function commit(next) {
-    try { file.write(next); } catch (error) { lastError = "session_store_write_failed"; throw protocolError(lastError, error.message); }
+    try { file.write(next); } catch (error) {
+      lastError = "session_store_write_failed";
+      const category = ['EACCES', 'EBUSY', 'EPERM', 'ENOSPC', 'EDQUOT', 'EIO'].includes(error.code)
+        ? error.code : /^Invalid /.test(error.message || '') ? 'invalid_store'
+          : error.message === 'Browser store exceeds its byte limit' ? 'byte_limit' : 'unknown';
+      const detail = error.moriPersistenceStage === 'rename' ? `rename_${category}` : category;
+      try { onPersistenceError(detail); } catch { /* Diagnostics cannot affect receipt durability. */ }
+      throw protocolError(lastError, error.message);
+    }
     data = next;
     lastError = null;
   }
@@ -258,20 +311,34 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       const event = validateEvent(input);
       if (!isId(clientId)) throw protocolError("invalid_client");
       const currentRun = activeRuns.get(clientId) === event.browserRunId;
-      if (!currentRun && !(["terminal", "closed"].includes(event.kind) && event.replay)) throw protocolError("stale_browser_run");
+      if (!currentRun && !(["terminal", "closed", "gap"].includes(event.kind) && event.replay)) throw protocolError("stale_browser_run");
       if (event.observedAt > now() + 30 * 1000) throw protocolError("invalid_observed_time");
       const id = desktopSessionId(clientId, event.browserRunId, event.sessionId);
       const receiptKey = `${id}:${event.eventId}`;
       const existingReceipt = data.receipts.find((receipt) => receipt.key === receiptKey);
       if (existingReceipt) {
         if (existingReceipt.fingerprint !== eventFingerprint(event)) throw protocolError("event_id_conflict");
-        return { duplicate: true, id, eventId: event.eventId, sequence: event.sequence };
+        return { duplicate: true, disposition: 'duplicate_durable', id, eventId: event.eventId, sequence: event.sequence };
       }
       const existing = getRecord(id);
+      if (existing?.closedEvent?.eventId === event.eventId) {
+        if (existing.closedEvent.fingerprint !== eventFingerprint(event)) throw protocolError('event_id_conflict');
+        return { duplicate: true, disposition: 'duplicate_durable', id, eventId: event.eventId, sequence: event.sequence };
+      }
+      const cleaned = data.cleaned?.find(r => r.id === id);
+      if (cleaned && (cleaned.provider !== event.provider || cleaned.tabId !== event.tabId
+        || event.type !== 'scope.event' || cleaned.scopeKind !== event.scope.kind)) throw protocolError('session_identity_conflict');
+      const cleanedEvent = cleaned?.events.find(e => e.eventId === event.eventId);
+      if (cleanedEvent) {
+        if (cleanedEvent.fingerprint !== eventFingerprint(event)) throw protocolError('event_id_conflict');
+        return { duplicate: true, disposition: 'duplicate_durable', id, eventId: event.eventId, sequence: event.sequence };
+      }
+      if (!existing && cleaned && ['observation', 'closed'].includes(event.kind) && event.sequence <= cleaned.lastSequence)
+        return { duplicate: true, disposition: 'ignored_order', id, eventId: event.eventId, sequence: event.sequence };
       if (existing && (existing.provider !== event.provider || existing.tabId !== event.tabId)) throw protocolError("session_identity_conflict");
       const fresh = !event.replay && currentRun && event.observation === "fresh" && now() - event.observedAt <= STALE_MS;
       if (!existing && data.sessions.length >= MAX_SESSIONS) throw protocolError("session_limit");
-      if (fresh && (!existing || existing.dismissed || effectiveObservation(existing, now(), activeRuns, restored) !== "fresh")) {
+      if (event.type !== 'scope.event' && fresh && (!existing || existing.dismissed || effectiveObservation(existing, now(), activeRuns, restored) !== "fresh")) {
         const activeCount = data.sessions.filter((row) => !row.dismissed && effectiveObservation(row, now(), activeRuns, restored) === "fresh").length;
         if (activeCount >= MAX_ACTIVE) throw protocolError("active_session_limit");
       }
@@ -293,6 +360,21 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       }
       // Receipt acceptance is deliberately independent of live-state ordering.
       let notice = null;
+      let gapChanged = false;
+      if (event.type === 'scope.event') {
+        if (row.scope && row.scope.kind !== event.scope.kind) throw protocolError('session_identity_conflict');
+        if (event.kind === 'gap') {
+          row.gaps ||= [];
+          const saved = row.gaps.find(g => g.eventId === event.eventId);
+          if (saved) {
+            if (saved.fingerprint !== eventFingerprint(event)) throw protocolError('event_id_conflict');
+            return { duplicate: true, disposition: 'duplicate_durable', id, eventId: event.eventId, sequence: event.sequence };
+          }
+          if (next.sessions.reduce((n,r) => n + (r.gaps?.length || 0), 0) >= MAX_SESSIONS) throw protocolError('session_limit');
+          row.gaps.push({ ...event.gap, eventId: event.eventId, fingerprint: eventFingerprint(event), acknowledged: false });
+          gapChanged = true;
+        }
+      }
       if (event.kind === "terminal") {
         notice = {
           key: receiptKey, id, eventId: event.eventId, fingerprint: eventFingerprint(event),
@@ -348,8 +430,24 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
         if (newTurn && event.phase === "running") { row.turnStartedAt = event.observedAt; row.dismissed = false; }
         liveChanged = true;
       }
-      if (!notice && !liveChanged) return { duplicate: true, id, eventId: event.eventId, sequence: event.sequence };
+      if (event.type === 'scope.event' && liveChanged) {
+        row.scope = { ...event.scope };
+        if (event.kind === 'closed') row.closedEvent = { eventId: event.eventId, fingerprint: eventFingerprint(event) };
+        row.acceptedEventId = event.eventId;
+        if (event.scope.kind === 'view') { row.conversationTitle = ''; row.requestPreview = ''; }
+        if (fresh && event.kind !== 'gap') {
+          const others = next.sessions.filter(other => other.id !== row.id && other.clientId === row.clientId
+            && other.browserRunId === row.browserRunId && other.tabId === row.tabId && !other.retired);
+          // A retired series never becomes the current scope again. Returning
+          // to the same conversation requires its newly verified view series.
+          row.retired = !!row.retired || others.some(other => other.lastObservationAt > event.observedAt);
+          if (!row.retired) for (const other of others) { other.retired = true; other.observation = 'stale'; }
+          else row.observation = 'stale';
+        }
+      }
+      if (!notice && !liveChanged && !gapChanged) return { duplicate: true, disposition: 'ignored_order', id, eventId: event.eventId, sequence: event.sequence };
       commit(next); // The server is allowed to send event.ack only after this succeeds.
+      try { measurement?.record('durable_commit'); } catch (_) {}
       if (fresh && liveChanged) restored.delete(id);
       if (notice) lastNoticeAt = now();
       changed();
@@ -357,7 +455,7 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
         try { onNotice({ ...notice, session: rows().find((item) => item.id === id), replay: event.replay }); }
         catch { /* The unread receipt remains available if a notification surface is unavailable. */ }
       }
-      return { duplicate: false, id, eventId: event.eventId, sequence: event.sequence };
+      return { duplicate: false, disposition: liveChanged && !row.retired ? 'committed_current' : 'committed_receipt', id, eventId: event.eventId, sequence: event.sequence };
     },
     getSnapshot: rows,
     getFocusTarget(id, noticeSequence) {
@@ -388,12 +486,36 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
     dismiss(id) {
       const existing = getRecord(id);
       if (!existing) return { ok: false, reason: "session_missing" };
+      if (existing.scope && pendingReceipts(data, existing).length) return { ok: false, reason: 'unread_notice' };
+      if (existing.scope && existing.gaps?.some(g => !g.acknowledged)) return { ok: false, reason: 'unread_gap' };
       const next = structuredClone(data);
       const row = next.sessions.find((item) => item.id === id);
+      if (row.scope) {
+        const old = next.cleaned?.find(r => r.id === id);
+        const events = new Map((old?.events || []).map(e => [e.eventId, e]));
+        for (const e of [...next.receipts.filter(r => r.id === id), ...(row.gaps || []), ...(row.closedEvent ? [row.closedEvent] : [])])
+          events.set(e.eventId, { eventId: e.eventId, fingerprint: e.fingerprint });
+        const ledger = (next.cleaned || []).filter(r => r.id !== id);
+        ledger.push({ id, clientId: row.clientId, browserRunId: row.browserRunId, sessionId: row.sessionId,
+          provider: row.provider, tabId: row.tabId, scopeKind: row.scope.kind,
+          lastSequence: Math.max(old?.lastSequence || 0,row.lastSequence), events: [...events.values()] });
+        if (ledger.reduce((n,r)=>n+r.events.length+1,0) > MAX_RECEIPTS) return { ok: false, reason: 'cleanup_limit' };
+        next.cleaned = ledger;
+        next.sessions = next.sessions.filter(r => r.id !== id);
+        next.receipts = next.receipts.filter(r => r.id !== id);
+        commit(next); changed(); return { ok: true };
+      }
       row.acknowledgedThrough = Math.max(row.acknowledgedThrough, ...next.receipts.filter((receipt) => receipt.id === id).map((receipt) => receipt.noticeSequence));
       row.dismissed = true;
       commit(next); changed();
       return { ok: true };
+    },
+    acknowledgeGap(id, eventId) {
+      const existing = getRecord(id);
+      if (!existing?.gaps?.some(g => g.eventId === eventId)) return { ok: false, reason: 'gap_missing' };
+      const next = structuredClone(data);
+      next.sessions.find(r => r.id === id).gaps.find(g => g.eventId === eventId).acknowledged = true;
+      commit(next); changed(); return { ok: true };
     },
     setLabel(id, input) {
       // Explicit local display metadata only. Never accept this through a
@@ -421,6 +543,7 @@ function createBrowserSessionStore({ dataDir, now = Date.now, fs, onChange = () 
       // Only call after the corresponding authentication credential is revoked.
       const ids = new Set(data.sessions.filter((row) => row.clientId === clientId).map((row) => row.id));
       const next = { ...data, sessions: data.sessions.filter((row) => !ids.has(row.id)), receipts: data.receipts.filter((receipt) => !ids.has(receipt.id)) };
+      if (next.cleaned) next.cleaned = next.cleaned.filter(r => r.clientId !== clientId);
       commit(next); activeRuns.delete(clientId); connectionTimes.delete(clientId); changed();
     },
     tick: changed,

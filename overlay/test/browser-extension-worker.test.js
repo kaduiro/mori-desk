@@ -7,7 +7,8 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 const transportApi = require('../extensions/browser-bridge/transport');
 const providerUtils = require('../extensions/browser-bridge/provider-utils');
-const { EXTENSION_ID, validateEvent, validateClientHealth } = require('../src/browser-bridge-protocol');
+const { EXTENSION_ID, validateEvent, validateClientHealth, validateObservationHealth } = require('../src/browser-bridge-protocol');
+const monitoring = require('../extensions/browser-bridge/monitoring-contract');
 
 function event() { const listeners = []; return { listeners, addListener(listener) { listeners.push(listener); } }; }
 
@@ -61,7 +62,7 @@ test('health inventory expires even if heartbeats continue to run and reconnect 
 });
 
 async function workerFixture({ savedLocal = null, savedSession = null, savedTabs = null,
-  configureChrome = () => {}, timers = null } = {}) {
+  configureChrome = () => {}, timers = null, v2 = false } = {}) {
   const log = [];
   const local = savedLocal ? structuredClone(savedLocal) : { moriClientId: 'profile-1', moriCredential: {
     clientId: 'profile-1', instanceId: 'instance-1', port: 23333, key: crypto.randomBytes(32).toString('base64url'),
@@ -87,7 +88,8 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   }
   class FakeTransport {
     constructor(options) { Object.assign(this, options); this.ready = false; this.enabled = true; this.canConnect = true; this.events = []; this.health = []; transports.push(this); }
-    sendHealth(value) { validateClientHealth(value); this.health.push(clone(value)); return true; }
+    sendHealth(value) { (value.schema === 2 ? validateObservationHealth : validateClientHealth)(value); this.health.push(clone(value)); return true; }
+    getPeerInfo() { return { capabilities: v2 ? [...monitoring.CAPABILITIES] : [] }; }
     isReady() { return this.ready; }
     disconnect() { this.ready = false; this.onStatus({ state: 'disconnected', code: 'test_offline' }); }
     setEnabled(enabled) { this.enabled = enabled; if (enabled) void this.ensureConnected(); else this.disconnect(); }
@@ -101,6 +103,9 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
       if (!this.ready) throw new Error('disconnected');
       validateEvent(value);
       this.events.push(clone(value)); log.push({ type: 'send', value: clone(value) });
+      if (value.type === 'scope.event') return { type: 'scope.event.ack', schema: 2, eventId: value.eventId,
+        browserRunId: value.browserRunId, sessionId: value.sessionId, sequence: value.sequence,
+        duplicate: false, disposition: 'committed_current', proof: value.observation === 'fresh' ? `proof-${value.eventId}` : null, reason: null };
       return { type: 'event.ack', eventId: value.eventId, browserRunId: value.browserRunId,
         sessionId: value.sessionId, sequence: value.sequence, duplicate: false };
     }
@@ -125,6 +130,9 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
           pageInstanceId: tab.pageId || `page-${id}`, route: providerUtils.routeForUrl(tab.url),
           binding: { state: tab.bindingState || 'confirmed', epoch: tab.bindingEpoch || `binding-${id}` },
           lease: tab.bindingState === 'unconfirmed' ? null : tab.lease || null };
+        Object.assign(identity.binding, { kind: tab.bindingState === 'unconfirmed' ? 'unknown' : tab.bindingKind || 'conversation',
+          viewEpoch: `view-${id}`, reason: tab.bindingState === 'unconfirmed' ? 'scope_unconfirmed' : null });
+        identity.samplingEpoch = `sampling-${id}`;
         if (message.type === 'mori.observer.identity') {
           log.push({ type: 'observer-probe', id, options: clone(options) });
           if (message.pageInstanceId) await onDocumentCheck(tab, message);
@@ -156,12 +164,16 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
       log.push({ type: options.files ? 'observer-inject' : options.args ? 'observer-start' : 'document-probe', target: clone(options.target),
         world: options.world, files: options.files && [...options.files] });
       if (!tab || tab.injectionError) throw new Error('PRIVATE_INJECTION_ERROR https://chatgpt.com/c/private');
+      if (options.func?.toString().includes('owner.identity')) {
+        log.push({ type: 'observer-probe', id: tab.id, options: { frameId: 0 } });
+        await onDocumentCheck(tab, { type: 'mori.observer.identity', pageInstanceId: tab.pageId || `page-${tab.id}` });
+      }
       const documentId = tab.documentId || `document-${tab.id}`;
-      if (options.files || options.args) {
+      if (options.files || options.target.documentIds) {
         if (options.target.documentIds?.[0] !== documentId) throw new Error('no_document_PRIVATE_URL');
       }
-      if (options.files) tab.installed = true;
-      if (options.args && !tab.injectionNoop) {
+      if (options.files) { tab.installed = true; await onScript(options, tab); return [{ frameId: 0, documentId }]; }
+      if (options.target.documentIds && options.args && !tab.injectionNoop) {
         if (tab.noReceiver || tab.modernObserver === false || (tab.observerVersion && tab.observerVersion !== CURRENT_VERSION)) {
           tab.noReceiver = false; tab.invalidReady = false; tab.modernObserver = true;
           tab.pageId = `recovered-page-${++injectionCount}`;
@@ -174,8 +186,19 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
         return [{ frameId: 0, documentId, result: registered }];
       }
       const url = new URL(tab.url);
+      const readContext = vm.createContext({ location: url, document: {
+        readyState: 'complete', prerendering: !!tab.prerendering, visibilityState: 'visible' },
+        __moriBrowserObserverLifecycle: {
+          isActive: () => !tab.noReceiver && tab.modernObserver !== false && !tab.invalidReady,
+          identity: () => ({ observerVersion: tab.observerVersion || CURRENT_VERSION,
+            pageInstanceId: tab.pageId || `page-${tab.id}`, route: providerUtils.routeForUrl(tab.url),
+            binding: { state: tab.bindingState || 'confirmed', epoch: tab.bindingEpoch || `binding-${tab.id}`,
+              kind: tab.bindingState === 'unconfirmed' ? 'unknown' : tab.bindingKind || 'conversation', viewEpoch: `view-${tab.id}`,
+              reason: tab.bindingState === 'unconfirmed' ? 'scope_unconfirmed' : null },
+            samplingEpoch: `sampling-${tab.id}`, lease: tab.bindingState === 'unconfirmed' ? null : tab.lease || null }),
+        } });
       const result = { frameId: 0, documentId,
-        result: { url: url.origin + url.pathname, readyState: 'complete', active: !tab.prerendering } };
+        result: vm.runInContext(`(${options.func.toString()})(...${JSON.stringify(options.args || [])})`, readContext) };
       await onScript(options, tab);
       return [result];
     } },
@@ -187,7 +210,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   configureChrome(chrome);
   const root = path.join(__dirname, '../extensions/browser-bridge');
   const context = vm.createContext({ chrome, crypto: crypto.webcrypto, URL, TextEncoder, TextDecoder,
-    setTimeout, clearTimeout, setInterval, clearInterval, btoa, atob,
+    setTimeout, clearTimeout, setInterval, clearInterval, btoa, atob, performance,
     ...(timers || {}),
     importScripts(...files) {
       for (const file of files) {
@@ -205,7 +228,12 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
   await vm.runInContext('initialized', context);
   await Promise.all(initialRegistrations);
   async function drain() {
-    for (let i = 0; i < 5; i++) { await vm.runInContext('queue', context); await new Promise(resolve => setImmediate(resolve)); }
+    // A withheld external Chrome preparation is no longer a global mutation
+    // barrier. Drain ready work without waiting for a test-held IO reply.
+    for (let i = 0; i < 12; i++) {
+      await Promise.race([vm.runInContext('queue', context), new Promise(resolve => setImmediate(resolve))]);
+      await new Promise(resolve => setImmediate(resolve));
+    }
   }
   await drain();
   function dispatch(message, sender) {
@@ -242,6 +270,7 @@ async function workerFixture({ savedLocal = null, savedSession = null, savedTabs
     }
     const result = await dispatch({ type: 'mori.observation', v: 1, pageInstanceId: 'page-1',
       contentSequence: ++contentSequence, observedAt: Date.now(), status: 'running', generationToken: 'generation-1', outcome: null,
+      ...(v2 ? { v:2, scopeKind:'conversation',viewEpoch:`view-${currentTab.id}`,samplingEpoch:`sampling-${currentTab.id}`,startUnobserved:false } : {}),
       ...currentTab?.lease, ...patch }, currentSender);
     await drain(); return result;
   }
@@ -352,7 +381,7 @@ test('old reconciliation results do not close newly observed tabs or updated rec
   f.chrome.tabs.query = () => new Promise(resolve => { release = resolve; });
   const pending = vm.runInContext('reconcileTabs()', f.context);
   await new Promise(resolve => setImmediate(resolve));
-  f.tabs.set(8, { id: 8, windowId: 3, status: 'complete', url: 'https://claude.ai/chat/new-b', pageId: 'page-b' });
+  f.tabs.set(8, { id: 8, windowId: 3, status: 'complete', url: 'https://claude.ai/chat/new-b', pageId: 'page-b', documentId: 'document-b' });
   assert.equal((await f.observe({ pageInstanceId: 'page-b' },
     { tab: { id: 8 }, documentId: 'document-b', url: 'https://claude.ai/chat/new-b' })).ok, true);
   assert.equal((await f.observe()).ok, true, 'the old A record has changed while the list was pending');
@@ -471,6 +500,7 @@ test('worker restart and page reload reuse the idle tab session within the same 
   assert.equal(replay.sessionId, original.sessionId);
   assert.equal(replay.replay, true);
   restarted.tabs.get(7).pageId = 'page-reloaded';
+  restarted.tabs.get(7).documentId = 'document-reloaded';
   assert.equal((await restarted.observe({ status: 'idle', generationToken: null, contentSequence: 1,
     pageInstanceId: 'page-reloaded', conversationTitle: '継続する会話', requestPreview: '' },
   { documentId: 'document-reloaded' })).ok, true);
@@ -857,7 +887,14 @@ test('bootstrap response and a current page ID cannot authorize an unconfirmed c
   assert.equal(health.observerRecovery.recovered, 0);
   assert.equal(health.observerRecovery.reasons.binding_unconfirmed, 1);
   assert.equal(health.observationDelivery.accepted, 0);
-  assert.deepEqual(f.session, before);
+  const invalidated = f.session.moriSessions.sessions[record.sessionId];
+  assert.deepEqual(Object.keys(f.session.moriSessions.sessions), Object.keys(before.moriSessions.sessions));
+  assert.equal(invalidated.observation, 'stale');
+  assert.equal(invalidated.unknownAfterReload, true);
+  assert.equal(invalidated.turnId, record.turnId);
+  assert.equal(invalidated.phase, 'running'); assert.equal(invalidated.outcome, null);
+  assert.equal(invalidated.lastObservationAt, record.lastObservationAt);
+  assert.equal(f.transport.events.filter(e => e.kind === 'terminal').length, 0);
   assert.doesNotMatch(JSON.stringify(f.session), /PRIVATE_UNBOUND_REQUEST/);
 });
 
@@ -1157,4 +1194,318 @@ test('the automatic alarm reconciles a physically absent saved tab after startup
   f.chrome.alarms.onAlarm.listeners[0]({ name: 'mori-reconnect' }); await f.drain();
   assert.equal(f.transport.events.filter(event => event.kind === 'closed').length, 1);
   assert.deepEqual(Object.keys(f.session.moriSessions.tabs), []);
+});
+
+test('v2 worker publishes monitoring only after an exact committed proof and preserves a migration backup', async () => {
+  const f=await workerFixture({v2:true});
+  assert.equal((await f.observe()).ok,true);
+  const sent=f.transport.events.at(-1); assert.equal(sent.type,'scope.event');
+  const h=f.transport.health.at(-1); assert.equal(h.schema,2);
+  assert.equal(h.providers[0].fresh,1); assert.deepEqual(h.proofs,[`proof-${sent.eventId}`]);
+  assert.equal(f.local.moriMonitoringPreV2.v,2);
+  assert.equal(f.local.moriMonitoringPreV2.sessions.v,1);
+  const backup=structuredClone(f.local.moriMonitoringPreV2);
+  await f.observe({status:'settled',outcome:'unverified'});
+  assert.deepEqual(f.local.moriMonitoringPreV2,backup);
+});
+
+test('v2 worker revokes every proof and lease after a remote durable write failure, while retaining its journal', async () => {
+  const f=await workerFixture({v2:true}); await f.observe();
+  const before=f.transport.health.at(-1).proofs;
+  f.transport.sendEvent=async ()=> { throw Object.assign(new Error('disk'),{code:'session_store_write_failed'}); };
+  await f.observe({status:'settled',outcome:'unverified'}); await f.drain();
+  const h=f.transport.health.at(-1); assert.equal(h.providers[0].fresh,0);
+  assert.equal(h.providers[0].reasons.storage_failed,1);
+  assert.ok(h.revokedProofs.includes(before[0]));
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  assert.ok(f.local.moriOutbox.events.some(e=>e.kind==='terminal'));
+  assert.equal(f.transport.isReady(),true);
+});
+
+test('a capacity NACK for the current turn removes its earlier proof immediately and preserves its terminal',async()=>{
+  const f=await workerFixture({v2:true});await f.observe({status:'idle',generationToken:null});
+  assert.equal(f.transport.health.at(-1).providers[0].fresh,1);
+  const send=f.transport.sendEvent.bind(f.transport);
+  f.transport.sendEvent=async e=>{if(e.kind==='terminal')throw Object.assign(new Error('full'),{code:'receipt_limit'});return send(e);};
+  await f.observe();await f.observe({status:'settled',outcome:'unverified'});await f.drain();
+  const h=f.transport.health.at(-1);assert.equal(h.providers[0].fresh,0);assert.equal(h.providers[0].reasons.receipt_limit,1);
+  assert.ok(f.local.moriOutbox.events.some(e=>e.kind==='terminal'));
+});
+
+test('authenticated scope negotiation survives a temporary disconnect without a legacy series or a new turn', async () => {
+  const f=await workerFixture({v2:true});
+  f.transport.getPeerInfo=()=>f.transport.isReady()?{capabilities:[...monitoring.CAPABILITIES]}:null;
+  await f.observe({status:'idle',generationToken:null});await f.observe();
+  const before=structuredClone(f.session.moriSessions);
+  const id=before.tabs[7],turn=before.sessions[id].turnId,scope=before.sessions[id].scope;
+  const delivered=f.transport.events.length;
+  f.transport.canConnect=false;f.transport.disconnect();
+  assert.equal((await f.observe()).ok,true);
+  assert.equal((await f.observe({status:'settled',outcome:'unverified'})).ok,true);
+  const after=f.session.moriSessions;
+  assert.equal(after.tabs[7],id);assert.equal(Object.keys(after.sessions).length,1);
+  assert.equal(after.sessions[id].turnId,turn);
+  assert.deepEqual(after.sessions[id].scope,scope);
+  assert.equal(after.sessions[id].eventSchema,2);assert.equal(after.sessions[id].phase,'settled');
+  assert.equal(f.transport.events.length,delivered,'offline observation is not a durable desktop ACK');
+  assert.ok(f.local.moriOutbox.events.some(e=>e.type==='scope.event'&&e.kind==='terminal'));
+  assert.equal(f.local.moriOutbox.events.some(e=>e.kind==='closed'),false);
+  f.transport.canConnect=true;await f.transport.ensureConnected();await f.drain();
+  assert.equal(f.local.moriOutbox.events.length,0);
+  assert.equal(f.session.moriSessions.tabs[7],id);
+});
+
+test('unknown negotiation and a different credential cannot downgrade schema2 observation during disconnection', async () => {
+  for(const cold of [true,false]){
+    const f=await workerFixture({v2:true});await f.observe();
+    f.transport.getPeerInfo=()=>f.transport.isReady()?{capabilities:[...monitoring.CAPABILITIES]}:null;
+    f.transport.canConnect=false;f.transport.disconnect();
+    vm.runInContext(cold?'observationNegotiation=null':'credential={...credential}',f.context);
+    const before=structuredClone(f.session);
+    assert.equal((await f.observe()).reason,'ack_unavailable');
+    assert.deepEqual(f.session,before);
+  }
+});
+
+test('a live peer retracting view support cannot use its older view lease to admit another observation', async () => {
+  const f=await workerFixture({v2:true});f.tabs.get(7).bindingKind='view';
+  assert.equal((await f.observe({scopeKind:'view',conversationTitle:'',requestPreview:''})).ok,true);
+  const before=structuredClone(f.session),sent=f.transport.events.length;
+  f.transport.getPeerInfo=()=>({capabilities:[monitoring.CAPABILITIES[0],monitoring.CAPABILITIES[2]]});
+  assert.equal((await f.observe({scopeKind:'view',conversationTitle:'',requestPreview:''})).reason,'peer_unsupported');
+  assert.deepEqual(f.session,before);assert.equal(f.transport.events.length,sent);
+  assert.deepEqual(providerUtils.safeObservationAck({ok:false,reason:'ack_unavailable'}),{ok:false,reason:'ack_unavailable'});
+  assert.deepEqual(providerUtils.safeObservationAck({ok:false,reason:'peer_unsupported'}),{ok:false,reason:'peer_unsupported'});
+});
+
+test('v2 fresh sessions remain fair when one session is updated during every ACK wait', async () => {
+  const f=await workerFixture({v2:true});
+  const first=await f.observe(); assert.equal(first.ok,true);
+  f.transport.disconnect();
+  await f.observe();
+  const a=structuredClone(f.transport.events[0]);
+  const b={...a,sessionId:'session-other',eventId:'other-fresh',tabId:8};
+  f.context.testOther=b;
+  vm.runInContext("freshEvents.set('other',testOther)",f.context);
+  const send=f.transport.sendEvent.bind(f.transport); let count=0;
+  f.transport.sendEvent=async e=> {
+    const ack=await send(e);
+    if(e.tabId===7 && count++<3) { f.context.testUpdate={...e,eventId:`updated-${count}`,sequence:e.sequence+1};
+      vm.runInContext('freshEvents.set([...freshEvents.keys()][0],testUpdate)',f.context); }
+    return ack;
+  };
+  f.transport.ready=true; await vm.runInContext('flush()',f.context);
+  const sent=f.transport.events.slice(1); assert.equal(sent[1].eventId,'other-fresh');
+});
+
+test('a successfully completed recovery permits same-document re-registration but cannot authorize a replacement document', async () => {
+  const f=await workerFixture({v2:true,savedTabs:[[7,{id:7,windowId:3,status:'complete',url:'https://chatgpt.com/c/test',
+    documentId:'document-1',pageId:'page-1',noReceiver:true}]]});await f.drain();
+  const lease=vm.runInContext('observerLeases.get(7)',f.context);assert.ok(lease?.attemptId);
+  assert.equal(vm.runInContext('recoveryAttempts.size',f.context),0);
+  assert.equal(vm.runInContext('completedRegistrations.size',f.context),1);
+  const tab=f.tabs.get(7);tab.pageId='new-page';tab.bindingEpoch='new-binding';tab.lease=null;
+  assert.equal((await f.registerTab(tab,lease.attemptId)).ok,true);
+  tab.documentId='replacement-document';
+  assert.equal((await f.registerTab(tab,lease.attemptId)).reason,'attempt_expired');
+});
+
+test('completed registration admission reclaims only orphaned grants and refuses promotion after its deadline', async () => {
+  const f=await workerFixture({v2:true,savedTabs:[]});
+  vm.runInContext("for(let n=100;n<120;n++) completedRegistrations.set(n,{attemptId:'old',documentId:'old',generation:controlGeneration})",f.context);
+  f.tabs.set(7,{id:7,windowId:3,status:'complete',url:'https://chatgpt.com/c/test',documentId:'document-1',pageId:'page-1',noReceiver:true});
+  f.chrome.alarms.onAlarm.listeners[0]({name:'mori-reconnect'});await f.drain();
+  assert.equal(vm.runInContext('completedRegistrations.size',f.context),1);
+  assert.equal(vm.runInContext('completedRegistrations.has(7)',f.context),true);
+  let clock=100000;class ClockDate extends Date{static now(){return clock;}}
+  const expired=await workerFixture({v2:true,timers:{Date:ClockDate}});
+  expired.tabs.get(7).noReceiver=true;
+  expired.scriptDuring(options=>{if(options.target.documentIds&&options.args)clock+=10001;});
+  expired.chrome.alarms.onAlarm.listeners[0]({name:'mori-reconnect'});await expired.drain();
+  assert.equal(vm.runInContext('completedRegistrations.size',expired.context),0);
+  assert.equal(vm.runInContext('observerLeases.size',expired.context),0);
+});
+
+test('a sender starting URL cannot label an SPA observation; the actual Chrome document and current observer own the route',async()=>{
+  const f=await workerFixture();const tab=f.tabs.get(7);
+  assert.equal((await f.registerTab(tab,null,{}, {url:'https://chatgpt.com/'})).ok,true);
+  assert.equal((await f.registerTab(tab,null,{}, {url:'https://chatgpt.com/settings'})).ok,true);
+  for(const url of ['blob:https://chatgpt.com/test','http://chatgpt.com/','https://user@chatgpt.com/','https://chatgpt.com:8443/'])
+    assert.equal((await f.registerTab(tab,null,{}, {url})).reason,'invalid_sender');
+  const old=observationFor(f,{requestPreview:'PRIVATE_OLD_SCOPE'});
+  tab.url='https://chatgpt.com/c/next';tab.pageId='next-page';tab.bindingEpoch='next-binding';tab.lease=null;
+  assert.equal((await f.registerTab(tab,null,{}, {url:'https://chatgpt.com/'})).ok,true);
+  assert.equal((await f.dispatch(old,{...contentSender(f),url:'https://chatgpt.com/'})).ok,false);
+  assert.equal((await f.dispatch(observationFor(f),{...contentSender(f),url:'https://chatgpt.com/'})).ok,true);
+  await f.drain();assert.equal(f.transport.events.at(-1).conversationRef,'/c/next');
+  assert.doesNotMatch(JSON.stringify({local:f.local,session:f.session,wire:f.transport.events}),/PRIVATE_OLD_SCOPE/);
+  assert.equal((await f.registerTab(tab,null,{}, {url:'https://chatgpt.com/',documentId:'old-document'})).ok,false);
+});
+
+test('a verified empty-page observer can re-register after explicit provisional handoff, without a lease or proof before binding', async () => {
+  const f=await workerFixture();const tab=f.tabs.get(7);
+  tab.bindingState='unconfirmed';tab.lease=null;
+  f.context.ownerTarget={tabId:7,documentId:tab.documentId||'document-7',route:providerUtils.routeForUrl(tab.url),expiresAt:Date.now()+10000};
+  const ticket=vm.runInContext('beginRecoveryAttempt(ownerTarget)',f.context);
+  assert.equal((await f.registerTab(tab,ticket)).reason,'binding_unconfirmed');
+  f.context.ownerTicket=ticket;
+  assert.equal(vm.runInContext('endRecoveryAttempt(ownerTicket,{retainObserver:true})',f.context),true);
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  assert.equal(f.transport.events.length,0);
+  tab.bindingState='confirmed';tab.pageId='newly-bound-page';
+  assert.equal((await f.registerTab(tab,ticket)).ok,true);
+  const lease={...tab.lease};
+  assert.equal(vm.runInContext('endRecoveryAttempt(ownerTicket)',f.context),false);
+  assert.deepEqual(tab.lease,lease);
+  assert.equal((await f.observe({pageInstanceId:tab.pageId},{documentId:tab.documentId||'document-7'})).ok,true);
+  tab.documentId='replacement-document';
+  assert.equal((await f.registerTab(tab,ticket)).reason,'attempt_expired');
+});
+
+test('a timed-out or cancelled empty-page candidate never becomes a provisional owner', async () => {
+  const f=await workerFixture();const tab=f.tabs.get(7);tab.bindingState='unconfirmed';tab.lease=null;
+  f.context.ownerTarget={tabId:7,documentId:tab.documentId||'document-7',route:providerUtils.routeForUrl(tab.url),expiresAt:Date.now()+10000};
+  const ticket=vm.runInContext('beginRecoveryAttempt(ownerTarget)',f.context);
+  assert.equal((await f.registerTab(tab,ticket)).reason,'binding_unconfirmed');
+  f.context.ownerTicket=ticket;vm.runInContext('endRecoveryAttempt(ownerTicket,{retainLease:false})',f.context);
+  assert.equal(vm.runInContext('provisionalCandidates.size + provisionalObservers.size',f.context),0);
+  tab.bindingState='confirmed';assert.equal((await f.registerTab(tab,ticket)).reason,'attempt_expired');
+  assert.equal(f.transport.events.length,0);
+});
+
+test('actual empty-page recovery hands off document ownership and later admits a ready SPA route', async () => {
+  const f=await workerFixture({savedTabs:[[7,{id:7,windowId:3,status:'complete',url:'https://chatgpt.com/',
+    documentId:'document-empty',noReceiver:true,bindingState:'unconfirmed'}]]});
+  await f.drain();
+  assert.equal(vm.runInContext('recoveryAttempts.size',f.context),0);
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  assert.equal(vm.runInContext('provisionalObservers.size',f.context),1);
+  assert.equal(f.transport.events.length,0);
+  const ticket=vm.runInContext('provisionalObservers.get(7).attemptId',f.context);
+  const tab=f.tabs.get(7);tab.url='https://chatgpt.com/c/ready';tab.bindingState='confirmed';
+  tab.pageId='page-ready';tab.bindingEpoch='binding-ready';
+  assert.equal((await f.registerTab(tab,ticket)).ok,true);
+  f.chrome.tabs.onUpdated.listeners[0](7,{status:'loading'});await f.drain();
+  assert.equal(vm.runInContext('provisionalObservers.size',f.context),0);
+  assert.equal((await f.registerTab(tab,ticket)).reason,'attempt_expired');
+});
+
+test('same-owner recovery keeps the existing lease object and updates only its ticket authority', async () => {
+  const f=await workerFixture();const tab=f.tabs.get(7);
+  vm.runInContext('oldLeaseForTest=observerLeases.get(7)',f.context);
+  const before={...tab.lease};
+  f.context.ownerTarget={tabId:7,documentId:tab.documentId,route:providerUtils.routeForUrl(tab.url),expiresAt:Date.now()+10000};
+  const ticket=vm.runInContext('beginRecoveryAttempt(ownerTarget)',f.context);
+  assert.equal((await f.registerTab(tab,ticket)).ok,true);
+  assert.equal(vm.runInContext('oldLeaseForTest===observerLeases.get(7)',f.context),true);
+  assert.deepEqual(tab.lease,before);
+  assert.equal(vm.runInContext('observerLeases.get(7).attemptId',f.context),ticket);
+});
+
+test('an SPA URL notification between empty binding registration and the start reply preserves only verified ownership', async () => {
+  const f=await workerFixture();const tab=f.tabs.get(7);tab.noReceiver=true;tab.bindingState='unconfirmed';tab.lease=null;
+  let changed=false;
+  f.scriptDuring(options=>{
+    if(options.args&&!changed){changed=true;tab.url='https://chatgpt.com/c/first';
+      f.chrome.tabs.onUpdated.listeners[0](7,{url:tab.url});}
+  });
+  f.chrome.alarms.onAlarm.listeners[0]({name:'mori-reconnect'});await f.drain();
+  assert.equal(changed,true);
+  assert.equal(vm.runInContext('recoveryAttempts.size',f.context),0);
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  assert.equal(vm.runInContext('provisionalObservers.size',f.context),1);
+  const ticket=vm.runInContext('provisionalObservers.get(7).attemptId',f.context);
+  tab.bindingState='confirmed';tab.pageId='ready-first-page';tab.bindingEpoch='ready-first-binding';
+  assert.equal((await f.registerTab(tab,ticket)).ok,true);
+});
+
+test('a loading notification after the final script snapshot prevents an unticketed manifest regrant', async () => {
+  const f=await workerFixture();const tab=f.tabs.get(7);let changed=false;
+  f.scriptDuring(options=>{
+    if(options.func?.toString().includes('owner.identity')&&!changed){changed=true;tab.status='loading';
+      f.chrome.tabs.onUpdated.listeners[0](7,{status:'loading'});}
+  });
+  assert.equal((await f.registerTab(tab,null)).reason,'old_document');await f.drain();
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  assert.equal(vm.runInContext('registrationFences.size',f.context),0);
+});
+
+test('an SPA candidate awaiting a late start reply is revoked on RPC timeout without provisional ownership', async () => {
+  const clock=controlledClock();const f=await workerFixture({timers:clock.timers});
+  const tab=f.tabs.get(7);tab.noReceiver=true;tab.bindingState='unconfirmed';tab.lease=null;let release;
+  f.scriptDuring(async options=>{
+    if(options.args&&!release){tab.url='https://chatgpt.com/c/late-first';
+      f.chrome.tabs.onUpdated.listeners[0](7,{url:tab.url});
+      await new Promise(resolve=>release=resolve);}
+  });
+  f.chrome.alarms.onAlarm.listeners[0]({name:'mori-reconnect'});await f.drain();
+  assert.equal(typeof release,'function');
+  assert.equal(vm.runInContext('provisionalCandidates.size',f.context),1);
+  assert.equal(vm.runInContext('provisionalObservers.size',f.context),0);
+  const ticket=vm.runInContext('[...recoveryAttempts.keys()][0]',f.context);
+  clock.advance(4000);await f.drain();
+  assert.equal(vm.runInContext('recoveryAttempts.size+provisionalCandidates.size+provisionalObservers.size',f.context),0);
+  release();await f.drain();tab.bindingState='confirmed';
+  assert.equal((await f.registerTab(tab,ticket)).reason,'attempt_expired');
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+});
+
+test('an older lifecycle invalidation cannot trail a newly observed route behind unrelated preparation', async () => {
+  const f=await workerFixture();await f.observe();let release;
+  f.context.unrelatedPreparationForTest=new Promise(resolve=>release=resolve);
+  const held=vm.runInContext('enqueue(()=>{}, {prepare:()=>unrelatedPreparationForTest})',f.context);
+  const tab=f.tabs.get(7);tab.url='https://chatgpt.com/c/new-route';tab.pageId='new-route-page';
+  tab.bindingEpoch='new-route-binding';tab.lease=null;
+  f.chrome.tabs.onUpdated.listeners[0](7,{url:tab.url});
+  assert.equal((await f.registerTab(tab)).ok,true);
+  assert.equal((await f.observe({pageInstanceId:tab.pageId},{url:tab.url})).ok,true);
+  release();await held;await f.drain();
+  const current=f.session.moriSessions.sessions[f.session.moriSessions.tabs[7]];
+  assert.equal(current.conversationRef,'/c/new-route');assert.equal(current.observation,'fresh');
+  assert.equal(current.unknownAfterReload,false);
+});
+
+for(const lifecycle of ['unsupported','loading']) test(`reconciliation recovers a queue-rejected ${lifecycle} lifecycle update`, async () => {
+  const f=await workerFixture();await f.observe();let release;
+  f.context.preparationGateForTest=new Promise(resolve=>release=resolve);
+  vm.runInContext("heldJobsForTest=Array.from({length:192},(_,n)=>enqueue(()=>{}, {key:'held-'+n,prepare:()=>preparationGateForTest}))",f.context);
+  const tab=f.tabs.get(7);
+  if(lifecycle==='unsupported'){tab.url='https://example.org/';f.chrome.tabs.onUpdated.listeners[0](7,{url:tab.url});}
+  else {tab.status='loading';f.chrome.tabs.onUpdated.listeners[0](7,{status:'loading'});}
+  await f.drain();
+  assert.equal(vm.runInContext('diagnostic',f.context),'observer_queue_full');
+  assert.equal(vm.runInContext('observerLeases.size',f.context),0);
+  release();await vm.runInContext('Promise.all(heldJobsForTest)',f.context);
+  await vm.runInContext('reconcileTabs()',f.context);await f.drain();
+  if(lifecycle==='unsupported'){
+    assert.equal(f.session.moriSessions.tabs[7],undefined);
+    assert.equal(f.transport.events.some(event=>event.kind==='closed'),true);
+  }else{
+    const record=f.session.moriSessions.sessions[f.session.moriSessions.tabs[7]];
+    assert.equal(record.observation,'stale');assert.equal(record.phase,'running');
+    assert.equal(f.transport.events.some(event=>event.kind==='terminal'),false);
+  }
+  assert.equal(vm.runInContext('fatalError',f.context),null);
+});
+
+test('queue pressure after a desktop receipt ACK retains the journal and retries without a storage-fault latch', async () => {
+  const f=await workerFixture();f.transport.canConnect=false;f.transport.disconnect();
+  await f.observe();await f.observe({status:'settled',outcome:'unverified'});
+  assert.equal(f.local.moriOutbox.events.length,1);
+  let release;f.context.preparationGateForTest=new Promise(resolve=>release=resolve);
+  const original=f.transport.sendEvent.bind(f.transport);let saturate=true;
+  f.transport.sendEvent=async event=>{
+    const ack=await original(event);
+    if(saturate){saturate=false;vm.runInContext("heldJobsForTest=Array.from({length:192},(_,n)=>enqueue(()=>{}, {key:'held-'+n,prepare:()=>preparationGateForTest}))",f.context);}
+    return ack;
+  };
+  f.transport.ready=true;await vm.runInContext('flush()',f.context);
+  assert.equal(f.local.moriOutbox.events.length,1);
+  assert.equal(vm.runInContext('fatalError',f.context),null);
+  assert.equal(vm.runInContext('diagnostic',f.context),'observer_queue_full');
+  assert.equal(f.transport.enabled,true);
+  release();await vm.runInContext('Promise.all(heldJobsForTest)',f.context);
+  await vm.runInContext('flush()',f.context);
+  assert.equal(f.local.moriOutbox.events.length,0);
+  assert.equal(vm.runInContext('fatalError',f.context),null);
 });

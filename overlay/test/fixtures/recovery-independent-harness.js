@@ -276,7 +276,9 @@ function createWorkerBoundary({ queryFault = null, storageFault = null, autoRead
     const modern = manifest.version !== '0.1.6';
     const identity = () => ({ ok: true, v: 1, observerVersion: manifest.version, pageInstanceId,
       route: { provider: conversation.provider, path: conversation.route, conversationRef: conversation.route },
-      binding: { state: page.bindingState || 'confirmed', epoch: bindingEpoch },
+      binding: { state: page.bindingState || 'confirmed', epoch: bindingEpoch,
+        kind: page.bindingState === 'unconfirmed' ? 'unknown' : 'conversation', viewEpoch: `independent-view-${id}`,
+        reason: page.bindingState === 'unconfirmed' ? 'scope_unconfirmed' : null }, samplingEpoch: `independent-sampling-${id}`,
       lease: page.bindingState === 'unconfirmed' ? null : clone(lease) });
     page.protocol = { status: 'idle', generationToken: null, outcome: null };
     async function register(attemptId) {
@@ -288,6 +290,11 @@ function createWorkerBoundary({ queryFault = null, storageFault = null, autoRead
       return grant;
     }
     page.context.MoriBrowserObserver = { start: ({ attemptId }) => register(attemptId) };
+    // Protocol positive control only. The final isolated-document probe now
+    // calls the same observer identity directly instead of using sendMessage.
+    // Keep the frozen acceptance oracle and all assertions unchanged.
+    page.context.__moriBrowserObserverLifecycle = { isActive: () => true,
+      identity: () => { const { ok, v, ...body } = identity(); return body; } };
     async function publish() {
       if (modern && !lease) { const grant = await register(null); if (!grant?.ok) return grant; }
       return page.context.chrome.runtime.sendMessage({ type: 'mori.observation', v: 1, pageInstanceId,

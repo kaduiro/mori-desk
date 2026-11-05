@@ -37,7 +37,9 @@ function fixture() {
         if (tab.listener === 'legacy') return { ok: true };
         return { ok: true, v: 1, observerVersion: tab.observerVersion || CURRENT_VERSION, pageInstanceId: tab.pageInstanceId,
           route: utils.routeForUrl(tab.url), binding: { state: tab.bindingState || 'confirmed',
-            epoch: tab.bindingEpoch || 'binding-a' }, lease: tab.bindingState === 'unconfirmed' ? null : leaseFor(tab) };
+            epoch: tab.bindingEpoch || 'binding-a', kind: tab.bindingState === 'unconfirmed' ? 'unknown' : 'conversation',
+            viewEpoch: 'view-a', reason: tab.bindingState === 'unconfirmed' ? 'scope_unconfirmed' : null },
+          samplingEpoch: 'sampling-a', lease: tab.bindingState === 'unconfirmed' ? null : leaseFor(tab) };
       },
     },
     scripting: { executeScript: async options => {

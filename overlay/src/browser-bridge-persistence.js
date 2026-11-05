@@ -13,7 +13,17 @@ function atomicWrite(file, text, fsImpl = fs) {
     fsImpl.fsyncSync(descriptor);
     fsImpl.closeSync(descriptor);
     descriptor = undefined;
-    fsImpl.renameSync(temporary, file);
+    for (let attempt = 0; ; attempt++) {
+      try { fsImpl.renameSync(temporary, file); break; }
+      catch (error) {
+        // Windows scanners/readers can briefly deny replacement. Retry only
+        // this exact owned temporary file, with the same access permissions.
+        // Never unlink the destination or acknowledge a failed replacement.
+        error.moriPersistenceStage = 'rename';
+        if (process.platform !== 'win32' || !['EPERM', 'EBUSY', 'EACCES'].includes(error.code) || attempt >= 3) throw error;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 * (2 ** attempt));
+      }
+    }
   } finally {
     if (descriptor !== undefined) fsImpl.closeSync(descriptor);
     try { fsImpl.unlinkSync(temporary); } catch (error) { if (error.code !== "ENOENT") throw error; }

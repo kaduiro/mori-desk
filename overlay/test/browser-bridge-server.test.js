@@ -28,7 +28,7 @@ test("health has a 45-second receipt lifetime and cannot refresh a row or erase 
   const f = await fixture(t, { now: () => now,
     buildInfo: { desktopVersion: "0.1.3-preview.1", buildId: "e".repeat(64), observerContract: 1 } });
   const client = await f.pair();
-  assert.deepEqual(client.ready.capabilities, ["restart-health-v1"]);
+  assert.deepEqual(client.ready.capabilities, ['scope-observation-v2', 'view-observation-v1', 'restart-health-v1', 'observation-health-v2']);
   assert.equal(f.bridge.getStatus().clientHealth[0].state, "unknown");
   await f.deliver(client, f.terminal());
   const before = f.bridge.getSnapshot()[0];
@@ -156,6 +156,54 @@ test("real loopback WebSocket pairs, persists completion, and returns to the exa
   client.send(f.focusResponse(request));
   assert.equal((await focused).ok, true);
   assert.equal(f.bridge.getSnapshot()[0].requiresCompletionAck, false);
+});
+
+test('real loopback v2 persists exact scope ACKs, rejects duplicate proof renewal and expires health without touching unread', async t => {
+  let now=Date.now();
+  const f=await fixture(t,{now:()=>now,buildInfo:{desktopVersion:'0.1.3-preview.1',buildId:'e'.repeat(64),observerContract:1}});
+  const c=await f.pair();
+  const scope={kind:'view',viewEpoch:'view-a',bindingEpoch:'binding-a',samplingEpoch:'sample-a',
+    workerEpoch:'health-worker',leaseId:'lease-a',documentId:'document-a',startUnobserved:false};
+  const e=f.event({type:'scope.event',schema:2,scope,gap:null,conversationRef:null,conversationTitle:'',requestPreview:'',observedAt:now});
+  c.send(e); const ack=await c.take('scope.event.ack');
+  assert.equal(ack.disposition,'committed_current');assert.ok(ack.proof);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.dataDir,'sessions.json'))).sessions[0].acceptedEventId,e.eventId);
+  c.send({...e,replay:true}); const duplicate=await c.take('scope.event.ack');
+  assert.equal(duplicate.disposition,'ignored_order');assert.equal(duplicate.proof,null);
+  const providers=restartHealth.summarizeV2([{id:1,url:'https://chatgpt.com/c/test',status:'complete'}],new Map([[1,{ok:true}]]),{evidence:new Map([[1,{proof:ack.proof}]])});
+  const h=healthFrame({schema:2,proofs:[ack.proof],revokedProofs:[],providers,
+    delivery:{state:'current',remainingReplay:0,livePending:0,reserveUsed:0,sendablePending:0,unsupportedHeld:0,retryDeferred:0,capacityBlocked:0}});
+  c.send(h);c.send({type:'ping',at:now});await c.take('pong');
+  assert.equal(f.bridge.getStatus().clientHealth[0].health.providers[0].fresh,1);
+  const end={...e,eventId:'v2-end',sequence:2,kind:'terminal',phase:'settled',outcome:'unverified'};
+  c.send(end);const endAck=await c.take('scope.event.ack');assert.ok(endAck.proof);
+  assert.equal(f.bridge.getSnapshot()[0].unreadCount,1); assert.equal(f.bridge.getSnapshot()[0].canFocus,false);
+  // The current commit rotated the exact proof, while the accepted health
+  // snapshot still names the earlier token. This is not a time expiry.
+  const waiting=f.bridge.getStatus().clientHealth[0].health.providers[0];
+  assert.equal(waiting.fresh,0);assert.equal(waiting.reasons.delivery_pending,1);
+  assert.equal(waiting.reasons.observation_expired,0);
+  c.send({...h,sequence:2,proofs:[endAck.proof]});
+  c.send({type:'ping',at:now});await c.take('pong');
+  assert.equal(f.bridge.getStatus().clientHealth[0].health.providers[0].fresh,1);
+  c.send({...end,replay:true});const endDuplicate=await c.take('scope.event.ack');
+  assert.equal(endDuplicate.disposition,'duplicate_durable');assert.equal(endDuplicate.proof,null);
+  now+=15001;
+  assert.equal(f.bridge.getStatus().clientHealth[0].health.providers[0].fresh,0);
+  assert.equal(f.bridge.getStatus().clientHealth[0].health.providers[0].reasons.observation_expired,1);
+  assert.equal(f.bridge.getSnapshot()[0].unreadCount,1);
+});
+
+test('real loopback v2 disk failure returns a typed NACK without a false receipt or proof', async t => {
+  let fail=false;
+  const injectedFs={...fs,renameSync(from,to){if(fail&&to.endsWith('sessions.json'))throw new Error('simulated disk failure');fs.renameSync(from,to);}};
+  const f=await fixture(t,{fs:injectedFs}); const c=await f.pair(); fail=true;
+  const e=f.terminal({type:'scope.event',schema:2,scope:{kind:'conversation',viewEpoch:'view-a',bindingEpoch:'binding-a',
+    samplingEpoch:'sample-a',workerEpoch:'worker-a',leaseId:'lease-a',documentId:'document-a',startUnobserved:false},gap:null,outcome:'unverified'});
+  c.send(e); const nack=await c.take('scope.event.nack'); assert.equal(nack.reason,'session_store_write_failed');
+  assert.equal(c.queued('scope.event.ack').length,0);assert.equal(f.bridge.getSnapshot().length,0);
+  fail=false;c.send(e); const ack=await c.take('scope.event.ack');assert.equal(ack.disposition,'committed_current');
+  assert.equal(f.bridge.getSnapshot()[0].unreadCount,1);
 });
 
 test("authenticated short metadata persists before ACK and stays out of navigation requests", async (t) => {

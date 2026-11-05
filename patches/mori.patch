@@ -282,7 +282,7 @@ index 6f84bbc..0ec8906 100644
 +  if (!moriProduct.cliEnabled) {
 +    const status = getBrowserStatus({ bridge: moriBridge?.getStatus() || null,
 +      port: moriBoundPort, error: moriStartupError, listener: moriListenerStatus });
-+    merged.moriBrowserStatus = { state: status.state, dnd: doNotDisturb };
++    merged.moriBrowserStatus = { state: status.state, dnd: doNotDisturb, providers: status.providers.map(({ provider, state, fresh, discovered, unmonitored, detail }) => ({ provider, state, ...(Number.isSafeInteger(fresh) ? { fresh, discovered, unmonitored, detail } : {}) })) };
 +  }
 +  return merged;
 +}
@@ -1427,7 +1427,7 @@ index e5bf008..5115ade 100644
    if (folded.length > 0) {
      hudEl.appendChild(createFoldedRow(folded.length));
    }
-+  if (history) hudEl.appendChild(createBrowserStatusNotice(history, true));
++  const status = getMoriHudStatus(snapshot); if (status) hudEl.appendChild(createBrowserStatusNotice(status)); if (history) hudEl.appendChild(createBrowserStatusNotice(history, true));
 
    hudEl.appendChild(createPinButton(snapshot.hudPinned === true));
  }
@@ -1538,7 +1538,7 @@ index df2bb5b..0675067 100644
 
 +function computeHudContentHeight(snapshot, options = {}) {
 +  const layout = computeHudLayout(snapshot, options);
-+  const statusRows = !layout.rowCount && getMoriHudStatus(snapshot) ? 1 : 0;
++  const statusRows = getMoriHudStatus(snapshot) ? 1 : 0;
 +  const historyRows = getMoriHudHistory(snapshot) ? 1 : 0;
 +  const browserExtra = layout.expanded.reduce((sum, row) => sum + getMoriBrowserRowHeight(row) - HUD_ROW_HEIGHT, 0);
 +  return computeHudHeight(layout.rowCount + statusRows + historyRows) + browserExtra;

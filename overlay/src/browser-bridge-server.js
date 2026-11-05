@@ -2,9 +2,11 @@ const crypto = require("node:crypto");
 const { WebSocketServer, WebSocket } = require("ws");
 const { createBrowserBridgeAuth } = require("./browser-bridge-auth");
 const { createBrowserSessionStore } = require("./browser-session-store");
+const { createObservationProofs } = require('./browser-observation-proofs');
 const {
   VERSION, WS_PATH, EXTENSION_ID, MAX_FRAME_BYTES, assertKeys, isId, isInteger,
   protocolError, validateHello, decodeFrame, RESTART_HEALTH_CAPABILITY, validateDesktopBuild, validateClientHealth,
+  monitoring, validateObservationHealth,
 } = require("./browser-bridge-protocol");
 
 const AUTH_TIMEOUT_MS = 5000;
@@ -13,6 +15,31 @@ const CONNECTION_STALE_MS = 60000;
 const MAX_UNAUTHENTICATED = 8;
 const MAX_PENDING_FOCUS = 20;
 const HEALTH_STALE_MS = 45000;
+const MEASUREMENT_EVENT_FIELDS = ['type','v','schema','eventId','browserRunId','sessionId','sequence','kind','provider','tabId',
+  'pageInstanceId','routeRevision','conversationRef','turnId','generation','phase','outcome','observation','observedAt','replay'];
+function measurementDictionary(value,keys,ignored=[]) {
+  try {
+    if (!value||typeof value!=='object'||Array.isArray(value)) return null;
+    const proto=Object.getPrototypeOf(value),names=Reflect.ownKeys(value);
+    if (proto!==null&&proto!==Object.prototype||names.length>64||names.some(k=>typeof k!=='string'||!keys.includes(k)&&!ignored.includes(k))) return null;
+    const d=Object.getOwnPropertyDescriptors(value);
+    if(keys.some(k=>!Object.hasOwn(d,k))||names.some(k=>!Object.hasOwn(d[k],'value'))) return null;
+    return Object.fromEntries(keys.map(k=>[k,d[k].value]));
+  } catch (_) {return null;}
+}
+function measurementEvent(value) {
+  const e=measurementDictionary(value,[...MEASUREMENT_EVENT_FIELDS,'scope','gap'],['conversationTitle','requestPreview']);
+  if(!e)return null;
+  const s=measurementDictionary(e.scope,['kind','viewEpoch','bindingEpoch','samplingEpoch','workerEpoch','leaseId','documentId','startUnobserved']);
+  const g=e.gap===null?null:measurementDictionary(e.gap,['turnId','reason','observedAt']);
+  return s&&(e.gap===null||g!==null)?{...e,scope:s,gap:g}:null;
+}
+function measurementAck(value) {
+  const keys=['type','schema','eventId','browserRunId','sessionId','sequence','disposition','duplicate','reason'];
+  const a=measurementDictionary(value,[...keys,'proof']);
+  if(!a||a.proof!==null&&(typeof a.proof!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(a.proof)))return null;
+  return {...Object.fromEntries(keys.map(k=>[k,a[k]])),proofPresent:a.proof!==null};
+}
 
 function headerCount(request, name) {
   let count = 0;
@@ -22,7 +49,11 @@ function headerCount(request, name) {
   return count;
 }
 
-function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID, onChange = () => {}, onNotice = () => {}, now = Date.now, fs, buildInfo = null } = {}) {
+function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID, onChange = () => {}, onNotice = () => {}, now = Date.now, fs, buildInfo = null, measurement = null,
+  onIngestInput = null, onAckOutput = null, onMeasurementFailure = null } = {}) {
+  // Development constructor injection, not an HTTP/IPC setting. Only fixed
+  // categories reach the sink; recording never controls durability or ACKs.
+  function measure(stage) { try { measurement?.record(stage); } catch (_) {} }
   if (!dataDir || !/^[a-p]{32}$/.test(extensionId)) throw new Error("Browser bridge requires its private data directory and fixed extension ID");
   const build = buildInfo === null ? null : validateDesktopBuild(buildInfo);
   let auth;
@@ -34,10 +65,13 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
   const clients = new Map();
   const sockets = new Map();
   const pendingFocus = new Map();
+  const observationProofs = createObservationProofs({ now });
+  let proofRevision = 0;
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES, perMessageDeflate: false, clientTracking: true });
   try {
     auth = createBrowserBridgeAuth({ dataDir, safeStorage, now, fs });
-    store = createBrowserSessionStore({ dataDir, now, fs, onChange, onNotice });
+    store = createBrowserSessionStore({ dataDir, now, fs, onChange, onNotice, measurement,
+      onPersistenceError: category => console.warn('Mori browser persistence failed:', category) });
   } catch (error) { initializationError = error.code || "browser_store_unreadable"; }
 
   function safeChange() {
@@ -47,6 +81,12 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     if (socket.readyState !== WebSocket.OPEN) return false;
     const text = JSON.stringify(message);
     if (Buffer.byteLength(text) > MAX_FRAME_BYTES) throw protocolError("server_frame_limit");
+    if (typeof onAckOutput === 'function' && message.type === 'scope.event.ack') {
+      try { const projection=measurementAck(message);
+        if(!projection)try{onMeasurementFailure?.('invalid_schema');}catch(_){}
+        onAckOutput(socket._socket,projection); }
+      catch (_) { try { onMeasurementFailure?.('capture_failed'); } catch (_) {} }
+    }
     socket.send(text, (error) => { if (error) socket.close(1011, "send_failed"); });
     return true;
   }
@@ -68,6 +108,7 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     const connection = sockets.get(socket);
     if (!connection) return;
     sockets.delete(socket);
+    observationProofs.revokeConnection(connection);
     clearTimeout(connection.authTimer);
     if (connection.authenticated && clients.get(connection.clientId) === connection) {
       clients.delete(connection.clientId);
@@ -82,6 +123,7 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     const prior = clients.get(connection.clientId);
     if (prior && prior !== connection) prior.socket.close(1000, "connection_replaced");
     connection.authenticated = true;
+    measure('authenticated_ready');
     connection.handshake = null;
     clearTimeout(connection.authTimer);
     clients.set(connection.clientId, connection);
@@ -90,7 +132,9 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     send(connection.socket, {
       type: "ready", v: VERSION, clientId: connection.clientId,
       instanceId: auth.instanceId, serverRunId: auth.serverRunId, port: connection.port,
-      ...(build ? { capabilities: [RESTART_HEALTH_CAPABILITY], build } : {}),
+      capabilities: [monitoring.CAPABILITIES[0], monitoring.CAPABILITIES[1],
+        ...(build ? [RESTART_HEALTH_CAPABILITY, monitoring.CAPABILITIES[2]] : [])],
+      ...(build ? { build } : {}),
     });
     safeChange();
   }
@@ -102,7 +146,25 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     connection.tokens -= count;
   }
   function ingest(connection, message) {
+    // Development owner callback only; normal mode does not project/read extra
+    // fields. Metadata never crosses this callback boundary. It cannot alter ACKs.
+    if (typeof onIngestInput === 'function' && message.type === 'scope.event') {
+      try { const projection=measurementEvent(message);
+        if(!projection)try{onMeasurementFailure?.('invalid_schema');}catch(_){}
+        onIngestInput(connection.socket._socket,projection);
+      } catch (_) { try { onMeasurementFailure?.('capture_failed'); } catch (_) {} }
+    }
+    measure('desktop_received');
     const result = store.ingest(connection.clientId, message);
+    if (['committed_current', 'committed_receipt'].includes(result.disposition)) measure('desktop_committed');
+    if (message.type === 'scope.event') {
+      const proof = observationProofs.observe(connection, message, result.disposition);
+      const sent = send(connection.socket, { type: 'scope.event.ack', schema: 2, eventId: message.eventId,
+        browserRunId: message.browserRunId, sessionId: message.sessionId, sequence: message.sequence,
+        disposition: result.disposition, duplicate: result.duplicate, ...proof });
+      if (sent) measure('ack_sent');
+      return;
+    }
     send(connection.socket, { type: "event.ack", eventId: message.eventId,
       browserRunId: message.browserRunId, sessionId: message.sessionId, sequence: message.sequence, duplicate: result.duplicate });
   }
@@ -159,8 +221,13 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
       assertKeys(input, ["type", "at"]);
       if (!isInteger(input.at)) throw protocolError("invalid_ping");
       if (input.type === "ping") send(connection.socket, { type: "pong", at: input.at });
-    } else if (input.type === "event") {
-      ingest(connection, input);
+    } else if (input.type === "event" || input.type === 'scope.event') {
+      try { ingest(connection, input); }
+      catch (error) {
+        if (input.type !== 'scope.event' || !['session_limit', 'receipt_limit', 'active_session_limit', 'session_store_write_failed'].includes(error.code)) throw error;
+        send(connection.socket, { type: 'scope.event.nack', schema: 2, browserRunId: input.browserRunId,
+          sessionId: input.sessionId, eventId: input.eventId, sequence: input.sequence, reason: error.code });
+      }
     } else if (input.type === "snapshot") {
       assertKeys(input, ["type", "v", "events"]);
       if (input.v !== VERSION || !Array.isArray(input.events) || input.events.length > 20) throw protocolError("invalid_snapshot");
@@ -169,10 +236,13 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     } else if (input.type === "focus.result") {
       focusResult(connection, input);
     } else if (input.type === "client.health" && build) {
-      const health = validateClientHealth(input);
+      const health = input.schema === 2 ? validateObservationHealth(input) : validateClientHealth(input);
       if (health.browserRunId !== connection.browserRunId) throw protocolError("health_identity_mismatch");
       if (connection.health && (connection.health.workerEpoch !== health.workerEpoch
         || connection.health.sequence >= health.sequence)) throw protocolError("health_sequence");
+      // An older health frame can race a newer event/ACK on this socket.
+      // It contributes no monitoring evidence; wait for the exact new proof.
+      if (health.schema === 2 && !observationProofs.verifyHealth(connection, health)) { safeChange(); return; }
       // This is socket-scoped inventory, never a row observation or receipt.
       connection.health = health;
       connection.healthAt = now();
@@ -246,6 +316,8 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
         context.lastPingAt = now(); send(context.socket, { type: "ping", at: now() });
       }
     }
+    observationProofs.expire();
+    if (proofRevision !== observationProofs.getRevision()) { proofRevision = observationProofs.getRevision(); safeChange(); }
     store?.tick();
   }, 1000);
   tickTimer.unref?.();
@@ -274,7 +346,8 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
         clientHealth: [...clients.values()].map(connection => ({ clientId: connection.clientId,
           browserRunId: connection.browserRunId,
           state: !connection.health ? "unknown" : healthIsCurrent(connection) ? "current" : "stale",
-          health: healthIsCurrent(connection) ? structuredClone(connection.health) : null })) };
+          health: healthIsCurrent(connection) ? (connection.health.schema === 2
+            ? observationProofs.projectHealth(connection, connection.health) : structuredClone(connection.health)) : null })) };
     },
     getSnapshot() { return store?.getSnapshot() || []; },
     getVisualState() { return store?.getVisualState() || "idle"; },
@@ -298,6 +371,7 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
       });
     },
     async ack(id, noticeSequence) { return store ? store.ack(id, noticeSequence) : { ok: false, reason: "bridge_unavailable" }; },
+    async acknowledgeGap(id, eventId) { return store ? store.acknowledgeGap(id, eventId) : { ok: false, reason: 'bridge_unavailable' }; },
     async dismiss(id) { return store ? store.dismiss(id) : { ok: false, reason: "bridge_unavailable" }; },
     async setLabel(id, label) { return store ? store.setLabel(id, label) : { ok: false, reason: "bridge_unavailable" }; },
     async revoke(clientId) {
