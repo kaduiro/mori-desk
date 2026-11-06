@@ -3,6 +3,8 @@
 策定日: 2026-11-06（Asia/Tokyo）
 状態: Windows x64 の未署名インストーラーと個人 Cloud ガイドまで実装。[実装記録](desktop-distribution-implementation-20261106-ja.md)を参照。署名済みインストーラー、Mac 実機、公開サイト、各利用者の Cloud プロジェクトの受入は未完了。
 
+この文書の署名・公証・Web Store に関する公開ゲートは、不特定多数への円滑な配布を想定した案。個人の非商用作品として自分と少数の知人で試す現在の方針には、[個人利用の導入・配布方針](personal-use-distribution-20261106-ja.md)を優先する。非商用という理由だけで Google OAuth や OS の条件が自動的に免除されるわけではない。
+
 現在の優先順と合格条件は[残存タスクの実行案](desktop-distribution-next-steps-20261106-ja.md)に記載。
 
 ## 目的と前提

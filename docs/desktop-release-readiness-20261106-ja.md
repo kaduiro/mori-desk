@@ -1,6 +1,6 @@
 # Mori Desk 配布候補の受入記録
 
-更新日: 2026-11-06（Asia/Tokyo）。[PR #12](https://github.com/kaduiro/mori-desk/pull/12) は GitHub Actions 成功後、`main` の `5f1b31d8e9a3e84b2b9bcabc399773da3faae10f` にマージ済み。この記録はローカル候補の状態を示し、一般配布の承認ではない。
+更新日: 2026-11-06（Asia/Tokyo）。[PR #12](https://github.com/kaduiro/mori-desk/pull/12) は GitHub Actions 成功後、`main` の `5f1b31d8e9a3e84b2b9bcabc399773da3faae10f` にマージ済み。この記録はローカル候補の状態を示す。個人の非商用作品としての限定試験では[個人利用の方針](personal-use-distribution-20261106-ja.md)を優先し、以下の一般配布ゲートを一律の必須条件としない。
 
 ## 今回完了したこと
 
@@ -21,7 +21,7 @@
 
 隔離 Windows 環境が得られたら、クリーンユーザーで次を記録する。Windows の保護機能や署名検査は無効化しない。
 
-1. Setup の SHA-256 と署名を確認し、通常のインストール画面から導入する。
+1. Setup の SHA-256 と署名の有無を確認し、通常のインストール画面から導入する。現候補は未署名であることを記録する。
 2. スタートメニュー・デスクトップ・検索から起動し、複数回起動して単一インスタンスを確認する。
 3. Calendar／Gmail の HUD を開き、倍率・位置・サイズ・起動時表示を保存して再起動する。OAuth の秘密値やメール本文を記録しない。
 4. 通常終了後は勝手に再起動しないこと、主プロセス異常終了後はアプリアイコンから再起動できることを確認する。
@@ -30,9 +30,9 @@
 
 ## kaduiro.com の配置
 
-ドメインは Cloudflare で保持しているが、サーバーは不要。案内ページは Cloudflare Pages の静的サイトとして用意し、署名済みインストーラーは版ごとに GitHub Releases へ置く案を採用する。Pages の単一ファイルは25 MiBまでで、今回の約111 MBの Setup を直接置けない。GitHub Releases は1ファイル2 GiB未満で、リリース全体の容量・帯域に上限を設けていない。独自のバイナリ用ドメインが必要になった場合だけ Cloudflare R2 を検討する。R2 は無料枠を超えると課金され、利用開始には subscription 設定が必要。
+ドメインは Cloudflare で保持しているが、サーバーは不要。案内ページは Cloudflare Pages の静的サイトとして用意し、試験を終えたインストーラーは版ごとに GitHub Releases へ置く案を採用する。Pages の単一ファイルは25 MiBまでで、今回の約111 MBの Setup を直接置けない。GitHub Releases は1ファイル2 GiB未満で、リリース全体の容量・帯域に上限を設けていない。独自のバイナリ用ドメインが必要になった場合だけ Cloudflare R2 を検討する。R2 は無料枠を超えると課金され、利用開始には subscription 設定が必要。
 
-Pages の公開設定は `kaduiro.com` の Cloudflare 権限を持つ本人が行う。署名済み Windows／公証済み Mac の成果物がない段階では、ダウンロード可能と表示しない。公開ページには OS／CPU、版、不変の GitHub Release asset URL、署名後の SHA-256、変更履歴、AGPL ソースと帰属、プライバシー説明、拡張の Web Store URL を載せる。アプリからの自動更新は有効化しない。
+Pages の公開設定は `kaduiro.com` の Cloudflare 権限を持つ本人が行う。現段階ではインストール受入試験が未完了なので、ダウンロード可能と表示しない。配布するときは OS／CPU、版、不変の GitHub Release asset URL、配布ファイルそのものの SHA-256、署名・公証の有無、変更履歴、AGPL ソースと帰属、プライバシー説明、Chrome 拡張の実際の導入方法を載せる。アプリからの自動更新は有効化しない。
 
 ## Chrome Web Store の申告案
 
@@ -42,12 +42,12 @@ Pages の公開設定は `kaduiro.com` の Cloudflare 権限を持つ本人が�
 - 保存と転送: 拡張の接続鍵は Chrome のローカル保存に制限し、同一 PC の loopback WebSocket を HMAC 相互認証して端末内 HUD に送る。Mori Desk の Google API 連携はデスクトップ本体の別機能であり、拡張に Gmail 権限はない。
 - 公開前: Web Store の申告とプライバシー説明を実コードに照合し、発行者アカウント、ストアの画像、審査、実 ID、Private テスター、新規 Chrome プロファイルでのペアリング・再起動試験を完了する。発行者登録には一度限りの登録料が必要。
 
-## 公開ゲート
+## 不特定多数へ配布する場合の追加ゲート
 
-- **Windows:** 証明書の所有者、Authenticode 署名、隔離 Windows インストール試験、配布版 Electron の脆弱性評価。未署名 Setup の一般配布は行わない。
-- **macOS:** Mac 実機、Apple Developer ID、署名・公証・staple、x64／arm64 の Gatekeeper と起動試験。Mac の `.exe` は作らない。
-- **拡張:** Chrome Web Store 発行者登録、プライバシー申告と審査、実 ID への厳密な Origin 設定の更新、実 Chrome 試験。
+- **Windows:** 隔離 Windows インストール試験と配布版 Electron の脆弱性評価。署名は発行元確認と配布時の警告低減のために検討する。未署名で渡す場合はその状態を明示し、OS の警告を自動で迂回しない。
+- **macOS:** Mac 実機で Gatekeeper と起動を確認する。円滑な一般配布には Developer ID 署名・公証・staple を検討する。未署名版は利用者側の個別許可が必要になる場合がある。Mac の `.exe` は作らない。
+- **拡張:** 個人試験は unpacked で実施できる。Web Store に載せる場合だけ発行者登録、プライバシー申告・審査、実 ID への厳密な Origin 設定の更新、実 Chrome 試験を行う。
 - **Google:** Gmail `gmail.readonly` は制限付きスコープ。本人や少数の個人的な試験と不特定多数の一般公開を区別し、対象・公開状態・必要な Google 審査または例外を確定する。利用者の個人 Cloud プロジェクトだけで審査を回避できると表示しない。
-- **サイト:** Cloudflare Pages の管理権限、署名・公証済みの不変成果物、公開ページとプライバシー説明の最終照合。
+- **サイト:** Cloudflare Pages の管理権限と公開ページ・プライバシー説明の照合。署名・公証の有無を正確に表示する。公開 URL は少数利用者だけに限定されない点に注意する。
 
 公式資料: [Cloudflare Pages の上限](https://developers.cloudflare.com/pages/platform/limits/)、[GitHub Releases の上限](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)、[R2 の料金](https://developers.cloudflare.com/r2/pricing/)、[Chrome Web Store の開発者登録](https://developer.chrome.com/docs/webstore/register)、[Chrome Web Store の利用者データポリシー](https://developer.chrome.com/docs/webstore/program-policies/policies)、[Google の Gmail スコープ](https://developers.google.com/workspace/gmail/api/auth/scopes)。
