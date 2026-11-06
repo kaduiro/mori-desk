@@ -3,6 +3,8 @@
 策定日: 2026-11-06（Asia/Tokyo）
 状態: Windows x64 の未署名インストーラーと個人 Cloud ガイドまで実装。[実装記録](desktop-distribution-implementation-20261106-ja.md)を参照。署名済みインストーラー、Mac 実機、公開サイト、各利用者の Cloud プロジェクトの受入は未完了。
 
+現在の優先順と合格条件は[残存タスクの実行案](desktop-distribution-next-steps-20261106-ja.md)に記載。
+
 ## 目的と前提
 
 - 利用者は PowerShell、シェル、Node.js、Git を使わず、Windows ではインストールした Mori Desk のアイコン、macOS では `.app` から起動・再起動できる。
