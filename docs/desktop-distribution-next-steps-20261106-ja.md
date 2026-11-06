@@ -1,6 +1,6 @@
 # Mori Desk 配布・個人 Cloud 導入の残存タスクと実行順
 
-更新日: 2026-11-06（Asia/Tokyo）。[初回の実装記録](desktop-distribution-implementation-20261106-ja.md)、[最新の受入記録](desktop-release-readiness-20261106-ja.md)と [PR #12](https://github.com/kaduiro/mori-desk/pull/12) を起点にする。`main` へのマージと公開は未実施。以下の「現在の到達点」は初回候補の時点の記録であり、現在値は最新の受入記録に示す。
+更新日: 2026-11-06（Asia/Tokyo）。[初回の実装記録](desktop-distribution-implementation-20261106-ja.md)、[最新の受入記録](desktop-release-readiness-20261106-ja.md)と [PR #12](https://github.com/kaduiro/mori-desk/pull/12) を起点にする。PR #12 は CI 成功後に `main` へマージ済み。一般配布は未実施。以下の「現在の到達点」は初回候補の時点の記録であり、現在値は最新の受入記録に示す。
 
 ## 現在の到達点
 
@@ -23,7 +23,7 @@
 | 8 | Google OAuth の公開対象と `gmail.readonly` の審査または例外を判定。公開対象のアプリ名・ドメイン・プライバシー説明を整合させる | 公開主体とドメイン管理者の決定 | Google の公開条件を満たし、一般利用者が同意画面で接続できる。BYO 個人プロジェクトを審査代替として扱わない |
 | 9 | `kaduiro.com` に検証済み版だけを掲載。OS／CPU 別の不変 URL、署名後 SHA-256、変更履歴、AGPL ソース・帰属、プライバシー説明、Chrome 拡張を掲載 | 2〜8 の公開ゲート合格とサイト公開担当 | 公開ページから取得したファイルのハッシュ、署名・公証、OS 起動試験が受入記録と一致 |
 
-順1〜5は資格情報なしで進められる部分がある。Mac、Web Store、OAuth 公開判定、サイト公開は担当者とアカウントが必要。Windows x64 の試験と個人 Cloud 導入は限定試験として先行できるが、未署名ファイルを一般向けに配布しない。
+順1・2は完了し、4・5のソース部分も完了した。Windows の隔離インストール試験には VM または別ユーザーが必要。Mac、Web Store、OAuth 公開判定、サイト公開は担当者とアカウントが必要。Windows x64 の限定試験と個人 Cloud 導入は先行できるが、未署名ファイルを一般向けに配布しない。各項目の合否と未実施の範囲は[最新の受入記録](desktop-release-readiness-20261106-ja.md)に従う。
 
 ## 判断・提供が必要なもの
 
