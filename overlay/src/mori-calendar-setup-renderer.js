@@ -18,19 +18,19 @@ function stepFor(data) {
 function statusText(data) {
   if (message) return message;
   const reasons = {
-    "config-needed": "組織の設定がありません。管理者から受け取った Desktop OAuth 設定を選んでください。",
+    "config-needed": "Desktop OAuth 設定を選んでください。個人 Google Cloud の準備方法も確認できます。",
     "storage-error": data.reason === "calendar-client-config-invalid"
-      ? "設定ファイルを読み取れません。管理者から受け取った Desktop OAuth 設定を選び直してください。"
+      ? "設定ファイルを読み取れません。Desktop OAuth 設定を選び直してください。"
       : "予定の保存領域を確認できません。PC の管理者に相談してください。",
     "secure-storage-unavailable": "この PC では認証情報を安全に保存できません。PC の管理者に相談してください。",
     unlinked: "設定を確認しました。Google Calendar に接続してください。",
     authorizing: "ブラウザで本人の同意を完了してください。",
     "auth-failed": data.reason === "auth-timeout" ? "同意が時間切れになりました。もう一度接続してください。"
-      : data.reason === "client-secret-required" ? "OAuth 設定が不足しています。管理者へ連絡してください。"
-      : "Google への接続が完了しませんでした。再試行するか、管理者へ相談してください。",
+      : data.reason === "client-secret-required" ? "OAuth 設定が不足しています。Cloud Console の Desktop クライアントを確認してください。"
+      : "Google への接続が完了しませんでした。設定とテストユーザーを確認してください。",
     "config-changed": "接続設定が変わりました。新しい設定で Google に再同意してください。",
-    "auth-expired": "Google との連携が失効しました。再接続してください。",
-    "quota-paused": "Google の利用枠により取得を停止しています。",
+    "auth-expired": "Google との連携が失効しました。再接続してください。Testing 中の連携は約7日で失効する場合があります。",
+    "quota-paused": "Google の利用枠により取得を停止しています。次回時刻まで待ち、Cloud Console で枠を確認してください。",
     "local-limit": "この PC の24時間の取得上限に達しました。",
     partial: "一部のカレンダーは取得できませんでした。",
     failed: "予定を取得できませんでした。最終取得時刻と選択内容を確認してください。",
@@ -142,6 +142,7 @@ async function action(fn) {
   finally { busy = false; await refresh(); }
 }
 $("import-config").addEventListener("click", () => action(() => window.moriCalendarSetup.importConfig()));
+$("google-setup").addEventListener("click", () => action(() => window.moriCalendarSetup.openGoogleSetup()));
 $("switch-config").addEventListener("click", () => action(() => window.moriCalendarSetup.importConfig()));
 $("use-managed").addEventListener("click", () => {
   if (window.confirm("この PC の設定から、組織の配布設定に切り替えますか？ Google への再同意が必要です。"))

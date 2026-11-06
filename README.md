@@ -136,7 +136,7 @@ Mori の右クリックメニューから「今日の予定」「受信メール
 
 Calendar は本人が Desktop OAuth 設定を取り込み、表示するカレンダーを最大3件選びます。Mail は別の Desktop OAuth 設定と Gmail の読み取り専用権限を使い、優先送信者からの新着を上段、その他の未読を下段に表示します。両 HUD の「更新」は手動で同期します。Mail の自動確認は5分間隔です。現在の Mail 連携は1アカウント・1 HUD です。
 
-個人検証用の設定は同梱しません。法人向けには組織所有の Google Cloud プロジェクト、管理者の承認、実利用枠・課金設定、Chrome でのリンク受入を確認してから配布してください。[会話と実装の記録](docs/calendar-mail-session-history-20261105-ja.md)に確認済みの範囲と残件をまとめています。
+個人用の設定は同梱しません。本人管理の Cloud プロジェクトを使う短期試験は[個人 Google Cloud の導入手順](docs/personal-google-cloud-setup-ja.md)に従ってください。一般配布に必要な OAuth 審査・例外の判定と署名済み配布物は別の公開条件です。[配布計画](docs/desktop-distribution-personal-cloud-plan-20261106-ja.md)と[実装記録](docs/desktop-distribution-implementation-20261106-ja.md)に工程と残件をまとめています。
 
 ## どう表示されるか
 

@@ -86,6 +86,8 @@ scope付き観測を受け取れない旧本体に対しては、その記録を
 
 `manifest.json` の公開鍵で、開発用 ID を `obooegdoanifidoffaodpobadpeiilcl` に固定しています。この公開鍵は配布用署名鍵ではなく、秘密鍵はリポジトリに含まれません。正式配布では組織が管理する署名・更新運用と、新しい拡張機能 ID のデスクトップ許可設定が必要です。このソース版には第三者ストアの更新 URL を設定していません。
 
+`icon16.png`、`icon48.png`、`icon128.png` は Mori の MIT ライセンス資産生成器 `overlay/scripts/generate-mori-assets.js` の出力から作成したオリジナル画像です。Chrome Web Store に新規登録する場合は、発行された Item ID とこの開発用 ID を照合し、正式な公開鍵とデスクトップ側の厳密な Origin 設定を同じ ID に更新してから配布します。
+
 ## テスト
 
 配布リポジトリのルートでは、ラッパーの `scripts/run.js` が組み立て後の対象テストを列挙するため、次を実行します。

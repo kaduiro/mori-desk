@@ -77,13 +77,13 @@ function render(data) {
   current = data;
   if (![...data.priority, ...data.unread].some(row => row.id === expandedId)) expandedId = null;
   $("account").textContent = data.account || "Gmail を連携してください";
-  const labels = { "config-needed": "Gmail 用の組織設定が必要です。", unlinked: "Gmail を連携してください。",
+  const labels = { "config-needed": "Gmail 用 Desktop OAuth 設定が必要です。", unlinked: "Gmail を連携してください。",
     authorizing: "Google アカウントの同意を待っています。", loading: "メールを取得しています…",
     ready: `${data.priority.length}件の優先メール・${data.unread.length}件のその他の未読`,
     partial: data.gap ? "同期履歴に欠落の可能性があります。"
       : data.pendingCount ? `差分を処理中です（残り${data.pendingCount}件）。`
         : "未読の一部は未取得です。", waiting: "次の更新を待っています。",
-    "auth-expired": "Gmail の再連携が必要です。", "quota-paused": "Google の利用枠で取得を停止しました。",
+    "auth-expired": "Gmail の再連携が必要です。Testing 中の連携は約7日で失効する場合があります。", "quota-paused": "Google の利用枠で取得を停止しました。次回時刻まで待ち、Cloud Console で枠を確認してください。",
     "local-limit": "この PC の取得上限で停止しました。", "secure-storage-unavailable": "安全な保存領域を利用できません。",
     "storage-error": "メールの保存領域を確認できません。", failed: "メールを更新できませんでした。" };
   $("state").textContent = labels[data.status] || "メールの状態を確認できません。";
@@ -183,6 +183,7 @@ $("connect").addEventListener("click", () => action(async () => {
 }));
 $("disconnect").addEventListener("click", () => action(() => window.moriMail.disconnect()));
 $("import").addEventListener("click", () => action(() => window.moriMail.importConfig()));
+$("google-setup").addEventListener("click", () => action(() => window.moriMail.openGoogleSetup()));
 $("add-sender").addEventListener("click", () => action(async () => {
   const value = $("sender").value.trim().toLowerCase();
   const result = await window.moriMail.senders([...new Set([...(current?.senders || []), value])]);

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mori Desk · 個人 Google Cloud の準備</title>
+<link rel="stylesheet" href="mori-google-setup.css"></head><body><main>
+<header><p class="eyebrow">MORI DESK</p><h1>個人 Google Cloud の準備</h1>
+<p>Calendar と Gmail を自分の Google Cloud プロジェクトで試す手順です。設定には Google アカウントが必要です。</p></header>
+<section><h2>1. プロジェクトと API</h2>
+<p><a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console を開く</a>。自分が管理するプロジェクトを選ぶか作成し、Gmail API と Google Calendar API だけを有効にします。請求先の有無と実際の利用枠を Console で確認してください。Mori Desk は Cloud 管理権限を要求しません。</p></section>
+<section><h2>Console で確認した内容を記録</h2>
+<p>この記録は本人の申告です。Mori Desk はプロジェクトの所有権・請求状態・実効枠を検証しません。OAuth JSON やトークンは入力しないでください。</p>
+<label for="project-id">プロジェクト ID</label><input id="project-id" type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="my-google-project">
+<label for="billing">請求先の状態</label><select id="billing"><option value="unknown">未確認</option><option value="not-linked">未連携と確認</option><option value="linked">連携済みと確認</option></select>
+<label class="check"><input id="gmail-quota" type="checkbox">Gmail API の実効枠を Console で確認した</label>
+<label class="check"><input id="calendar-quota" type="checkbox">Calendar API の実効枠を Console で確認した</label>
+<button id="save-state" type="button">確認内容をこの PC に保存</button><p id="saved-state" role="status" aria-live="polite">保存状態を確認しています…</p></section>
+<section><h2>2. Google Auth Platform</h2>
+<p>「ブランディング」「対象」「データアクセス」を確認し、Desktop アプリの OAuth クライアントを Calendar 用と Gmail 用に作ります。Gmail には <code>gmail.readonly</code>、Calendar には <code>calendar.events.readonly</code> と <code>calendar.calendarlist.readonly</code> だけを設定します。OAuth クライアントの作成、規約への同意は本人が Console で行ってください。</p>
+<p>External / Testing は許可したテストユーザーだけが接続でき、Gmail 権限の更新トークンは通常7日で失効します。継続利用や不特定多数への配布条件とは区別してください。Workspace アカウントは組織の管理者設定で拒否される場合があります。</p>
+<p><a href="https://developers.google.com/identity/protocols/oauth2/native-app" target="_blank" rel="noopener noreferrer">Desktop OAuth の公式手順</a> · <a href="https://developers.google.com/identity/protocols/oauth2/production-readiness/overview" target="_blank" rel="noopener noreferrer">公開状態と対象ユーザー</a></p></section>
+<section><h2>3. Mori Desk に取り込む</h2>
+<p>Calendar の設定画面と受信メール HUD の設定から、それぞれの Desktop OAuth JSON を選びます。Google の同意を自分のブラウザーで行い、接続先アカウント、予定と未読、手動更新を確認してください。JSON や認可コード、トークンをチャット・リポジトリ・Web サイトに貼らないでください。</p>
+<p>このアプリが確認できるのは JSON の形式と Google API で実際に接続できたアカウントです。JSON だけで Cloud プロジェクトの所有者や請求状態は証明できません。</p></section>
+<section><h2>4. 利用枠を確かめる</h2>
+<p>実効枠と請求条件はプロジェクトごとに確認します。Mori Desk の Gmail 同期は通常5分間隔で、更新ボタンには連打防止があります。無料利用は保証されません。</p>
+<p><a href="https://developers.google.com/workspace/gmail/api/reference/quota" target="_blank" rel="noopener noreferrer">Gmail API の枠</a> · <a href="https://developers.google.com/workspace/calendar/api/guides/quota" target="_blank" rel="noopener noreferrer">Calendar API の枠</a></p></section>
+<section><h2>接続・更新に失敗した場合</h2>
+<ul>
+<li>Google の同意画面で 403 が出る場合は、選んだ Google アカウントの主メールアドレスが OAuth のテストユーザーに登録されているか確認します。Workspace アカウントでは組織の管理者による制限も確認します。以前のエラータブではなく、新しく開いた同意画面の結果で判断してください。</li>
+<li>接続後の更新で 403 が出る場合は、対象プロジェクトの Gmail API／Google Calendar API が有効か、必要な読み取り権限を許可したか確認します。管理者による API 制限もあり得ます。</li>
+<li>429 または利用枠停止では、HUD に示す次回時刻まで待ちます。Cloud Console で実効枠を確認してください。繰り返し更新しても停止は解除されません。</li>
+<li>External / Testing の連携が約7日後に切れた場合は、HUD から再連携します。個人の短期試験と継続利用では OAuth の公開状態を分けて検討してください。</li>
+</ul></section>
+<section><h2>Codex・Claude に手順を案内させる場合</h2>
+<p>以下を選択して、ご自身のコーディングエージェントへ貼り付けられます。認証や規約への同意はご自身で行ってください。</p>
+<textarea readonly aria-label="セットアップ支援用プロンプト" rows="13">Mori Desk の個人 Google Cloud 設定を案内してください。Google の公式ドキュメントで現在の画面・条件を確認し、既存プロジェクトの有無を私に確認してから進めてください。対象は Gmail API と Google Calendar API、および各機能用の Desktop OAuth クライアントです。Cloud Console の OAuth クライアント作成、ログイン、規約、請求先、権限の同意は私に操作を引き継いでください。請求先の連携、枠の増加、セキュリティ警告の回避は行わないでください。OAuth JSON、認可コード、トークン、メールや予定の内容をチャットに貼らせず、Mori Desk のファイル選択から直接取り込むよう案内してください。External / Testing の7日失効と Workspace 管理者の制限を説明し、最後に API 有効化、実効枠、Calendar と Gmail の接続・更新結果を確認してください。確認できない事項は「未確認」と記してください。</textarea></section>
+<p class="foot">個人試験向けの案内です。一般配布の OAuth 審査・例外条件は別途確認します。</p>
+</main><script src="mori-google-setup-renderer.js"></script></body></html>

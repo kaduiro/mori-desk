@@ -21,6 +21,16 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   let calendarSetupWindow = null;
   let mailRuntime = null;
   let mailWindow = null;
+  let googleSetupWindow = null;
+  function openGoogleSetup() {
+    if (!googleSetupWindow) {
+      const { createGoogleSetupWindow } = require("./mori-google-setup-window");
+      const electron = calendarDependencies || require("electron");
+      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain,
+        dataDir: path.join(electron.app.getPath("userData"), "google-setup") });
+    }
+    return googleSetupWindow.open();
+  }
   function ensureCalendar() {
     if (calendarRuntime) return;
     const calendarElectron = calendarDependencies || require("electron");
@@ -43,7 +53,8 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     });
     calendarSetupWindow = createCalendarSetupWindow({ BrowserWindow, ipcMain,
       dialog: calendarElectron.dialog, runtime: calendarRuntime, dataDir: calendarDir,
-      openCalendar: () => calendarWindow.open(), openBrowserPanel: () => open() });
+      openCalendar: () => calendarWindow.open(), openBrowserPanel: () => open(),
+      openGoogleSetup });
   }
   function ensureMail() {
     if (mailRuntime) return;
@@ -56,7 +67,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     mailWindow = createMailWindow({ BrowserWindow, ipcMain, dialog: electron.dialog,
       clipboard, shell, screen: electron.screen, runtime: mailRuntime, dataDir: mailDir,
       getPetBounds, getOtherBounds: () => calendarWindow?.getBounds(),
-      getSuppressed: getCalendarSuppressed });
+      getSuppressed: getCalendarSuppressed, openGoogleSetup });
   }
 
   function trusted(event, allowHud = false) {
@@ -176,6 +187,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     calendarRuntime?.dispose();
     mailWindow?.dispose();
     mailRuntime?.dispose();
+    googleSetupWindow?.dispose();
     if (window && !window.isDestroyed()) window.destroy();
     window = null; pairing = null;
   }

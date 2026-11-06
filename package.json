@@ -21,6 +21,10 @@
     "test:windows-node": "node --test test/check-windows-node.test.js test/windows-node-bootstrap.test.js",
     "verify:electron": "node scripts/run.js verify:electron",
     "build:win:x64": "node scripts/run.js build:win:x64",
+    "build:win:arm64": "node scripts/run.js build:win:arm64",
+    "build:win:all": "node scripts/run.js build:win:all",
+    "build:mac:x64": "node scripts/run.js build:mac:x64",
+    "build:mac:arm64": "node scripts/run.js build:mac:arm64",
     "build:calendar:org:win": "node scripts/build-calendar-org-windows.js"
   },
   "repository": { "type": "git", "url": "https://github.com/kaduiro/mori-desk.git" }

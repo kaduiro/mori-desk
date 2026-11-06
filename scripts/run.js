@@ -5,6 +5,21 @@ const path = require("node:path");
 const { ROOT, requireRuntime, run } = require("./prepare-runtime");
 const { checkNodeVersion, runNpm } = require("./setup");
 
+const BUILDS = Object.freeze({
+  "build:win:x64": "win32",
+  "build:win:arm64": "win32",
+  "build:win:all": "win32",
+  "build:mac:x64": "darwin",
+  "build:mac:arm64": "darwin",
+});
+
+function buildScriptFor(command, platform = process.platform) {
+  if (!Object.hasOwn(BUILDS, command)) throw new Error(`Unknown Mori command: ${command}`);
+  if (BUILDS[command] !== platform)
+    throw new Error(`${command} must run on ${BUILDS[command] === "darwin" ? "macOS" : "Windows"}.`);
+  return command;
+}
+
 function testFiles(runtime) {
   const dir = path.join(runtime, "test");
   const files = fs.readdirSync(dir, { withFileTypes: true })
@@ -17,7 +32,8 @@ function testFiles(runtime) {
 async function main(args = process.argv.slice(2)) {
   checkNodeVersion();
   const command = args[0] || "start";
-  if (!["start", "test", "verify:electron", "build:win:x64"].includes(command)) throw new Error(`Unknown Mori command: ${command}`);
+  if (!["start", "test", "verify:electron"].includes(command) && !Object.hasOwn(BUILDS, command))
+    throw new Error(`Unknown Mori command: ${command}`);
   const runtime = requireRuntime();
   if (command === "start") {
     const launchArgs = args.slice(1);
@@ -34,18 +50,18 @@ async function main(args = process.argv.slice(2)) {
     await run(electron.executablePath, [path.join(ROOT, "bootstrap"), "--mori-startup=manual", ...launchArgs],
       { cwd: ROOT, capture: false, env });
   } else if (command === "test") {
-    const files = [...testFiles(runtime), ...["runtime-source.test.js", "startup-guard.test.js", "prepare-publication.test.js", "windows-process.test.js"].map(name => path.join(ROOT, "test", name))];
+    const files = [...testFiles(runtime), ...["runtime-source.test.js", "startup-guard.test.js", "prepare-publication.test.js", "windows-process.test.js", "build-entrypoint.test.js"].map(name => path.join(ROOT, "test", name))];
     console.log(`Running ${files.length} browser/Mori and source verification test files.`);
     const isolation = process.platform === "win32" ? ["--test-isolation=none"] : [];
     await run(process.execPath, ["--test", ...isolation, ...files], { cwd: runtime, capture: false });
   } else if (command === "verify:electron") {
     await run(process.execPath, ["scripts/verify-electron-install.js", "--context", "verify"], { cwd: runtime, capture: false });
   } else {
-    if (process.platform !== "win32") throw new Error("Run build:win:x64 on Windows for this development preview. Mac packaging needs a separate Mac runner.");
-    await runNpm(["run", "build:win:x64"], runtime);
-    console.log(`Windows installer output: ${path.join(runtime, "dist")}`);
+    const script = buildScriptFor(command);
+    await runNpm(["run", script], runtime);
+    console.log(`Mori Desk ${script} output: ${path.join(runtime, "dist")}`);
   }
 }
 
-module.exports = { testFiles, main };
+module.exports = { testFiles, buildScriptFor, main };
 if (require.main === module) main().catch((error) => { console.error(`Mori Desk: ${error.message}`); process.exitCode = 1; });

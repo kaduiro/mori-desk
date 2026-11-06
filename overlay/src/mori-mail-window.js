@@ -6,10 +6,13 @@ const { installClientConfig } = require("./mori-calendar-client-config");
 const { ID_RE } = require("./mori-mail-core");
 const { openJsonFile } = require("./browser-bridge-persistence");
 const hudLayout = require("./mori-hud-layout");
+const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
 function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, screen,
-  runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false }) {
+  runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false,
+  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
   let window = null, positionTimer = null, automaticSession = false;
+  let detachRecovery = null;
   let autoWanted = false, disposed = false, focusOnLoad = false, suppressionClosing = false;
   let acceptManualMove = false, lastPlacedBounds = null, resizeGesture = null, layout = null;
   try { layout = openJsonFile(path.join(dataDir, "layout.json"), hudLayout.valid,
@@ -110,6 +113,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     catch { return { ok: false, reason: "invalid-config-file" }; }
     return runtime.reloadClient();
   });
+  handle("mori-mail:open-google-setup", () => openGoogleSetup());
   handle("mori-mail:open-link", async payload => {
     if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
     const url = runtime.link(payload.id);
@@ -182,6 +186,11 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
       skipTaskbar: false, alwaysOnTop: placement.pinned, backgroundColor: "#00000000",
       webPreferences: { preload: path.join(__dirname, "preload-mori-mail.js"),
         contextIsolation: true, nodeIntegration: false, sandbox: true } });
+    const created = window;
+    detachRecovery = attachRendererRecovery(created.webContents, {
+      isActive: () => !disposed && window === created && !created.isDestroyed(),
+      onExhausted: () => console.warn("Mori Mail renderer recovery stopped after repeated failures."),
+    });
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", event => event.preventDefault());
     lastPlacedBounds = null; resizeGesture = null; acceptManualMove = false;
@@ -211,6 +220,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     });
     window.loadFile(pagePath);
     window.on("closed", () => {
+      detachRecovery?.(); detachRecovery = null;
       resizeGesture = null;
       saveLayout(); acceptManualMove = false; window = null; runtime.clearBody();
       if (!suppressionClosing) autoWanted = false;
@@ -222,6 +232,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
   function notify() { if (window && !window.isDestroyed()) window.webContents.send("mori-mail:changed"); }
   function dispose() {
     disposed = true; autoWanted = false;
+    detachRecovery?.(); detachRecovery = null;
     for (const channel of channels) ipcMain.removeHandler(channel);
     if (positionTimer) clearInterval(positionTimer);
     if (window && !window.isDestroyed()) window.destroy();

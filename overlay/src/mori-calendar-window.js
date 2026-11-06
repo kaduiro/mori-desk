@@ -5,11 +5,13 @@ const { pathToFileURL } = require("node:url");
 const { safeHttps } = require("./mori-calendar-core");
 const { openJsonFile } = require("./browser-bridge-persistence");
 const hudLayout = require("./mori-hud-layout");
+const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
 function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
   getPetBounds, getOtherBounds = () => null, getSuppressed, dataDir,
   openSetup = () => ({ ok: false, reason: "unavailable" }) }) {
   let window = null;
+  let detachRecovery = null;
   let positionTimer = null;
   let automaticSession = false;
   let autoWanted = false;
@@ -191,6 +193,11 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
       webPreferences: { preload: path.join(__dirname, "preload-mori-calendar.js"),
         contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
+    const created = window;
+    detachRecovery = attachRendererRecovery(created.webContents, {
+      isActive: () => !disposed && window === created && !created.isDestroyed(),
+      onExhausted: () => console.warn("Mori Calendar renderer recovery stopped after repeated failures."),
+    });
     lastPlacedBounds = null;
     resizeGesture = null;
     acceptManualMove = false;
@@ -223,6 +230,7 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
     });
     window.loadFile(pagePath);
     window.on("closed", () => {
+      detachRecovery?.(); detachRecovery = null;
       resizeGesture = null;
       saveLayout();
       acceptManualMove = false;
@@ -238,6 +246,7 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
   }
   function dispose() {
     disposed = true; autoWanted = false;
+    detachRecovery?.(); detachRecovery = null;
     for (const channel of channels) ipcMain.removeHandler(channel);
     if (positionTimer) clearInterval(positionTimer);
     positionTimer = null;
