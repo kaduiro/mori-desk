@@ -83,7 +83,7 @@ function render(data) {
     partial: data.gap ? "同期履歴に欠落の可能性があります。"
       : data.pendingCount ? `差分を処理中です（残り${data.pendingCount}件）。`
         : "未読の一部は未取得です。", waiting: "次の更新を待っています。",
-    "auth-expired": "Gmail の再連携が必要です。", "quota-paused": "Google の利用枠で取得を停止しました。",
+    "auth-expired": "Gmail の再連携が必要です。Testing 中の連携は約7日で失効する場合があります。", "quota-paused": "Google の利用枠で取得を停止しました。次回時刻まで待ち、Cloud Console で枠を確認してください。",
     "local-limit": "この PC の取得上限で停止しました。", "secure-storage-unavailable": "安全な保存領域を利用できません。",
     "storage-error": "メールの保存領域を確認できません。", failed: "メールを更新できませんでした。" };
   $("state").textContent = labels[data.status] || "メールの状態を確認できません。";

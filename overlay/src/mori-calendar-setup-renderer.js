@@ -29,8 +29,8 @@ function statusText(data) {
       : data.reason === "client-secret-required" ? "OAuth 設定が不足しています。Cloud Console の Desktop クライアントを確認してください。"
       : "Google への接続が完了しませんでした。設定とテストユーザーを確認してください。",
     "config-changed": "接続設定が変わりました。新しい設定で Google に再同意してください。",
-    "auth-expired": "Google との連携が失効しました。再接続してください。",
-    "quota-paused": "Google の利用枠により取得を停止しています。",
+    "auth-expired": "Google との連携が失効しました。再接続してください。Testing 中の連携は約7日で失効する場合があります。",
+    "quota-paused": "Google の利用枠により取得を停止しています。次回時刻まで待ち、Cloud Console で枠を確認してください。",
     "local-limit": "この PC の24時間の取得上限に達しました。",
     partial: "一部のカレンダーは取得できませんでした。",
     failed: "予定を取得できませんでした。最終取得時刻と選択内容を確認してください。",

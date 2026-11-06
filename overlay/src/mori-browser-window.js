@@ -25,7 +25,9 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   function openGoogleSetup() {
     if (!googleSetupWindow) {
       const { createGoogleSetupWindow } = require("./mori-google-setup-window");
-      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell });
+      const electron = calendarDependencies || require("electron");
+      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain,
+        dataDir: path.join(electron.app.getPath("userData"), "google-setup") });
     }
     return googleSetupWindow.open();
   }

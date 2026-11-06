@@ -1,6 +1,6 @@
 # Mori Desk 配布・個人 Cloud 導入の残存タスクと実行順
 
-更新日: 2026-11-06（Asia/Tokyo）。[実装記録](desktop-distribution-implementation-20261106-ja.md)と [PR #12](https://github.com/kaduiro/mori-desk/pull/12) を起点にする。PR #12 はドラフト、Windows 回帰 CI は成功。`main` へのマージと公開は未実施。
+更新日: 2026-11-06（Asia/Tokyo）。[初回の実装記録](desktop-distribution-implementation-20261106-ja.md)、[最新の受入記録](desktop-release-readiness-20261106-ja.md)と [PR #12](https://github.com/kaduiro/mori-desk/pull/12) を起点にする。`main` へのマージと公開は未実施。以下の「現在の到達点」は初回候補の時点の記録であり、現在値は最新の受入記録に示す。
 
 ## 現在の到達点
 

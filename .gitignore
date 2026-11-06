@@ -7,4 +7,5 @@
 .development/
 node_modules/
 dist/
+!site/dist/
 *.log

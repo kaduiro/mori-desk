@@ -1,6 +1,6 @@
 # デスクトップ配布と個人 Google Cloud 導入の実装記録
 
-記録日: 2026-11-06（Asia/Tokyo）。[実装計画](desktop-distribution-personal-cloud-plan-20261106-ja.md)のうち、Windows で実施できるソース・パッケージ試験の記録です。
+記録日: 2026-11-06（Asia/Tokyo）。[実装計画](desktop-distribution-personal-cloud-plan-20261106-ja.md)のうち、初回 Windows 候補の記録です。依存更新後の新しい候補、復旧、個人 Cloud 状態表示、Web Store の準備は[最新の受入記録](desktop-release-readiness-20261106-ja.md)を参照してください。
 
 ## 実装した内容
 
