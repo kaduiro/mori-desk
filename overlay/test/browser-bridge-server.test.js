@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { EventEmitter } = require("node:events");
 const { WebSocket } = require("ws");
 const restartHealth = require("../extensions/browser-bridge/restart-health");
 const { createBrowserBridge } = require("../src/browser-bridge-server");
@@ -15,6 +16,29 @@ const safeStorage = {
   encryptString: (text) => Buffer.from(`test-vault:${text}`),
   decryptString: (buffer) => buffer.toString("utf8").slice(11),
 };
+
+test("a reset on a rejected raw upgrade socket cannot escape into the main process", async t => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "mori-upgrade-reset-"));
+  const server = new EventEmitter();
+  server.address = () => ({ address: "127.0.0.1", port: 23333 });
+  const bridge = createBrowserBridge({ dataDir, safeStorage });
+  bridge.attach(server);
+  t.after(() => { bridge.dispose(); fs.rmSync(dataDir, { recursive: true, force: true }); });
+  for (const url of ["/browser/v1", "/unowned-upgrade"]) {
+    const socket = new EventEmitter();
+    socket.destroyed = false;
+    socket.destroy = () => { socket.destroyed = true; };
+    let response = "";
+    socket.end = text => { response = text; };
+    const request = { url, method: "GET", socket: { localAddress: "127.0.0.1", remoteAddress: "127.0.0.1" },
+      rawHeaders: ["Host", "127.0.0.1:23333", "Origin", "chrome-extension://invalid"],
+      headers: { host: "127.0.0.1:23333", origin: "chrome-extension://invalid" } };
+    server.emit("upgrade", request, socket, Buffer.alloc(0));
+    if (url === "/browser/v1") assert.match(response, /^HTTP\/1\.1 403 Rejected/);
+    assert.doesNotThrow(() => socket.emit("error", Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" })));
+    assert.equal(socket.destroyed, true);
+  }
+});
 
 function healthFrame(patch = {}) {
   return { type: "client.health", v: 1, schema: 1, browserRunId: "run-1", workerEpoch: "health-worker",
