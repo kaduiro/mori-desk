@@ -2,6 +2,8 @@
 
 更新日: 2026-11-06（Asia/Tokyo）。[PR #12](https://github.com/kaduiro/mori-desk/pull/12) は GitHub Actions 成功後、`main` の `5f1b31d8e9a3e84b2b9bcabc399773da3faae10f` にマージ済み。この記録はローカル候補の状態を示す。個人の非商用作品としての限定試験では[個人利用の方針](personal-use-distribution-20261106-ja.md)を優先し、以下の一般配布ゲートを一律の必須条件としない。
 
+追補: 画像に示されたメインプロセスの `read ECONNRESET` について、[調査・修正と新しい試験用候補](browser-upgrade-econnreset-20261106-ja.md)を記録した。下表の Windows x64 ハッシュは修正前の候補であり、今後のインストール試験には追補の候補を使う。
+
 ## 今回完了したこと
 
 | 項目 | 結果と境界 |

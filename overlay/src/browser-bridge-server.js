@@ -271,6 +271,10 @@ function createBrowserBridge({ dataDir, safeStorage, extensionId = EXTENSION_ID,
     socket.end(`HTTP/1.1 ${code} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
   }
   function upgrade(request, socket, head) {
+    // Once Node emits "upgrade", the raw TCP socket is owned by upgrade
+    // handlers. A peer reset while a rejection is being written (or before
+    // another owner accepts it) must not escape as a main-process exception.
+    socket.on("error", () => { socket.destroy(); });
     if (request.url !== WS_PATH) {
       if (request.url?.startsWith("/browser")) reject(socket, 403);
       return; // Other owners may handle other upgrade paths.
