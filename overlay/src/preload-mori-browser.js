@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("mori", {
   status: () => ipcRenderer.invoke("mori:status"),
+  repairLogin: () => ipcRenderer.invoke("mori:repair-login"),
   pair: () => ipcRenderer.invoke("mori:pair"),
   copy: () => ipcRenderer.invoke("mori:copy-pair-code"),
   openExtension: () => ipcRenderer.invoke("mori:open-extension"),

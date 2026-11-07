@@ -79,10 +79,11 @@ function deliveryStatus(bridge, clients) {
 
 function loginStatus(value) {
   const labels = { enabled: "ログイン時の自動起動：有効", disabled: "ログイン時の自動起動：無効",
-    os_disabled: "ログイン時の自動起動：OS 側で無効", legacy: "ログイン時の自動起動：以前の登録を確認",
+    os_disabled: "ログイン時の自動起動：OS 側で無効", legacy: value?.reason === "source_registration"
+      ? "ログイン時の自動起動：旧開発版を指しています" : "ログイン時の自動起動：以前の登録を確認",
     unconfirmed: "ログイン時の自動起動：登録状態は未確認", unavailable: "ログイン時の自動起動：この環境では未確認" };
   const state = Object.hasOwn(labels, value?.state || "") ? value.state : "unconfirmed";
-  return { state, label: labels[state] };
+  return { state, label: labels[state], canRepair: value?.reason === "source_registration" };
 }
 
 // A paired socket cannot prove that a page is observing a particular session.

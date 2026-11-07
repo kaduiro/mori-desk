@@ -5,6 +5,7 @@
 // switch-filtering launchItems; it never writes to the host registry.
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const { createLoginItemController, PRODUCT_ID } = require("../src/mori-login-item");
 const { createRegistrationNameProbe } = require("../src/mori-login-registry");
 const exe = "C:\\A space & 日本語\\electron.exe";
@@ -79,6 +80,59 @@ test("a foreign executable hidden by Electron's enumeration cannot be overwritte
   assert.equal(f.writes.length, 0);
 });
 
+test("installed app repairs only a verified, enabled Mori source registration through an explicit action", { skip: process.platform !== "win32" }, () => {
+  const root = path.win32.resolve(__dirname, "..", "..");
+  const oldExe = path.win32.join(root, ".runtime", "node_modules", "electron", "dist", "electron.exe");
+  const oldBootstrap = path.win32.join(root, "bootstrap");
+  const installedExe = "C:\\Program Files\\Mori Desk\\Mori Desk.exe";
+  let entry = { path: oldExe, args: [oldBootstrap, "--mori-startup=login"], enabled: true };
+  let userCommand = `"${oldExe}" "${oldBootstrap}" --mori-startup=login`;
+  const writes = [];
+  const app = { isPackaged: true,
+    getLoginItemSettings(query) {
+      const matches = entry && query.path === `"${entry.path}"`
+        && JSON.stringify(query.args) === JSON.stringify(entry.args);
+      return { openAtLogin: !!matches, launchItems: matches
+        ? [{ name: PRODUCT_ID, path: entry.path, scope: "user", enabled: entry.enabled }] : [] };
+    },
+    setLoginItemSettings(value) {
+      writes.push(value);
+      entry = { path: value.path, args: value.args, enabled: value.enabled };
+    },
+  };
+  const controller = createLoginItemController({ app, platform: "win32", execPath: installedExe,
+    samePath: (left, right) => left.toLowerCase() === right.toLowerCase(),
+    probeName: () => ({ user: !!entry, machine: false, userCommand: entry?.path === oldExe ? userCommand : null }) });
+  userCommand += " --enable-cli";
+  assert.equal(controller.getStatus().reason, "foreign_registration");
+  assert.throws(() => controller.setEnabled(true), /foreign_registration/);
+  assert.equal(writes.length, 0);
+  userCommand = `"${oldExe}" "${oldBootstrap}" --mori-startup=login`;
+  assert.deepEqual(controller.getStatus(), { state: "legacy", enabled: true, reason: "source_registration" });
+  assert.equal(writes.length, 0);
+  assert.throws(() => controller.setEnabled(false), /requires_repair/);
+  assert.equal(controller.setEnabled(true).state, "enabled");
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, installedExe);
+});
+
+test("installed app does not replace an OS-disabled source registration", { skip: process.platform !== "win32" }, () => {
+  const root = path.win32.resolve(__dirname, "..", "..");
+  const oldExe = path.win32.join(root, ".runtime", "node_modules", "electron", "dist", "electron.exe");
+  const oldBootstrap = path.win32.join(root, "bootstrap");
+  let writes = 0;
+  const controller = createLoginItemController({ platform: "win32", execPath: "C:\\Program Files\\Mori Desk\\Mori Desk.exe",
+    app: { isPackaged: true, getLoginItemSettings(query) {
+      const old = query.path === `"${oldExe}"`;
+      return { openAtLogin: old, launchItems: old ? [{ name: PRODUCT_ID, path: oldExe, scope: "user", enabled: false }] : [] };
+    }, setLoginItemSettings() { writes++; } },
+    samePath: (left, right) => left.toLowerCase() === right.toLowerCase(),
+    probeName: () => ({ user: true, machine: false, userCommand: `"${oldExe}" "${oldBootstrap}" --mori-startup=login` }) });
+  assert.equal(controller.getStatus().state, "os_disabled");
+  assert.throws(() => controller.setEnabled(true), /os_disabled/);
+  assert.equal(writes, 0);
+});
+
 test("unreadable native presence and machine-scope conflicts never become absent", () => {
   for (const [options, reason] of [[{ probeFails: true }, "registration_probe_failed"], [{ machine: true }, "registration_ambiguous"]]) {
     const f = fixture(options);
@@ -111,16 +165,25 @@ test("duplicate or wrong-scope named launchItems remain ambiguous", () => {
   }
 });
 
-test("native probe uses only the fixed name and treats only ERROR_FILE_NOT_FOUND as absence", () => {
-  const calls = []; let result = 0; let loaded = 0;
+test("native probe reads only the fixed name and treats unreadable or wrong-type values as unknown", () => {
+  const calls = []; let result = 0; let loaded = 0; let typeValue = 1;
+  const command = '"C:\\Mori Desk.exe" --mori-startup=login';
+  const bytes = Buffer.from(`${command}\0`, "utf16le");
   const probe = createRegistrationNameProbe({ platform: "win32", loadKoffi: () => ({ load(name) {
     loaded++; assert.equal(name, "advapi32.dll");
-    return { func(signature) { assert.match(signature, /RegGetValueW/); return (...args) => { calls.push(args); return result; }; } };
+    return { func(signature) { assert.match(signature, /RegGetValueW/); return (...args) => {
+      calls.push(args);
+      args[4][0] = typeValue; args[6][0] = bytes.length;
+      if (args[5]) bytes.copy(args[5]);
+      return result;
+    }; } };
   } }) });
-  assert.deepEqual(probe(), { user: true, machine: true });
-  result = 2; assert.deepEqual(probe(), { user: false, machine: false });
-  for (const code of [5, 87, 234]) { result = code; assert.deepEqual(probe(), { user: null, machine: null }); }
+  assert.deepEqual(probe(), { user: true, machine: true, userCommand: command });
+  result = 2; assert.deepEqual(probe(), { user: false, machine: false, userCommand: null });
+  for (const code of [5, 87, 234]) { result = code; assert.deepEqual(probe(), { user: null, machine: null, userCommand: null }); }
+  result = 0; typeValue = 3;
+  assert.deepEqual(probe(), { user: null, machine: null, userCommand: null });
   assert.equal(loaded, 1);
-  assert.deepEqual(calls[0], [-2147483647, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", PRODUCT_ID, 0x1000ffff, null, null, null]);
-  assert.equal(calls[1][0], -2147483646);
+  assert.deepEqual(calls[0].slice(0, 4), [-2147483647, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", PRODUCT_ID, 0x00000002]);
+  assert.equal(calls[2][0], -2147483646);
 });

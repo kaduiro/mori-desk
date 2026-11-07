@@ -3,6 +3,7 @@
 // OS registration policy. Only the settings-controller action calls setEnabled;
 // status reconciliation is read-only and never revives an OS-disabled entry.
 const fs = require("node:fs");
+const path = require("node:path");
 const { createRegistrationNameProbe } = require("./mori-login-registry");
 const PRODUCT_ID = "com.kaduiro.moridesk";
 const status = (state, enabled, reason) => Object.freeze({ state, enabled, reason });
@@ -13,6 +14,22 @@ function samePhysicalPath(left, right) {
   if (typeof left !== "string" || typeof right !== "string") return false;
   try { return fs.realpathSync.native(unquote(left)) === fs.realpathSync.native(unquote(right)); }
   catch { return false; }
+}
+function verifiedSourceCommand(command, samePath) {
+  if (typeof command !== "string") return null;
+  const match = /^"([^"]+)" "([^"]+)" --mori-startup=login$/.exec(command);
+  if (!match) return null;
+  const [, exe, bootstrap] = match;
+  const root = path.win32.dirname(bootstrap);
+  const expectedExe = path.win32.join(root, ".runtime", "node_modules", "electron", "dist", "electron.exe");
+  if (!samePath(exe, expectedExe)) return null;
+  try {
+    const rootPackage = JSON.parse(fs.readFileSync(path.win32.join(root, "package.json"), "utf8"));
+    const bootstrapPackage = JSON.parse(fs.readFileSync(path.win32.join(bootstrap, "package.json"), "utf8"));
+    if (rootPackage.name !== "mori-desk-source" || bootstrapPackage.name !== "mori-desk-bootstrap"
+      || !fs.statSync(path.win32.join(bootstrap, "main.js")).isFile()) return null;
+  } catch { return null; }
+  return { exe, bootstrap };
 }
 function createLoginItemController({ app, execPath, appPath, bootstrapPath, platform = process.platform,
   samePath = samePhysicalPath, probeName = createRegistrationNameProbe({ platform }) }) {
@@ -45,7 +62,21 @@ function createLoginItemController({ app, execPath, appPath, bootstrapPath, plat
     if (named.length > 1 || named.some(item => item.scope !== "user"))
       return { public: status("unconfirmed", null, "registration_ambiguous"), owned: false };
     if (!named.length) {
-      if (presence.user) return { public: status("unconfirmed", null, "foreign_registration"), owned: false };
+      if (presence.user) {
+        const previous = !source && verifiedSourceCommand(presence.userCommand, samePath);
+        if (previous) {
+          let old;
+          try { old = app.getLoginItemSettings({ path: `"${previous.exe}"`, args: [previous.bootstrap, "--mori-startup=login"] }); }
+          catch { return { public: status("unavailable", null, "os_read_failed"), owned: false }; }
+          const entries = old.launchItems?.filter(item => item?.name === PRODUCT_ID);
+          if (old.openAtLogin === true && entries?.length === 1 && entries[0].scope === "user"
+            && samePath(entries[0].path, previous.exe)) {
+            if (entries[0].enabled === false) return { public: status("os_disabled", false, "os_disabled"), owned: false };
+            if (entries[0].enabled === true) return { public: status("legacy", true, "source_registration"), owned: true };
+          }
+        }
+        return { public: status("unconfirmed", null, "foreign_registration"), owned: false };
+      }
       if (raw.openAtLogin === true) return { public: status("unconfirmed", null, "registration_ambiguous"), owned: false };
       return { public: status("disabled", false, "not_registered"), owned: true };
     }
@@ -74,6 +105,7 @@ function createLoginItemController({ app, execPath, appPath, bootstrapPath, plat
       if (typeof enabled !== "boolean") throw new Error("login_invalid_value");
       const before = inspect();
       if (!before.owned) throw new Error(`login_${before.public.reason}`);
+      if (before.public.reason === "source_registration" && !enabled) throw new Error("login_source_registration_requires_repair");
       const settings = platform === "win32"
         ? { openAtLogin: enabled, path: execPath, args: desiredArgs, name: PRODUCT_ID, enabled }
         : { openAtLogin: enabled };

@@ -81,7 +81,7 @@ function session(overrides = {}) {
 }
 
 function harness(rows = [session()]) {
-  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "open-mail", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
+  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "open-mail", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "login-repair", "repair-login", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
   elements.get("history").open = false;
   elements.get("history").append(elements.get("history-sessions"));
   const document = {
@@ -106,6 +106,7 @@ function harness(rows = [session()]) {
     setLabel: (id, label) => { calls.push({ kind: "label", id, label }); return save(id, label); },
     dismiss: async id => { calls.push({ kind: "dismiss", id }); return { ok: true }; },
     revoke: async () => ({ ok: true }), pair: async () => ({ ok: true }), copy: async () => ({ ok: true }), openExtension: async () => ({ ok: true }), openMail: async () => ({ ok: true }),
+    repairLogin: async () => { calls.push({ kind: "repair-login" }); return { ok: true }; },
   } };
   const context = vm.createContext({ document, window, Intl, Date });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/mori-browser-renderer.js"), "utf8"), context);
@@ -162,6 +163,19 @@ test("service and startup status refresh separately from an active session name 
   assert.equal(h.card(), card); assert.equal(byClass(card, "session-label-input"), input);
   assert.equal(input.value, "入力中"); assert.equal(h.document.activeElement, input);
   assert.equal(h.calls.length, 0);
+});
+
+test("source login registration offers an explicit repair action only while verified", async () => {
+  const h = harness(); await h.settle();
+  assert.equal(h.elements.get("login-repair").hidden, true);
+  await h.refresh({ ...h.state, connection: { ...h.state.connection,
+    login: { state: "legacy", label: "ログイン時の自動起動：旧開発版を指しています", canRepair: true } } });
+  assert.equal(h.elements.get("login-repair").hidden, false);
+  await h.elements.get("repair-login").fire("click"); await h.settle();
+  assert.deepEqual(h.calls, [{ kind: "repair-login" }]);
+  await h.refresh({ ...h.state, connection: { ...h.state.connection,
+    login: { state: "enabled", label: "ログイン時の自動起動：有効", canRepair: false } } });
+  assert.equal(h.elements.get("login-repair").hidden, true);
 });
 
 test("live panel refresh preserves the actual editing node and draft through row ordering changes", async () => {

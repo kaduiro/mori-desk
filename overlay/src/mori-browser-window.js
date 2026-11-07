@@ -6,7 +6,7 @@ const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "",
-  getListenerStatus = () => null, getLoginStatus = () => null, getBuildInfo = () => null,
+  getListenerStatus = () => null, getLoginStatus = () => null, repairLoginItem = null, getBuildInfo = () => null,
   getPetBounds = () => null, getCalendarSuppressed = () => false,
   calendarDependencies = null }) {
   let window = null;
@@ -102,6 +102,11 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   }
 
   handle("mori:status", state);
+  handle("mori:repair-login", () => {
+    if (typeof repairLoginItem !== "function" || getLoginStatus()?.reason !== "source_registration")
+      return { ok: false, reason: "repair_not_available" };
+    return repairLoginItem();
+  });
   handle("mori:pair", () => {
     const bridge = getBridge();
     const listener = getListenerStatus();
