@@ -33,8 +33,6 @@ test("sender classification uses address, not display name, and preserves priori
   const result = core.sections([unread, priority], ["boss@example.com"], []);
   assert.deepEqual(result.priority.map(row => row.id), ["a1234567"]);
   assert.deepEqual(result.unread.map(row => row.id), ["b1234567"]);
-  assert.equal(core.gmailUrl("worker@example.com", "abc123").startsWith("https://mail.google.com/"), true);
-  assert.equal(core.gmailUrl("worker@example.com", "https://evil.test"), null);
 });
 
 test("mail store seals auth and enforces a persistent quota budget", t => {
@@ -102,6 +100,9 @@ test("runtime replays changes without losing an older priority row", async t => 
   const result = await runtime.refresh(true);
   assert.deepEqual(result.priority.map(row => row.id), ["a1234567"]);
   assert.deepEqual(result.unread.map(row => row.id), ["b1234567"]);
+  assert.equal(Object.hasOwn(result.priority[0], "url"), false);
+  assert.equal(Object.hasOwn(result.unread[0], "url"), false);
+  assert.equal(typeof runtime.link, "undefined");
   assert.equal(createMailStore({ dataDir: dir, safeStorage }).readCache("worker@example.com").historyId, "102");
   const held = await runtime.refresh(true);
   assert.equal(held.reason, "interval");
