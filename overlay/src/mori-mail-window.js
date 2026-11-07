@@ -3,12 +3,12 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { installClientConfig } = require("./mori-calendar-client-config");
-const { ID_RE } = require("./mori-mail-core");
+const { email } = require("./mori-mail-core");
 const { openJsonFile } = require("./browser-bridge-persistence");
 const hudLayout = require("./mori-hud-layout");
 const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
-function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, screen,
+function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
   runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false,
   openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
   let window = null, positionTimer = null, automaticSession = false;
@@ -114,18 +114,10 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     return runtime.reloadClient();
   });
   handle("mori-mail:open-google-setup", () => openGoogleSetup());
-  handle("mori-mail:open-link", async payload => {
-    if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
-    const url = runtime.link(payload.id);
-    if (!url) return { ok: false, reason: "invalid-link" };
-    await shell.openExternal(url);
-    return { ok: true };
-  });
-  handle("mori-mail:copy-link", payload => {
-    if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
-    const url = runtime.link(payload.id);
-    if (!url) return { ok: false, reason: "invalid-link" };
-    clipboard.writeText(url);
+  handle("mori-mail:open-gmail", async () => {
+    if (!email(runtime.snapshot().account)) return { ok: false, reason: "unlinked" };
+    // Gmail may ignore authuser when that account is not signed in. Never open a message URL here.
+    await shell.openExternal("https://mail.google.com/");
     return { ok: true };
   });
   handle("mori-mail:close", () => { autoWanted = false; window?.close(); return { ok: true }; });

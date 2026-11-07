@@ -531,8 +531,8 @@ index 6f84bbc..0ec8906 100644
 -// Cross-platform "open at login" writer used by both the openAtLogin effect
 -// and the startup hydration helper. Throws on failure so the action layer can
 -// surface the error to the UI.
-+// The explicit Settings action is the sole OS writer. Startup/status reads
-+// never re-enable an OS-disabled item or silently migrate a legacy entry.
++// Explicit Settings and browser-panel repair actions are the only OS writers.
++// Startup/status reads never re-enable an OS-disabled item or migrate silently.
  function _writeSystemOpenAtLogin(enabled) {
    if (isLinux) {
      const launchScript = path.join(__dirname, "..", "launch.js");
@@ -820,7 +820,7 @@ index 6f84bbc..0ec8906 100644
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3189,31 @@
+@@ -3117,6 +3189,41 @@
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
@@ -837,6 +837,16 @@ index 6f84bbc..0ec8906 100644
 +  getBuildInfo: () => moriBuildInfo,
 +  getListenerStatus: () => moriListenerStatus,
 +  getLoginStatus: _readMoriLoginStatus,
++  repairLoginItem: () => {
++    if (!app.isPackaged || _readMoriLoginStatus().reason !== "source_registration")
++      return { ok: false, reason: "repair_not_available" };
++    if (_settingsController.isLocked()) return { ok: false, reason: "settings_locked" };
++    if (_settingsController.get("openAtLogin") !== true) {
++      const result = _settingsController.applyUpdate("openAtLogin", true);
++      if (result?.status !== "ok") return { ok: false, reason: "settings_update_failed" };
++    } else _writeSystemOpenAtLogin(true);
++    return { ok: _readMoriLoginStatus().state === "enabled" };
++  },
 +  getPetBounds: () => getPetWindowBounds(),
 +  getCalendarSuppressed: () => doNotDisturb || _mini.getMiniMode()
 +    || sessionHudEnabled === false || petWindowRuntime.isPetEffectivelyHidden(),

@@ -233,6 +233,7 @@ async function refresh() {
     }
     $("delivery-status").textContent = connection.delivery?.label || "保存済み通知の同期状況は未確認";
     $("login-status").textContent = connection.login?.label || "ログイン時の自動起動：登録状態は未確認";
+    $("login-repair").hidden = !connection.login?.canRepair;
     $("version-status").textContent = [
       `Mori Desk：${connection.desktopVersion || "未確認"}`,
       ...(connection.versions || []).map(item => `${item.label}：拡張 ${item.extensionVersion || "未確認"} / 同梱の監視プログラム ${item.observerVersion || "未確認"}（${item.compatibility}）`),
@@ -276,5 +277,6 @@ $("pair").addEventListener("click", async () => {
 $("copy").addEventListener("click", () => act("copy", $("copy"), () => window.mori.copy(), "コードをコピーしました。"));
 $("extension").addEventListener("click", () => act("extension", $("extension"), () => window.mori.openExtension(), "開いた browser-bridge フォルダーを Chrome で選択してください。"));
 $("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
+$("repair-login").addEventListener("click", () => act("repair-login", $("repair-login"), () => window.mori.repairLogin(), "ログイン時の起動先をインストール版に修復しました。"));
 window.mori.onChange(refresh);
 refresh();

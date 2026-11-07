@@ -30,11 +30,10 @@ function renderMail(mail, priority) {
   detail.append(field("送信者", mail.from || mail.sender || "不明"),
     field("受信", clock(mail.receivedAt)), field("宛先", mail.to || "不明"),
     field("概要", mail.snippet || "なし"), field("アカウント", current.account || "不明"),
-    field("URL", mail.url ? mail.url + "（Gmail の画面形式は変更される場合があります）" : "利用不可"));
+    field("Gmail", "対象アカウントが未ログインの場合、直リンクは別アカウントへ誤遷移します。Gmail を開いたら右上のアカウントを確認し、件名で探してください。"));
   const body = field("本文", "読み込み中…"); detail.append(body);
   const actions = document.createElement("div"); actions.className = "mail-actions";
-  actions.append(button("Gmail で開く", () => action(() => window.moriMail.openLink(mail.id))),
-    button("URL をコピー", () => action(() => window.moriMail.copyLink(mail.id))));
+  actions.append(button("Gmail ホームを開く", () => action(() => window.moriMail.openGmail())));
   if (priority) actions.append(button("一覧から除外", () => action(() => window.moriMail.hide(mail.id))));
   detail.append(actions);
   summary.addEventListener("click", event => {
