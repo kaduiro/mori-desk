@@ -29,4 +29,5 @@
 
 - Node 24.21.0 で `npm run rebuild` により通常 runtime を再構築。`npm run doctor` は `source_check_passes (source_matches)`、拡張ファイルも `matches_source`。これは実行中アプリと Chrome 拡張の一致を意味しない。
 - `npm test`: 909 件中 907 件成功、失敗 0、スキップ 1、TODO 1。個別の通知試験では旧メールの一斉通知防止、重複抑止、Google の通知時刻、延期・解除、通知停止時間、DND を確認した。いずれも synthetic fixture であり OS 通知実表示は未確認。
-- Windows x64 Setup をローカルで生成し、native package audit のエラー 0。`Mori-Desk-Setup-0.1.3-preview.1-x64.exe` は 111,267,259 bytes、SHA-256 `BE8374BB16753843DB3D5E9E0EFE7F2CFA170C572FFFFD482CB5A6CDFA150A84`、Authenticode `NotSigned`。`.runtime/dist/` のローカル成果物であり、公開・インストール試験は未実施。
+- Windows x64 Setup をローカルで生成し、native package audit のエラー 0。`Mori-Desk-Setup-0.1.3-preview.1-x64.exe` は 111,267,259 bytes、SHA-256 `BE8374BB16753843DB3D5E9E0EFE7F2CFA170C572FFFFD482CB5A6CDFA150A84`、Authenticode `NotSigned`。`.runtime/dist/` のローカル成果物で、公開は未実施。
+- 上記 Setup を現在の Windows ユーザーの既存フォルダーに上書きインストールした。完了画面から Mori Desk が起動し、本体、Mail HUD、Calendar HUD、ブラウザ連携画面を Windows のウィンドウ一覧で確認。インストール済み `resources/app.asar` とビルド出力の SHA-256 はともに `F88D60B13227986572CE62FC079AD7BC928029706BF3F6CECB6D98414E964424`。Calendar HUD の UI Automation テキストで新しい端末内 API 予約回数表示を確認した。通知設定の展開操作は別アプリのウィンドウが入力を遮り、実通知の表示試験は未完了。
