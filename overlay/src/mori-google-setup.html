@@ -14,6 +14,18 @@
 <label for="billing">請求先の状態</label><select id="billing"><option value="unknown">未確認</option><option value="not-linked">未連携と確認</option><option value="linked">連携済みと確認</option></select>
 <label class="check"><input id="gmail-quota" type="checkbox">Gmail API の実効枠を Console で確認した</label>
 <label class="check"><input id="calendar-quota" type="checkbox">Calendar API の実効枠を Console で確認した</label>
+<p>Cloud 側の使用量は自動取得しません。同じプロジェクト・同じ指標・同じ期間の値を Console から転記した場合だけ残量を表示します。値を空欄にすると未確認になります。</p>
+<p><a href="https://console.cloud.google.com/iam-admin/quotas" target="_blank" rel="noopener noreferrer">Cloud の割り当てを開く</a> · <a href="https://console.cloud.google.com/apis/dashboard" target="_blank" rel="noopener noreferrer">API ダッシュボードを開く</a></p>
+<fieldset><legend>Gmail API（Cloud Console の値）</legend>
+<label for="gmail-metric">指標名</label><input id="gmail-metric" type="text" maxlength="100" placeholder="例: Quota units per minute per project">
+<label for="gmail-used">使用量</label><input id="gmail-used" type="number" min="0" max="1000000000" step="1" placeholder="未確認">
+<label for="gmail-limit">上限</label><input id="gmail-limit" type="number" min="1" max="1000000000" step="1" placeholder="未確認">
+<label for="gmail-window">期間</label><select id="gmail-window"><option value="minute">1分</option><option value="day">1日</option></select></fieldset>
+<fieldset><legend>Calendar API（Cloud Console の値）</legend>
+<label for="calendar-metric">指標名</label><input id="calendar-metric" type="text" maxlength="100" placeholder="例: Requests per minute per project">
+<label for="calendar-used">使用量</label><input id="calendar-used" type="number" min="0" max="1000000000" step="1" placeholder="未確認">
+<label for="calendar-limit">上限</label><input id="calendar-limit" type="number" min="1" max="1000000000" step="1" placeholder="未確認">
+<label for="calendar-window">期間</label><select id="calendar-window"><option value="minute">1分</option><option value="day">1日</option></select></fieldset>
 <button id="save-state" type="button">確認内容をこの PC に保存</button><p id="saved-state" role="status" aria-live="polite">保存状態を確認しています…</p></section>
 <section><h2>2. Google Auth Platform</h2>
 <p>「ブランディング」「対象」「データアクセス」を確認し、Desktop アプリの OAuth クライアントを Calendar 用と Gmail 用に作ります。Gmail には <code>gmail.readonly</code>、Calendar には <code>calendar.events.readonly</code> と <code>calendar.calendarlist.readonly</code> だけを設定します。OAuth クライアントの作成、規約への同意は本人が Console で行ってください。</p>
@@ -25,6 +37,9 @@
 <section><h2>4. 利用枠を確かめる</h2>
 <p>実効枠と請求条件はプロジェクトごとに確認します。Mori Desk の Gmail 同期は通常5分間隔で、更新ボタンには連打防止があります。無料利用は保証されません。</p>
 <p><a href="https://developers.google.com/workspace/gmail/api/reference/quota" target="_blank" rel="noopener noreferrer">Gmail API の枠</a> · <a href="https://developers.google.com/workspace/calendar/api/guides/quota" target="_blank" rel="noopener noreferrer">Calendar API の枠</a></p></section>
+<section><h2>5. Chrome・CLI の接続</h2>
+<p>Chrome の ChatGPT と Claude は「ブラウザ連携・セッション」画面から拡張機能のフォルダーを開き、Chrome の <code>chrome://extensions</code> で「パッケージ化されていない拡張機能を読み込む」を選びます。続いて Mori Desk で接続コードを作り、拡張機能の設定に貼り付けてください。ブラウザーによる確認画面やポリシーは省略できません。</p>
+<p>ローカルの Codex CLI と Claude Code は、Mori Desk を <code>--enable-cli</code> 付きで起動し、アプリの設定画面で対象の Agent を明示的に Install します。既存の個人設定を黙って書き換えません。ChatGPT デスクトップアプリの汎用フックは対象外です。</p></section>
 <section><h2>接続・更新に失敗した場合</h2>
 <ul>
 <li>Google の同意画面で 403 が出る場合は、選んだ Google アカウントの主メールアドレスが OAuth のテストユーザーに登録されているか確認します。Workspace アカウントでは組織の管理者による制限も確認します。以前のエラータブではなく、新しく開いた同意画面の結果で判断してください。</li>

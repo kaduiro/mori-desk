@@ -69,6 +69,13 @@ function renderSenders(data) {
 }
 function render(data) {
   $("auto-open").checked = data.autoOpen !== false;
+  $("mail-notify").checked = data.notification?.enabled === true;
+  $("mail-notify").disabled = data.notification?.supported !== true;
+  $("mail-quiet-start").value = data.notification?.quietStart || "22:00";
+  $("mail-quiet-end").value = data.notification?.quietEnd || "08:00";
+  $("notification-status").textContent = data.notification?.supported
+    ? "通知はこの PC で管理します。停止時間は予定通知と共通です。"
+    : "この環境で OS 通知を利用できません。";
   $("pin").checked = data.pinned !== false;
   if ([1, 1.25, 1.5].includes(data.zoom)) $("text-size").value = String(data.zoom);
   $("window-size").value = data.sizeMode || ({ "400x480": "standard", "520x620": "large", "640x760": "extra" })[
@@ -102,7 +109,9 @@ function render(data) {
   $("connect").hidden = !["unlinked", "auth-expired", "failed"].includes(data.status);
   $("disconnect").hidden = !data.account;
   $("refresh").disabled = busy || !data.account || ["loading", "quota-paused", "local-limit"].includes(data.status);
-  $("usage").textContent = data.requestUnits == null ? "" : `この PC の API 利用量: ${data.requestUnits} / ${data.requestLimit} units（24時間）`;
+  $("usage").textContent = data.requestUnits == null
+    ? "この PC の利用量は確認できません。Cloud の実効枠・使用量は Console で確認してください。"
+    : `この PC の Gmail API 使用予約量: ${data.requestUnits} / ${data.requestLimit} units（直近24時間、端末内の上限）。Cloud の実効枠・使用量とは異なります。`;
   renderSenders(data);
 }
 async function refresh() {
@@ -171,6 +180,17 @@ $("auto-open").addEventListener("change", async () => {
     $("auto-open").checked = !enabled;
     $("state").textContent = "起動設定を保存できませんでした。";
   }
+});
+$("mail-notify").addEventListener("change", async () => {
+  const enabled = $("mail-notify").checked;
+  const result = await window.moriMail.setNotification(enabled).catch(() => null);
+  if (!result?.ok) { $("mail-notify").checked = !enabled;
+    $("notification-status").textContent = "通知設定を保存できませんでした。"; }
+});
+for (const id of ["mail-quiet-start", "mail-quiet-end"]) $(id).addEventListener("change", async () => {
+  const result = await window.moriMail.setQuiet($("mail-quiet-start").value,
+    $("mail-quiet-end").value).catch(() => null);
+  if (!result?.ok) $("notification-status").textContent = "通知停止時間を保存できませんでした。";
 });
 $("settings-toggle").addEventListener("click", () => { settingsOpen = !settingsOpen; refresh(); });
 $("refresh").addEventListener("click", () => action(() => window.moriMail.refresh()));

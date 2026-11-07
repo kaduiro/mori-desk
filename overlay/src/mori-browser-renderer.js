@@ -240,6 +240,8 @@ async function refresh() {
       "ページで実行中の監視プログラムの版は、この表示では確認していません。",
     ].join("\n");
     $("mode").textContent = value.cliEnabled ? "CLI 連携モード：有効。CLI セッションはキャラクター下の HUD に一緒に表示されます。" : "ブラウザ用モード。CLI の自動セットアップは無効です。";
+    $("restart-cli").disabled = value.cliEnabled === true;
+    $("restart-cli").textContent = value.cliEnabled ? "CLI 連携モードで起動中" : "CLI 連携モードで再起動";
     if (value.error || value.bridge?.error) {
       const errors = { secure_storage_unavailable: "OS の保護された鍵の保存先を利用できないため、ペアリングは停止しています。Windows / Mac で確認してください。",
         session_limit: "保存できるセッション数の上限です。保存済みの記録と未確認通知は保持しています。履歴の整理には後続版の保存容量対応が必要です。",
@@ -276,6 +278,8 @@ $("pair").addEventListener("click", async () => {
 });
 $("copy").addEventListener("click", () => act("copy", $("copy"), () => window.mori.copy(), "コードをコピーしました。"));
 $("extension").addEventListener("click", () => act("extension", $("extension"), () => window.mori.openExtension(), "開いた browser-bridge フォルダーを Chrome で選択してください。"));
+$("restart-cli").addEventListener("click", () => act("restart-cli", $("restart-cli"),
+  () => window.mori.restartCli(), "CLI 連携モードで再起動します。"));
 $("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
 $("repair-login").addEventListener("click", () => act("repair-login", $("repair-login"), () => window.mori.repairLogin(), "ログイン時の起動先をインストール版に修復しました。"));
 window.mori.onChange(refresh);

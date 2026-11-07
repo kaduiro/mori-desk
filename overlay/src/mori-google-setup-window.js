@@ -6,6 +6,8 @@ const { createGoogleSetupStore } = require("./mori-google-setup-store");
 
 const ALLOWED_URLS = new Set([
   "https://console.cloud.google.com/",
+  "https://console.cloud.google.com/iam-admin/quotas",
+  "https://console.cloud.google.com/apis/dashboard",
   "https://developers.google.com/identity/protocols/oauth2/native-app",
   "https://developers.google.com/identity/protocols/oauth2/production-readiness/overview",
   "https://developers.google.com/workspace/gmail/api/reference/quota",

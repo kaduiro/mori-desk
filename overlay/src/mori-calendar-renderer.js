@@ -22,7 +22,7 @@ function field(label, content) {
   else value.append(content);
   row.append(name, value); return row;
 }
-function renderEvent(event) {
+function renderEvent(event, data) {
   const key = event.key || event.id;
   const card = document.createElement("details"); card.className = "event";
   if (event.declined) card.classList.add("declined");
@@ -45,6 +45,25 @@ function renderEvent(event) {
   const detail = document.createElement("div"); detail.className = "event-detail";
   detail.append(field("時間", timeText(event)), field("出所", event.sourceName || "メイン"),
     field("内容", event.description || "説明なし"));
+  const minutes = event.reminders?.useDefault
+    ? data.calendars.find(item => item.id === event.sourceId)?.defaultReminders || []
+    : event.reminders?.overrides || [];
+  if (!event.allDay && minutes.length) {
+    const notice = document.createElement("div");
+    const label = document.createElement("span");
+    label.textContent = `Google のポップアップ通知: ${minutes.join("、")} 分前`;
+    const snooze = document.createElement("button"); snooze.textContent = "10分後に再通知";
+    const dismiss = document.createElement("button"); dismiss.textContent = "この予定の通知を解除";
+    for (const [button, action] of [[snooze, "snooze"], [dismiss, "dismiss"]]) {
+      button.addEventListener("click", async () => {
+        const result = await window.moriCalendar.reminderAction(key, action);
+        label.textContent = result?.ok ? action === "snooze" ? "この PC で10分後に再通知します。"
+          : "この PC で、この予定の通知を解除しました。" : "通知設定を変更できませんでした。";
+      });
+    }
+    notice.append(label, snooze, dismiss);
+    detail.append(field("通知", notice));
+  }
   if (event.url) {
     const link = document.createElement("div");
     const text = document.createElement("span"); text.className = "url"; text.textContent = event.url; text.title = event.url;
@@ -108,6 +127,13 @@ function renderSelection(data) {
 }
 function render(data) {
   $("auto-open").checked = data.autoOpen !== false;
+  $("calendar-notify").checked = data.notification?.enabled === true;
+  $("calendar-notify").disabled = data.notification?.supported !== true;
+  $("calendar-quiet-start").value = data.notification?.quietStart || "22:00";
+  $("calendar-quiet-end").value = data.notification?.quietEnd || "08:00";
+  $("notification-status").textContent = data.notification?.supported
+    ? "通知はこの PC で管理します。停止時間はメール通知と共通です。"
+    : "この環境で OS 通知を利用できません。";
   $("pin").checked = data.pinned !== false;
   if ([1, 1.25, 1.5].includes(data.zoom)) $("text-size").value = String(data.zoom);
   $("window-size").value = data.sizeMode || ({ "400x480": "standard", "520x620": "large", "640x760": "extra" })[
@@ -147,8 +173,10 @@ function render(data) {
       "calendar-not-found": "アクセス不可", "local-limit": "上限停止", "google-quota": "利用枠停止",
       cached: "以前の取得結果" }[item.status] || "取得失敗"))
     .join(" / ");
+  $("usage").textContent = data.requestCount == null ? "この PC の取得回数は確認できません。Cloud の実効枠・使用量は別途 Console で確認してください。"
+    : `この PC の API リクエスト予約回数: ${data.requestCount} / ${data.requestLimit} 回（直近24時間、端末内の上限）。Cloud の実効枠・使用量とは異なります。`;
   const scrollTop = $("events").scrollTop;
-  $("events").replaceChildren(...data.events.map(renderEvent));
+  $("events").replaceChildren(...data.events.map(event => renderEvent(event, data)));
   $("events").scrollTop = scrollTop;
   $("connect").hidden = !["unlinked", "auth-expired", "auth-failed", "config-changed"].includes(data.status)
     && (data.listScope || ["config-needed", "secure-storage-unavailable", "storage-error"].includes(data.status));
@@ -227,6 +255,17 @@ $("auto-open").addEventListener("change", async () => {
     $("auto-open").checked = !enabled;
     $("state").textContent = "起動設定を保存できませんでした。";
   }
+});
+$("calendar-notify").addEventListener("change", async () => {
+  const enabled = $("calendar-notify").checked;
+  const result = await window.moriCalendar.setNotification(enabled).catch(() => null);
+  if (!result?.ok) { $("calendar-notify").checked = !enabled;
+    $("notification-status").textContent = "通知設定を保存できませんでした。"; }
+});
+for (const id of ["calendar-quiet-start", "calendar-quiet-end"]) $(id).addEventListener("change", async () => {
+  const result = await window.moriCalendar.setQuiet($("calendar-quiet-start").value,
+    $("calendar-quiet-end").value).catch(() => null);
+  if (!result?.ok) $("notification-status").textContent = "通知停止時間を保存できませんでした。";
 });
 $("setup").addEventListener("click", () => window.moriCalendar.openSetup());
 $("connect").addEventListener("click", () => window.moriCalendar.openSetup());

@@ -820,7 +820,7 @@ index 6f84bbc..0ec8906 100644
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3189,41 @@
+@@ -3117,6 +3189,42 @@
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
@@ -848,6 +848,7 @@ index 6f84bbc..0ec8906 100644
 +    return { ok: _readMoriLoginStatus().state === "enabled" };
 +  },
 +  getPetBounds: () => getPetWindowBounds(),
++  getDoNotDisturb: () => doNotDisturb,
 +  getCalendarSuppressed: () => doNotDisturb || _mini.getMiniMode()
 +    || sessionHudEnabled === false || petWindowRuntime.isPetEffectivelyHidden(),
 +});

@@ -9,7 +9,7 @@ const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
 function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
   getPetBounds, getOtherBounds = () => null, getSuppressed, dataDir,
-  openSetup = () => ({ ok: false, reason: "unavailable" }) }) {
+  openSetup = () => ({ ok: false, reason: "unavailable" }), reminders = null }) {
   let window = null;
   let detachRecovery = null;
   let positionTimer = null;
@@ -44,9 +44,20 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
     });
     channels.push(channel);
   }
-  handle("mori-calendar:state", () => ({ ok: true, ...runtime.snapshot(), zoom: placement.zoom,
+  handle("mori-calendar:state", () => ({ ok: true, ...(runtime.diagnostics ? runtime.diagnostics() : runtime.snapshot()), zoom: placement.zoom,
     pinned: placement.pinned, autoOpen: placement.autoOpen,
+    notification: reminders?.stateFor("calendar") || { enabled: false, supported: false },
     width: placement.width, height: placement.height, sizeMode: hudLayout.sizeMode(placement) }));
+  handle("mori-calendar:notify", value => reminders?.setEnabled("calendar", value)
+    || { ok: false, reason: "unavailable" });
+  handle("mori-calendar:quiet", value => reminders?.setQuiet(value?.start, value?.end)
+    || { ok: false, reason: "unavailable" });
+  handle("mori-calendar:reminder-action", value => {
+    if (typeof value?.key !== "string" || !/^[a-f0-9]{32}$/.test(value.key)
+      || !["snooze", "dismiss"].includes(value.action)) return { ok: false, reason: "invalid-action" };
+    const event = runtime.snapshot().events.find(item => item.key === value.key);
+    return reminders?.changeEvent(event, value.action) || { ok: false, reason: "unavailable" };
+  });
   handle("mori-calendar:auto-open", value => {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-auto-open" };
     const previous = placement.autoOpen;

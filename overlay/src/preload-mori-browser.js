@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("mori", {
   pair: () => ipcRenderer.invoke("mori:pair"),
   copy: () => ipcRenderer.invoke("mori:copy-pair-code"),
   openExtension: () => ipcRenderer.invoke("mori:open-extension"),
+  restartCli: () => ipcRenderer.invoke("mori:restart-cli"),
   openMail: () => ipcRenderer.invoke("mori:open-mail"),
   focus: (id, noticeSequence) => ipcRenderer.invoke("mori:focus", { id, noticeSequence }),
   ack: (id, noticeSequence) => ipcRenderer.invoke("mori:ack", { id, noticeSequence }),

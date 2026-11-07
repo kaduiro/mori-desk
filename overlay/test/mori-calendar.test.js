@@ -19,7 +19,7 @@ test("collapsed calendar rows show the start and end time beside each title", as
       replaceChildren(...children) { this.children = children; },
       addEventListener(name, listener) { this.listeners[name] = listener; } };
   }
-  const ids = Object.fromEntries(["date", "state", "updated", "source-status", "events", "selection", "selection-note",
+  const ids = Object.fromEntries(["date", "state", "updated", "source-status", "usage", "calendar-notify", "calendar-quiet-start", "calendar-quiet-end", "notification-status", "events", "selection", "selection-note",
     "calendar-options", "apply-selection", "reload-calendars", "choose", "connect", "disconnect", "refresh", "close", "setup", "text-size", "window-size", "resize-grip", "pin", "auto-open"]
     .map(id => [id, element()]));
   const document = { getElementById: id => ids[id], createElement: element,

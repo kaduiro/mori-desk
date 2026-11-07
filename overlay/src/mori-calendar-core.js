@@ -40,11 +40,17 @@ function normalizeEvent(event) {
   if (!allDay && (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)))) return null;
   if (allDay && (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end))) return null;
   const link = eventLink(event);
+  const reminders = event.reminders && typeof event.reminders === "object"
+    ? { useDefault: event.reminders.useDefault === true,
+      overrides: Array.isArray(event.reminders.overrides) ? event.reminders.overrides
+        .filter(item => item?.method === "popup" && Number.isSafeInteger(item.minutes)
+          && item.minutes >= 0 && item.minutes <= 40320).slice(0, 5)
+        .map(item => item.minutes) : [] } : { useDefault: false, overrides: [] };
   return {
     id: event.id,
     title: String(event.summary || "無題の予定").slice(0, 500),
     description: String(event.description || "").slice(0, 20000),
-    start, end, allDay, url: link.url, urlKind: link.kind,
+    start, end, allDay, url: link.url, urlKind: link.kind, reminders,
     declined: Array.isArray(event.attendees) && event.attendees.some(person => person?.self === true && person.responseStatus === "declined"),
   };
 }

@@ -10,7 +10,7 @@ const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
 function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
   runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false,
-  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
+  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }), reminders = null }) {
   let window = null, positionTimer = null, automaticSession = false;
   let detachRecovery = null;
   let autoWanted = false, disposed = false, focusOnLoad = false, suppressionClosing = false;
@@ -35,7 +35,12 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
   }
   handle("mori-mail:state", () => ({ ok: true, ...runtime.snapshot(), zoom: placement.zoom,
     pinned: placement.pinned, autoOpen: placement.autoOpen,
+    notification: reminders?.stateFor("mail") || { enabled: false, supported: false },
     width: placement.width, height: placement.height, sizeMode: hudLayout.sizeMode(placement) }));
+  handle("mori-mail:notify", value => reminders?.setEnabled("mail", value)
+    || { ok: false, reason: "unavailable" });
+  handle("mori-mail:quiet", value => reminders?.setQuiet(value?.start, value?.end)
+    || { ok: false, reason: "unavailable" });
   handle("mori-mail:auto-open", value => {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-auto-open" };
     const previous = placement.autoOpen;

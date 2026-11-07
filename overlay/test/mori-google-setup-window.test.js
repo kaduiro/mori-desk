@@ -63,7 +63,15 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   assert.equal(saved.billing, "not-linked");
   assert.equal(Number.isSafeInteger(saved.checkedAt), true);
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(dataDir, "status.json"), "utf8"))).sort(),
-    ["billing", "calendarQuotaChecked", "checkedAt", "gmailQuotaChecked", "projectId", "source", "version"]);
+    ["billing", "calendarQuota", "calendarQuotaChecked", "checkedAt", "gmailQuota", "gmailQuotaChecked", "projectId", "source", "version"]);
+  const observed = await handlers.get("mori-google-setup:save")(trusted,
+    { projectId: "mori-personal-123", billing: "not-linked", gmailQuotaChecked: true,
+      calendarQuotaChecked: true, gmailQuota: { metric: "units per minute", used: 100, limit: 1000, window: "minute" },
+      calendarQuota: { metric: "requests per day", used: 5, limit: 100, window: "day" } });
+  assert.equal(observed.gmailQuota.used, 100);
+  assert.equal(observed.calendarQuota.window, "day");
+  assert.equal((await handlers.get("mori-google-setup:save")(trusted,
+    { ...observed, gmailQuota: { used: -1, limit: 100, window: "minute" } })).ok, false);
   guide.dispose();
   assert.equal(win.destroyed, true);
   assert.equal(handlers.size, 0);

@@ -24,6 +24,7 @@
 <div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
+<section><h2>ローカルの Codex CLI・Claude Code</h2><p>ブラウザ連携とは別の明示的な設定です。CLI 連携モードで起動した後、キャラクターの設定 → Agent で Codex CLI / Claude Code の Install を個別に押してください。既存の設定に Mori のフックが追加されます。</p><button id="restart-cli" type="button">CLI 連携モードで再起動</button><p>この切替は今回の起動に適用します。ログイン時の自動起動設定や既存の Codex / Claude ファイルを黙って変更しません。</p></section>
 <section><div class="section-heading"><h2>現在のタブ</h2><span id="count">0 件</span></div>
 <p class="session-intro">会話名と直近の依頼の抜粋から、どのタブかを確認できます。表示名は自分でも設定できます。</p>
 <p id="empty">接続後、ChatGPT / Claude の会話タブを開いてください。</p>

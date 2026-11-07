@@ -81,7 +81,7 @@ function session(overrides = {}) {
 }
 
 function harness(rows = [session()]) {
-  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "open-mail", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "login-repair", "repair-login", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
+  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "restart-cli", "open-mail", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "login-repair", "repair-login", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
   elements.get("history").open = false;
   elements.get("history").append(elements.get("history-sessions"));
   const document = {
@@ -105,7 +105,7 @@ function harness(rows = [session()]) {
     ack: async (id, noticeSequence) => { calls.push({ kind: "ack", id, noticeSequence }); return { ok: true }; },
     setLabel: (id, label) => { calls.push({ kind: "label", id, label }); return save(id, label); },
     dismiss: async id => { calls.push({ kind: "dismiss", id }); return { ok: true }; },
-    revoke: async () => ({ ok: true }), pair: async () => ({ ok: true }), copy: async () => ({ ok: true }), openExtension: async () => ({ ok: true }), openMail: async () => ({ ok: true }),
+    revoke: async () => ({ ok: true }), pair: async () => ({ ok: true }), copy: async () => ({ ok: true }), openExtension: async () => ({ ok: true }), restartCli: async () => ({ ok: true }), openMail: async () => ({ ok: true }),
     repairLogin: async () => { calls.push({ kind: "repair-login" }); return { ok: true }; },
   } };
   const context = vm.createContext({ document, window, Intl, Date });
