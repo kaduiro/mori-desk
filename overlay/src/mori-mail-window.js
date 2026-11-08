@@ -33,7 +33,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
     });
     channels.push(channel);
   }
-  handle("mori-mail:state", () => ({ ok: true, ...runtime.snapshot(), zoom: placement.zoom,
+  handle("mori-mail:state", () => ({ ok: true, ...(runtime.diagnostics ? runtime.diagnostics() : runtime.snapshot()), zoom: placement.zoom,
     pinned: placement.pinned, autoOpen: placement.autoOpen,
     notification: reminders?.stateFor("mail") || { enabled: false, supported: false },
     width: placement.width, height: placement.height, sizeMode: hudLayout.sizeMode(placement) }));

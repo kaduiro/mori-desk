@@ -7,6 +7,7 @@
 <body><main>
 <header aria-label="ドラッグして移動"><div class="heading"><h1>受信メール</h1><p id="account"></p></div><button id="close" aria-label="閉じる">×</button></header>
 <div class="meta"><p id="state" role="status" aria-live="polite">確認しています…</p><p id="updated"></p></div>
+<p id="usage" class="source-status"></p>
 <div id="events">
   <section id="priority-section"><h2>優先送信者 <span id="priority-count"></span></h2><div id="priority"></div><p class="mail-empty">アドレスの一致は送信者の認証を意味しません。</p></section>
   <section id="unread-section"><h2>その他の未読 <span id="unread-count"></span></h2><div id="unread"></div></section>
@@ -21,7 +22,7 @@
   <div id="senders"></div>
   <label class="startup-control"><input id="mail-notify" type="checkbox">優先送信者から新着が来たら OS 通知</label><p id="notification-status"></p><p>件名と本文は通知に表示しません。「起動時に表示」とは独立した設定です。</p>
   <label>通知停止 <input id="mail-quiet-start" type="time" value="22:00"> ～ <input id="mail-quiet-end" type="time" value="08:00"></label>
-  <p id="usage"></p><button id="disconnect" hidden>連携解除</button>
+  <button id="disconnect" hidden>連携解除</button>
 </section>
 <footer><button id="refresh">更新</button><button id="settings-toggle">設定</button><label class="startup-control" title="次回起動から適用。通知を有効にした場合は HUD を隠していても同期します。"><input id="auto-open" type="checkbox">起動時に表示</label><label class="pin-control"><input id="pin" type="checkbox">前面</label><label class="text-size">文字 <select id="text-size" aria-label="文字の大きさ"><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><label class="window-size">窓サイズ <select id="window-size" aria-label="窓の大きさ" title="窓の大きさを選択。右下のハンドルでも自由に調整できます。"><option value="custom">自由</option><option value="standard">標準</option><option value="large">大</option><option value="extra">特大</option></select></label></footer>
 </main><button id="resize-grip" type="button" aria-label="ドラッグして窓サイズを自由に変更" title="ドラッグして窓サイズを自由に変更"></button><script src="mori-mail-renderer.js"></script></body></html>

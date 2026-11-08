@@ -109,9 +109,12 @@ function render(data) {
   $("connect").hidden = !["unlinked", "auth-expired", "failed"].includes(data.status);
   $("disconnect").hidden = !data.account;
   $("refresh").disabled = busy || !data.account || ["loading", "quota-paused", "local-limit"].includes(data.status);
+  const units = value => new Intl.NumberFormat("ja-JP").format(value);
   $("usage").textContent = data.requestUnits == null
     ? "この PC の利用量は確認できません。Cloud の実効枠・使用量は Console で確認してください。"
-    : `この PC の Gmail API 使用予約量: ${data.requestUnits} / ${data.requestLimit} units（直近24時間、端末内の上限）。Cloud の実効枠・使用量とは異なります。`;
+    : `この PC の Gmail API 予約量: ${units(data.requestUnits)} / ${units(data.requestLimit)} units、残り ${units(Math.max(0, data.requestLimit - data.requestUnits))}（直近24時間）`;
+  if (data.requestUnits != null && data.minuteUnits != null)
+    $("usage").textContent += `。直近1分: ${units(data.minuteUnits)} / ${units(data.minuteLimit)} units、残り ${units(Math.max(0, data.minuteLimit - data.minuteUnits))}。Cloud の実効枠・残量は別です。`;
   renderSenders(data);
 }
 async function refresh() {
