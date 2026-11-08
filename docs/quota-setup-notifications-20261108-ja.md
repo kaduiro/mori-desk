@@ -32,3 +32,10 @@
 - Windows x64 Setup をローカルで生成し、native package audit のエラー 0。`Mori-Desk-Setup-0.1.3-preview.1-x64.exe` は 111,267,259 bytes、SHA-256 `BE8374BB16753843DB3D5E9E0EFE7F2CFA170C572FFFFD482CB5A6CDFA150A84`、Authenticode `NotSigned`。`.runtime/dist/` のローカル成果物で、公開は未実施。
 - 上記 Setup を現在の Windows ユーザーの既存フォルダーに上書きインストールした。完了画面から Mori Desk が起動し、本体、Mail HUD、Calendar HUD、ブラウザ連携画面を Windows のウィンドウ一覧で確認。インストール済み `resources/app.asar` とビルド出力の SHA-256 はともに `F88D60B13227986572CE62FC079AD7BC928029706BF3F6CECB6D98414E964424`。Calendar HUD の UI Automation テキストで新しい端末内 API 予約回数表示を確認した。通知設定の展開操作は別アプリのウィンドウが入力を遮り、実通知の表示試験は未完了。
 - 利用者が両 HUD の通知チェックを手動でオンにし、`reminders.json` は Mail/Calendar とも `true`、通知停止時間は `22:00`～`08:00` と記録した。別 Node プロセスで同じ保存先から新しい reminder service を構築しても両方 `true` を読み取れた。既存メールの一斉通知は発生せず、通知済み履歴は 0 件。試験後に利用者が両方オフへ戻し、保存ファイルと新しい service の読み直しで両方 `false` を確認した。OS 通知の実表示は未確認。
+
+### 実データによる Windows 通知試験
+
+- 利用者が両通知を再びオンにし、通知停止時間 `22:00`～`08:00` を維持した。個人アカウントの予定表に参加者なしの非公開・透明の一時予定（17:10 開始、10分前の `popup`）を作成し、Calendar HUD の更新で17:10の行を確認した。17:00に端末の通知済みハッシュが1件増え、Windows の Mori Desk 通知設定キーでも通知追加時刻と件数1を確認した。利用者が `Win + N` の通知センターで「予定の通知」を確認した。画面右下のバナー表示は未確認。一時予定は試験後に削除した。
+- 自分宛ての試験メールは Gmail の `SENT` ラベルも付くため、Mori Desk の仕様どおり表示・通知対象から除外された。大学アカウントからの実メールは当初「その他の未読」に届き、優先送信元を実際の `2411530195d@kindai.ac.jp` と完全一致に直すと「優先送信者」に移った。設定後の2通目を取得した際、HUD は優先2件を表示し、端末の通知済みハッシュと Windows の Mori Desk 通知件数はともに2件になった。利用者はメール通知を受け取ったと確認した。
+- Mail HUD の通知チェック・停止時間・説明文を、Calendar HUD と同じく利用量の下、一覧の上にある「通知設定」折りたたみセクションへ配置した。メール連携や優先送信元の管理は従来の「設定」に残した。
+- この変更後に通常 runtime を再構築し、`npm test` は910件中908件成功、失敗0、スキップ1、TODO1。サンドボックス内の初回実行では実ループバック WebSocket 試験がソケット作成時に失敗し、権限付きの再実行で通過した。`npm run doctor` はソースと runtime の一致を確認した。新しい Windows x64 Setup はローカルで生成し、native package audit のエラー0、Authenticode `NotSigned`。SHA-256 は `EED20661815AC8F590A9EFE31255E0D404C67D19D76347C78EAC37EDA7A71558`。この時点で新しい Setup のインストール実機確認は未実施。
