@@ -25,11 +25,18 @@ function main() {
     assert.equal(checked.status, 0, `${command} ${args.join(" ")} failed: ${checked.stderr}`);
   }
   const appDir = arch === "x64" ? "mac" : "mac-arm64";
-  const executable = path.join(dist, appDir, "Mori Desk.app", "Contents", "MacOS", "Mori Desk");
+  const contents = path.join(dist, appDir, "Mori Desk.app", "Contents");
+  const executable = path.join(contents, "MacOS", "Mori Desk");
   assert.ok(fs.statSync(executable).isFile(), `missing ${executable}`);
+  const plist = spawnSync("plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", path.join(contents, "Info.plist")],
+    { encoding: "utf8", timeout: 30000 });
+  assert.equal(plist.status, 0, `cannot read app version: ${plist.stderr}`);
+  assert.equal(plist.stdout.trim(), version, "app bundle version mismatch");
+  const architectures = spawnSync("lipo", ["-archs", executable], { encoding: "utf8", timeout: 30000 });
+  assert.equal(architectures.status, 0, `cannot read executable architecture: ${architectures.stderr}`);
+  assert.ok(architectures.stdout.split(/\s+/).includes(arch === "x64" ? "x86_64" : "arm64"), "executable architecture mismatch");
   const launched = spawnSync(executable, ["--version"], { encoding: "utf8", timeout: 30000 });
   assert.equal(launched.status, 0, `packaged executable did not start: ${launched.stderr}`);
-  assert.match(launched.stdout, /\d+\.\d+\.\d+/, "packaged executable did not report a version");
   console.log(`Verified unsigned macOS ${arch} DMG, ZIP, and executable launch.`);
 }
 
