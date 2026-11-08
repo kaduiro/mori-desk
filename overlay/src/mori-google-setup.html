@@ -28,7 +28,7 @@
 <label for="calendar-window">期間</label><select id="calendar-window"><option value="minute">1分</option><option value="day">1日</option></select></fieldset>
 <button id="save-state" type="button">確認内容をこの PC に保存</button><p id="saved-state" role="status" aria-live="polite">保存状態を確認しています…</p></section>
 <section><h2>2. Google Auth Platform</h2>
-<p>「ブランディング」「対象」「データアクセス」を確認し、Desktop アプリの OAuth クライアントを Calendar 用と Gmail 用に作ります。Gmail には <code>gmail.readonly</code>、Calendar には <code>calendar.events.readonly</code> と <code>calendar.calendarlist.readonly</code> だけを設定します。OAuth クライアントの作成、規約への同意は本人が Console で行ってください。</p>
+<p>「ブランディング」「対象」「データアクセス」を確認し、Desktop アプリの OAuth クライアントを Calendar 用と Gmail 用に作ります。Gmail には <code>gmail.readonly</code>、Calendar には <code>calendar.events.readonly</code> と <code>calendar.calendarlist.readonly</code> だけを設定します。作成操作はエージェントに支援させられます。規約・権限への同意と本人確認はご自身で行ってください。</p>
 <p>External / Testing は許可したテストユーザーだけが接続でき、Gmail 権限の更新トークンは通常7日で失効します。継続利用や不特定多数への配布条件とは区別してください。Workspace アカウントは組織の管理者設定で拒否される場合があります。</p>
 <p><a href="https://developers.google.com/identity/protocols/oauth2/native-app" target="_blank" rel="noopener noreferrer">Desktop OAuth の公式手順</a> · <a href="https://developers.google.com/identity/protocols/oauth2/production-readiness/overview" target="_blank" rel="noopener noreferrer">公開状態と対象ユーザー</a></p></section>
 <section><h2>3. Mori Desk に取り込む</h2>
@@ -48,7 +48,8 @@
 <li>External / Testing の連携が約7日後に切れた場合は、HUD から再連携します。個人の短期試験と継続利用では OAuth の公開状態を分けて検討してください。</li>
 </ul></section>
 <section><h2>Codex・Claude に手順を案内させる場合</h2>
-<p>以下を選択して、ご自身のコーディングエージェントへ貼り付けられます。認証や規約への同意はご自身で行ってください。</p>
-<textarea readonly aria-label="セットアップ支援用プロンプト" rows="13">Mori Desk の個人 Google Cloud 設定を案内してください。Google の公式ドキュメントで現在の画面・条件を確認し、既存プロジェクトの有無を私に確認してから進めてください。対象は Gmail API と Google Calendar API、および各機能用の Desktop OAuth クライアントです。Cloud Console の OAuth クライアント作成、ログイン、規約、請求先、権限の同意は私に操作を引き継いでください。請求先の連携、枠の増加、セキュリティ警告の回避は行わないでください。OAuth JSON、認可コード、トークン、メールや予定の内容をチャットに貼らせず、Mori Desk のファイル選択から直接取り込むよう案内してください。External / Testing の7日失効と Workspace 管理者の制限を説明し、最後に API 有効化、実効枠、Calendar と Gmail の接続・更新結果を確認してください。確認できない事項は「未確認」と記してください。</textarea></section>
+<p>下のボタンで指示文をコピーし、Computer Use を使える Codex または Claude に貼り付けてください。アカウントへのログインと同意はご自身で行います。</p>
+<button id="copy-agent-prompt" type="button">セットアップ指示をコピー</button><p id="copy-agent-status" role="status" aria-live="polite"></p>
+<textarea id="agent-prompt" readonly aria-label="セットアップ支援用プロンプト" rows="13">指示文を読み込み中…</textarea></section>
 <p class="foot">個人試験向けの案内です。一般配布の OAuth 審査・例外条件は別途確認します。</p>
 </main><script src="mori-google-setup-renderer.js"></script></body></html>

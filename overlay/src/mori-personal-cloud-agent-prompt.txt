@@ -1,0 +1,13 @@
+Mori Desk の個人 Google Cloud セットアップを、この PC で最後まで支援してください。私は非開発者です。利用できる Computer Use／ブラウザー操作で Google Cloud Console と Mori Desk の画面を読み、画面名が変わっていれば現在の公式 Google 文書を確認しながら進めてください。CLI やスクリプトの手順を先に要求せず、画面でできる操作を優先してください。
+
+目的: 私が管理する Google Cloud プロジェクトで Gmail API と Google Calendar API を有効化し、Mori Desk の「受信メール」と「今日の予定」を読み取り専用 OAuth で接続する。既存の適切なプロジェクトがあれば再利用し、重複するプロジェクトや OAuth クライアントを作らない。Cloud Run、Pub/Sub、サービスアカウント、API キー、請求先の連携、利用枠引き上げは不要です。
+
+進め方:
+1. Mori Desk がインストールされているか、Chrome が使えるか、私がログインしている Google アカウントと Cloud プロジェクトの候補を画面で確認する。既存プロジェクトと API/OAuth 設定の有無を先に調べる。別人・組織所有のプロジェクトなら使わず、私に選択を確認する。
+2. 必要なら私の個人プロジェクトを作成し、Gmail API と Google Calendar API だけを有効にする。プロジェクト ID を記録し、請求先状態と API の実効枠・使用量を Console で確認する。確認できない数値は推測しない。
+3. Google Auth Platform でアプリ名・サポートメール・対象ユーザー・連絡先を設定し、接続する本人の Google アカウントをテストユーザーに追加する。必要なスコープは Gmail が https://www.googleapis.com/auth/gmail.readonly、Calendar が https://www.googleapis.com/auth/calendar.events.readonly と https://www.googleapis.com/auth/calendar.calendarlist.readonly。メール送信・削除・予定編集の権限は追加しない。
+4. 「デスクトップ アプリ」型 OAuth クライアントを Calendar 用と Gmail 用に各1個作り、JSON をそれぞれローカル PC に保存する。既存の適切なクライアントがあれば再利用する。JSON の内容・認可コード・トークン・メール本文・予定内容をチャットやリポジトリへ貼らず、外部送信しない。
+5. Mori Desk の「今日の予定」と「受信メール」の設定画面で、それぞれ対応する JSON をファイル選択から取り込む。Google のログイン、規約同意、OAuth 権限同意、二段階認証、OS/ブラウザーの信頼確認は私に引き継ぐ。権限画面ではアカウントと読み取り専用スコープを私と一緒に確認する。画面操作ツールの規則が操作直前の確認を要求するときは、その確認を守る。
+6. 接続したアカウントが正しいこと、Calendar と Gmail の HUD に実データが表示され、各「更新」が成功することを確認する。メールのリンクは Chrome の対象アカウントを確認してから開く。API の実効枠と使用量を Console で確認し、Mori Desk の「個人 Google Cloud の準備」に確認値を記録する。試験のために不要なメールや予定は作らない。
+
+説明と完了報告: External / Testing のテストユーザー制限、更新トークンの短期失効、Gmail の制限付きスコープ、Workspace 管理者のブロック可能性、無料利用が保証されないことを簡潔に説明する。完了時はプロジェクト ID、API 有効化、OAuth クライアントの種類、接続アカウント、HUD 更新結果、枠・課金の確認状況を表にする。秘密情報は含めず、未確認事項は「未確認」と明記する。エラー時は画面の理由を確認して安全に再試行し、警告・ポリシー・証明書の検証を回避しない。

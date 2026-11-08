@@ -6,7 +6,8 @@ const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "",
-  getListenerStatus = () => null, getLoginStatus = () => null, repairLoginItem = null, getBuildInfo = () => null,
+  getListenerStatus = () => null, getLoginStatus = () => null, setLoginStartup = null,
+  repairLoginItem = null, openAgentSettings = null, installCliHook = null, getBuildInfo = () => null,
   getPetBounds = () => null, getCalendarSuppressed = () => false, getDoNotDisturb = () => false,
   calendarDependencies = null }) {
   let window = null;
@@ -42,7 +43,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     if (!googleSetupWindow) {
       const { createGoogleSetupWindow } = require("./mori-google-setup-window");
       const electron = calendarDependencies || require("electron");
-      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain,
+      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain, clipboard,
         dataDir: path.join(electron.app.getPath("userData"), "google-setup") });
     }
     return googleSetupWindow.open();
@@ -118,6 +119,8 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
         login: getLoginStatus(), buildInfo: getBuildInfo() }),
       sessions: bridge?.getSnapshot() || [], error,
       selectedSessionId, selectionRevision,
+      hudStartup: { calendar: calendarWindow?.autoOpenEnabled() ?? null,
+        mail: mailWindow?.autoOpenEnabled() ?? null },
       pairingExpiresAt: pairing?.expiresAt || null };
   }
 
@@ -126,6 +129,32 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     if (typeof repairLoginItem !== "function" || getLoginStatus()?.reason !== "source_registration")
       return { ok: false, reason: "repair_not_available" };
     return repairLoginItem();
+  });
+  handle("mori:set-login-startup", value => {
+    if (typeof value !== "boolean" || typeof setLoginStartup !== "function")
+      return { ok: false, reason: "invalid-or-unavailable" };
+    return setLoginStartup(value);
+  });
+  handle("mori:set-hud-startup", value => {
+    if (!value || !["calendar", "mail"].includes(value.kind) || typeof value.enabled !== "boolean")
+      return { ok: false, reason: "invalid-payload" };
+    if (value.kind === "calendar") { ensureCalendar(); return calendarWindow.setAutoOpen(value.enabled); }
+    ensureMail(); return mailWindow.setAutoOpen(value.enabled);
+  });
+  handle("mori:open-calendar", () => {
+    ensureCalendar(); calendarRuntime.start(); return calendarWindow.open();
+  });
+  handle("mori:open-google-setup", () => openGoogleSetup());
+  handle("mori:open-agent-settings", () => {
+    if (!cliEnabled || typeof openAgentSettings !== "function") return { ok: false, reason: "cli-disabled" };
+    openAgentSettings(); return { ok: true };
+  });
+  handle("mori:install-cli-hook", async value => {
+    if (!cliEnabled || typeof installCliHook !== "function") return { ok: false, reason: "cli-disabled" };
+    if (!["codex", "claude-code"].includes(value)) return { ok: false, reason: "invalid-agent" };
+    const result = await installCliHook(value);
+    return { ok: result?.status === "ok", reason: result?.status === "ok" ? undefined : "install-failed",
+      message: String(result?.message || "").slice(0, 300) };
   });
   handle("mori:pair", () => {
     const bridge = getBridge();
@@ -172,6 +201,10 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
       .replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
     const reason = await shell.openPath(extensionDir);
     return { ok: !reason, message: reason || "" };
+  });
+  handle("mori:copy-chrome-setup", () => {
+    clipboard.writeText("chrome://extensions");
+    return { ok: true };
   });
   handle("mori:restart-cli", () => {
     if (cliEnabled) return { ok: false, reason: "already-enabled" };
@@ -233,6 +266,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
       calendarRuntime.start();
     }
     startMail();
+    notify();
   }
   function startMail() {
     ensureMail();

@@ -46,3 +46,14 @@ $("save-state").addEventListener("click", async () => {
   finally { $("save-state").disabled = false; }
 });
 window.moriGoogleSetup.state().then(show).catch(() => { $("saved-state").textContent = "保存状態を読み取れません。"; });
+window.moriGoogleSetup.prompt().then(result => {
+  $("agent-prompt").value = result?.ok ? result.text : "指示文を読み込めません。";
+  $("copy-agent-prompt").disabled = !result?.ok;
+}).catch(() => { $("agent-prompt").value = "指示文を読み込めません。"; $("copy-agent-prompt").disabled = true; });
+$("copy-agent-prompt").addEventListener("click", async () => {
+  const button = $("copy-agent-prompt"); button.disabled = true;
+  try { const result = await window.moriGoogleSetup.copyPrompt();
+    $("copy-agent-status").textContent = result?.ok ? "指示文をコピーしました。Codex または Claude に貼り付けてください。" : "コピーできませんでした。下の文章を選択してコピーしてください。";
+  } catch { $("copy-agent-status").textContent = "コピーできませんでした。下の文章を選択してコピーしてください。"; }
+  finally { button.disabled = false; }
+});

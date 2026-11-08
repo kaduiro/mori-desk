@@ -58,13 +58,14 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
     const event = runtime.snapshot().events.find(item => item.key === value.key);
     return reminders?.changeEvent(event, value.action) || { ok: false, reason: "unavailable" };
   });
-  handle("mori-calendar:auto-open", value => {
+  function setAutoOpen(value) {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-auto-open" };
     const previous = placement.autoOpen;
     placement.autoOpen = value;
     if (!saveLayout()) { placement.autoOpen = previous; return { ok: false, reason: "storage-error" }; }
     return { ok: true, autoOpen: value };
-  });
+  }
+  handle("mori-calendar:auto-open", setAutoOpen);
   handle("mori-calendar:pin", value => {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-pin" };
     placement.pinned = value;
@@ -264,7 +265,7 @@ function createCalendarWindow({ BrowserWindow, ipcMain, shell, screen, runtime,
     if (window && !window.isDestroyed()) window.destroy();
     window = null;
   }
-  return { open, notify, dispose, autoOpenEnabled: () => placement.autoOpen,
+  return { open, notify, dispose, setAutoOpen, autoOpenEnabled: () => placement.autoOpen,
     getBounds: () => window && !window.isDestroyed() ? window.getBounds() : null };
 }
 
