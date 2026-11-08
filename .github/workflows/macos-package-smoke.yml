@@ -1,0 +1,59 @@
+name: macOS package smoke
+
+on:
+  pull_request:
+    paths:
+      - 'bootstrap/**'
+      - 'overlay/**'
+      - 'patches/**'
+      - 'scripts/**'
+      - 'test/**'
+      - 'upstream.lock.json'
+      - 'package.json'
+      - '.github/workflows/macos-package-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Use Node 24.18
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.18.0'
+          package-manager-cache: false
+      - name: Reconstruct source and run regression tests
+        run: |
+          npm run setup
+          npm test
+      - name: Build unsigned macOS package
+        run: npm run build:mac:${{ matrix.arch }}
+      - name: Check package and launch executable
+        env:
+          MORI_ARCH: ${{ matrix.arch }}
+        run: node scripts/smoke-macos-package.js
+      - name: Upload verified unsigned packages
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: mori-macos-${{ matrix.arch }}-unsigned
+          path: |
+            .runtime/dist/Mori-Desk-*-${{ matrix.arch }}.dmg
+            .runtime/dist/Mori-Desk-*-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 7
