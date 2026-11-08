@@ -41,8 +41,9 @@ jobs:
       - name: Reconstruct source and run regression tests
         run: |
           npm run setup
-          mkdir -p "$GITHUB_WORKSPACE/.mori-ci-tmp"
-          TMPDIR="$GITHUB_WORKSPACE/.mori-ci-tmp" npm test
+          # Resolve the macOS /var -> /private/var alias, while keeping test
+          # fixtures outside the repository's credential protection boundary.
+          TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)" npm test
       - name: Build unsigned macOS package
         run: npm run build:mac:${{ matrix.arch }}
       - name: Check package and launch executable
