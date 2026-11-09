@@ -51,12 +51,6 @@ function sections(rows, senders, hiddenIds) {
   return { priority: priority.sort(compare), unread: unread.sort(compare) };
 }
 
-function gmailUrl(account, threadId) {
-  if (!email(account) || !ID_RE.test(threadId || "")) return null;
-  // Gmail's web fragment is not a Gmail API contract. The UI labels this URL accordingly.
-  return `https://mail.google.com/mail/?authuser=${encodeURIComponent(account)}#all/${encodeURIComponent(threadId)}`;
-}
-
 function plainBody(message, maxChars = 20000) {
   const queue = [message?.payload];
   while (queue.length) {
@@ -71,4 +65,4 @@ function plainBody(message, maxChars = 20000) {
   return "";
 }
 
-module.exports = { email, fromAddress, normalizeMessage, sections, gmailUrl, plainBody, ID_RE, MAX_SENDERS };
+module.exports = { email, fromAddress, normalizeMessage, sections, plainBody, ID_RE, MAX_SENDERS };

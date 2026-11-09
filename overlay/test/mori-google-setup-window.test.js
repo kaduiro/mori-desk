@@ -12,6 +12,7 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "mori-google-guide-"));
   t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
   const opened = [];
+  const copied = [];
   const handlers = new Map();
   const ipcMain = { handle: (key, fn) => handlers.set(key, fn),
     removeHandler: key => handlers.delete(key) };
@@ -33,6 +34,7 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
     destroy() { this.destroyed = true; }
   }
   const guide = createGoogleSetupWindow({ BrowserWindow: FakeWindow, ipcMain, dataDir,
+    clipboard: { writeText: value => copied.push(value) },
     shell: { openExternal: url => { opened.push(url); } } });
   assert.deepEqual(guide.open(), { ok: true });
   const win = FakeWindow.last;
@@ -50,6 +52,13 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   }
   assert.equal(opened.length, ALLOWED_URLS.size);
   const trusted = { sender: win.webContents, senderFrame: win.webContents.mainFrame };
+  assert.equal((await handlers.get("mori-google-setup:copy-prompt")({ sender: {} })).reason, "untrusted-sender");
+  const prompt = await handlers.get("mori-google-setup:prompt")(trusted);
+  assert.equal(prompt.ok, true);
+  assert.match(prompt.text, /Computer Use/);
+  assert.match(prompt.text, /gmail\.readonly/);
+  assert.equal((await handlers.get("mori-google-setup:copy-prompt")(trusted)).ok, true);
+  assert.deepEqual(copied, [prompt.text]);
   assert.equal((await handlers.get("mori-google-setup:state")({ sender: {} })).reason, "untrusted-sender");
   assert.equal((await handlers.get("mori-google-setup:state")(trusted)).source, "unconfirmed");
   assert.equal((await handlers.get("mori-google-setup:save")(trusted,
@@ -63,7 +72,15 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   assert.equal(saved.billing, "not-linked");
   assert.equal(Number.isSafeInteger(saved.checkedAt), true);
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(dataDir, "status.json"), "utf8"))).sort(),
-    ["billing", "calendarQuotaChecked", "checkedAt", "gmailQuotaChecked", "projectId", "source", "version"]);
+    ["billing", "calendarQuota", "calendarQuotaChecked", "checkedAt", "gmailQuota", "gmailQuotaChecked", "projectId", "source", "version"]);
+  const observed = await handlers.get("mori-google-setup:save")(trusted,
+    { projectId: "mori-personal-123", billing: "not-linked", gmailQuotaChecked: true,
+      calendarQuotaChecked: true, gmailQuota: { metric: "units per minute", used: 100, limit: 1000, window: "minute" },
+      calendarQuota: { metric: "requests per day", used: 5, limit: 100, window: "day" } });
+  assert.equal(observed.gmailQuota.used, 100);
+  assert.equal(observed.calendarQuota.window, "day");
+  assert.equal((await handlers.get("mori-google-setup:save")(trusted,
+    { ...observed, gmailQuota: { used: -1, limit: 100, window: "minute" } })).ok, false);
   guide.dispose();
   assert.equal(win.destroyed, true);
   assert.equal(handlers.size, 0);

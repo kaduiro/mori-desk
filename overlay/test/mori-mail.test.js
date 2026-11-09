@@ -33,8 +33,6 @@ test("sender classification uses address, not display name, and preserves priori
   const result = core.sections([unread, priority], ["boss@example.com"], []);
   assert.deepEqual(result.priority.map(row => row.id), ["a1234567"]);
   assert.deepEqual(result.unread.map(row => row.id), ["b1234567"]);
-  assert.equal(core.gmailUrl("worker@example.com", "abc123").startsWith("https://mail.google.com/"), true);
-  assert.equal(core.gmailUrl("worker@example.com", "https://evil.test"), null);
 });
 
 test("mail store seals auth and enforces a persistent quota budget", t => {
@@ -47,8 +45,25 @@ test("mail store seals auth and enforces a persistent quota budget", t => {
   assert.equal(store.reserve(1030, 1).reason, "minute-limit");
   const restarted = createMailStore({ dataDir: dir, safeStorage: storage() });
   assert.equal(restarted.usage(1030).units, 2500);
+  assert.equal(restarted.usage(1030).minuteUnits, 2500);
+  assert.equal(restarted.usage(1030).minuteLimit, 2500);
+  assert.equal(restarted.usage(62030).units, 2500);
+  assert.equal(restarted.usage(62030).minuteUnits, 0);
   restarted.disconnect();
   assert.equal(fs.existsSync(path.join(dir, "auth.json")), false);
+});
+
+test("mail diagnostics recompute remaining-budget inputs when the rolling minute expires", t => {
+  const dir = fixture(t);
+  const store = createMailStore({ dataDir: dir, safeStorage: storage() });
+  assert.equal(store.reserve(1000, 100).allowed, true);
+  let time = 1030;
+  const runtime = createMailRuntime({ dataDir: dir, safeStorage: storage(), shell: {}, now: () => time });
+  assert.equal(runtime.diagnostics().minuteUnits, 100);
+  time = 62030;
+  assert.equal(runtime.diagnostics().minuteUnits, 0);
+  assert.equal(runtime.diagnostics().requestUnits, 100);
+  runtime.dispose();
 });
 
 test("Gmail API charges the declared units and restricts metadata headers", async () => {
@@ -102,6 +117,9 @@ test("runtime replays changes without losing an older priority row", async t => 
   const result = await runtime.refresh(true);
   assert.deepEqual(result.priority.map(row => row.id), ["a1234567"]);
   assert.deepEqual(result.unread.map(row => row.id), ["b1234567"]);
+  assert.equal(Object.hasOwn(result.priority[0], "url"), false);
+  assert.equal(Object.hasOwn(result.unread[0], "url"), false);
+  assert.equal(typeof runtime.link, "undefined");
   assert.equal(createMailStore({ dataDir: dir, safeStorage }).readCache("worker@example.com").historyId, "102");
   const held = await runtime.refresh(true);
   assert.equal(held.reason, "interval");

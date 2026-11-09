@@ -6,7 +6,15 @@
 <body><main>
 <header><div><span class="eyebrow">MORI DESK / PREVIEW</span><h1>AI の待ち時間を、ひと目で。</h1></div><span id="connection" class="badge">準備中</span></header>
 <p class="intro">生成中のタブを見守り、回答を確認するタイミングをキャラクターと一覧でお知らせします。</p>
-<p><button id="open-mail">受信メールの HUD を開く</button></p>
+<section id="first-setup" aria-labelledby="first-setup-title"><h2 id="first-setup-title">初期設定と起動</h2>
+<p>Setup でアプリ本体を入れた後、この画面から各機能を準備します。接続・認可・フック追加は選んだ項目だけ実行します。</p>
+<ol>
+<li><strong>Windows / Mac のログイン時起動</strong><p id="startup-summary">状態を確認しています。</p><button id="enable-login" type="button">ログイン時に Mori Desk を起動</button><button id="disable-login" type="button">ログイン時起動をオフ</button></li>
+<li><strong>HUD の起動時表示</strong><p>アプリ起動時の表示を機能ごとに保存します。</p><label class="setup-check"><input id="calendar-startup" type="checkbox">Calendar HUD を表示</label><label class="setup-check"><input id="mail-startup" type="checkbox">Gmail HUD を表示</label><div class="actions"><button id="open-calendar" type="button">Calendar HUD を開く</button><button id="open-mail" type="button">受信メールの HUD を開く</button></div></li>
+<li><strong>個人 Google Cloud</strong><p>Gmail と Calendar の API・OAuth をご自身のプロジェクトで準備します。非開発者向けのコピー用エージェント指示もあります。</p><button id="open-google-setup" type="button">Google Cloud の準備を開く</button></li>
+<li><strong>Chrome の拡張機能</strong><p>下の「Chrome と接続」に従って読み込みとペアリングを行います。Chrome の確認操作は省略できません。</p></li>
+<li><strong>Codex CLI・Claude Code</strong><p>下の CLI 連携モードへ切り替え、使うものだけ「フックを接続」を押します。</p></li>
+</ol></section>
 <aside class="connection-summary" aria-live="polite"><p id="connection-detail">接続状態を確認しています。</p><p id="server-detail"></p></aside>
 <section class="recovery-summary" aria-labelledby="recovery-title"><h2 id="recovery-title">サービスごとの確認状況</h2>
 <div class="provider-grid">
@@ -14,15 +22,17 @@
 <article class="provider-status"><h3>Claude</h3><p id="claude-status" class="provider-label">確認状況は未受信</p><p id="claude-detail"></p></article>
 </div><p id="delivery-status">保存済み通知の同期状況は未確認</p>
 <p id="login-status">ログイン時の自動起動：登録状態は未確認</p>
+<p id="login-repair" hidden>現在の登録は旧開発版を起動します。<button id="repair-login">インストール版に修復</button></p>
 <details class="version-info"><summary>使用中のバージョン</summary><p id="version-status"></p></details></section>
 <section><h2>Chrome と接続</h2>
 <ol><li>Chrome の <code>chrome://extensions</code> を開き、デベロッパーモードをオンにします。</li>
 <li>「パッケージ化されていない拡張機能を読み込む」で、下のボタンから開くフォルダーを選びます。</li>
 <li>接続コードを作成・コピーし、Chrome の「MORI Browser Bridge（プレビュー）」に貼り付けて「接続する」を押します。</li>
 <li>ChatGPT / Claude の会話タブを開きます。上のサービスごとの確認状況に、ページの応答と会話の識別状況を表示します。</li></ol>
-<div class="actions"><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
+<div class="actions"><button id="chrome-address">Chrome 設定のアドレスをコピー</button><button id="extension">拡張機能のフォルダー</button><button id="pair" class="primary">接続コードを作成</button></div>
 <div id="pairing" hidden><label for="code">接続コード（2 分以内・1 回限り）</label><textarea id="code" readonly rows="3" spellcheck="false"></textarea><button id="copy">コードをコピー</button></div>
 <p id="status" role="status" aria-live="polite"></p><div id="profiles"></div></section>
+<section><h2>ローカルの Codex CLI・Claude Code</h2><p>CLI 連携モードで起動し、使用する方の「フックを接続」を押してください。その操作で既存の個人設定に Mori のフックを追加します。Agent 設定から状態確認・解除もできます。</p><div class="actions"><button id="restart-cli" type="button">CLI 連携モードで再起動</button><button id="install-codex" type="button">Codex CLI のフックを接続</button><button id="install-claude" type="button">Claude Code のフックを接続</button><button id="open-agent-settings" type="button">Agent 設定を開く</button></div><p>切替は今回の起動に適用します。ログイン時の起動ではブラウザ用モードに戻ります。使う方を明示的に選ぶまで Codex / Claude のファイルは変更しません。</p></section>
 <section><div class="section-heading"><h2>現在のタブ</h2><span id="count">0 件</span></div>
 <p class="session-intro">会話名と直近の依頼の抜粋から、どのタブかを確認できます。表示名は自分でも設定できます。</p>
 <p id="empty">接続後、ChatGPT / Claude の会話タブを開いてください。</p>

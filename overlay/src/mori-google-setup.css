@@ -13,7 +13,8 @@ a { color: #addaa7; text-underline-offset: 3px; }
 a:focus-visible, textarea:focus-visible { outline: 3px solid #b9e6ae; outline-offset: 2px; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #b9e6ae; outline-offset: 2px; }
 label { display: block; margin: 10px 0 4px; }
-input[type="text"], select { box-sizing: border-box; width: 100%; padding: 9px; border: 1px solid #718b75; border-radius: 8px; background: #17201d; color: #f0f2ee; font: inherit; }
+input[type="text"], input[type="number"], select { box-sizing: border-box; width: 100%; padding: 9px; border: 1px solid #718b75; border-radius: 8px; background: #17201d; color: #f0f2ee; font: inherit; }
+fieldset { margin: 12px 0; border: 1px solid #607266; border-radius: 8px; }
 .check { display: flex; gap: 8px; align-items: center; }
 button { margin-top: 12px; padding: 9px 13px; border: 1px solid #97c28d; border-radius: 8px; background: #3b6447; color: #fff; font: inherit; cursor: pointer; }
 #saved-state { color: #b9c5bd; }

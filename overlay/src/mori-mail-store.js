@@ -97,7 +97,9 @@ function createMailStore({ dataDir, safeStorage, fsImpl = fs }) {
     },
     usage(at) {
       const recent = (ledger.value?.entries || []).filter(item => item.at > at - DAY && item.at <= at);
-      return { units: recent.reduce((sum, item) => sum + item.units, 0), limit: MAX_DAY_UNITS };
+      const minute = recent.filter(item => item.at > at - MINUTE);
+      return { units: recent.reduce((sum, item) => sum + item.units, 0), limit: MAX_DAY_UNITS,
+        minuteUnits: minute.reduce((sum, item) => sum + item.units, 0), minuteLimit: MAX_MINUTE_UNITS };
     },
     disconnect() {
       for (const name of ["auth.json", "cache.json", "settings.json"]) remove(name);

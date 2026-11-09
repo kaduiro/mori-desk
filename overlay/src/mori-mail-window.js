@@ -3,14 +3,14 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { installClientConfig } = require("./mori-calendar-client-config");
-const { ID_RE } = require("./mori-mail-core");
+const { email } = require("./mori-mail-core");
 const { openJsonFile } = require("./browser-bridge-persistence");
 const hudLayout = require("./mori-hud-layout");
 const { attachRendererRecovery } = require("./mori-renderer-recovery");
 
-function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, screen,
+function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
   runtime, dataDir, getPetBounds, getOtherBounds = () => null, getSuppressed = () => false,
-  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }) }) {
+  openGoogleSetup = () => ({ ok: false, reason: "unavailable" }), reminders = null }) {
   let window = null, positionTimer = null, automaticSession = false;
   let detachRecovery = null;
   let autoWanted = false, disposed = false, focusOnLoad = false, suppressionClosing = false;
@@ -33,16 +33,22 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     });
     channels.push(channel);
   }
-  handle("mori-mail:state", () => ({ ok: true, ...runtime.snapshot(), zoom: placement.zoom,
+  handle("mori-mail:state", () => ({ ok: true, ...(runtime.diagnostics ? runtime.diagnostics() : runtime.snapshot()), zoom: placement.zoom,
     pinned: placement.pinned, autoOpen: placement.autoOpen,
+    notification: reminders?.stateFor("mail") || { enabled: false, supported: false },
     width: placement.width, height: placement.height, sizeMode: hudLayout.sizeMode(placement) }));
-  handle("mori-mail:auto-open", value => {
+  handle("mori-mail:notify", value => reminders?.setEnabled("mail", value)
+    || { ok: false, reason: "unavailable" });
+  handle("mori-mail:quiet", value => reminders?.setQuiet(value?.start, value?.end)
+    || { ok: false, reason: "unavailable" });
+  function setAutoOpen(value) {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-auto-open" };
     const previous = placement.autoOpen;
     placement.autoOpen = value;
     if (!saveLayout()) { placement.autoOpen = previous; return { ok: false, reason: "storage-error" }; }
     return { ok: true, autoOpen: value };
-  });
+  }
+  handle("mori-mail:auto-open", setAutoOpen);
   handle("mori-mail:pin", value => {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-pin" };
     placement.pinned = value;
@@ -114,18 +120,10 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     return runtime.reloadClient();
   });
   handle("mori-mail:open-google-setup", () => openGoogleSetup());
-  handle("mori-mail:open-link", async payload => {
-    if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
-    const url = runtime.link(payload.id);
-    if (!url) return { ok: false, reason: "invalid-link" };
-    await shell.openExternal(url);
-    return { ok: true };
-  });
-  handle("mori-mail:copy-link", payload => {
-    if (!ID_RE.test(payload?.id || "")) return { ok: false, reason: "invalid-message" };
-    const url = runtime.link(payload.id);
-    if (!url) return { ok: false, reason: "invalid-link" };
-    clipboard.writeText(url);
+  handle("mori-mail:open-gmail", async () => {
+    if (!email(runtime.snapshot().account)) return { ok: false, reason: "unlinked" };
+    // Gmail may ignore authuser when that account is not signed in. Never open a message URL here.
+    await shell.openExternal("https://mail.google.com/");
     return { ok: true };
   });
   handle("mori-mail:close", () => { autoWanted = false; window?.close(); return { ok: true }; });
@@ -238,7 +236,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, clipboard, shell, sc
     if (window && !window.isDestroyed()) window.destroy();
     window = null;
   }
-  return { open, notify, dispose, autoOpenEnabled: () => placement.autoOpen,
+  return { open, notify, dispose, setAutoOpen, autoOpenEnabled: () => placement.autoOpen,
     getBounds: () => window && !window.isDestroyed() ? window.getBounds() : null };
 }
 

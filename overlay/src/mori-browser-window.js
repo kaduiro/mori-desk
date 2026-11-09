@@ -6,8 +6,9 @@ const { getBrowserStatus } = require("./mori-browser-status");
 
 module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, clipboard,
   shell, getBridge, getPort, getHudWindow, cliEnabled, getStartupError = () => "",
-  getListenerStatus = () => null, getLoginStatus = () => null, getBuildInfo = () => null,
-  getPetBounds = () => null, getCalendarSuppressed = () => false,
+  getListenerStatus = () => null, getLoginStatus = () => null, setLoginStartup = null,
+  repairLoginItem = null, openAgentSettings = null, installCliHook = null, getBuildInfo = () => null,
+  getPetBounds = () => null, getCalendarSuppressed = () => false, getDoNotDisturb = () => false,
   calendarDependencies = null }) {
   let window = null;
   let pairing = null;
@@ -22,11 +23,27 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   let mailRuntime = null;
   let mailWindow = null;
   let googleSetupWindow = null;
+  let reminderService = null;
+  function ensureReminderService(electron) {
+    if (reminderService) return reminderService;
+    try {
+      const { createReminderService } = require("./mori-reminder-service");
+      reminderService = createReminderService({
+        dataDir: path.join(electron.app.getPath("userData"), "reminders"),
+        Notification: electron.Notification,
+        suppressed: getDoNotDisturb,
+        openMail: () => { ensureMail(); mailRuntime.start(); mailWindow.open(); },
+        openCalendar: () => { ensureCalendar(); calendarRuntime.start(); calendarWindow.open(); },
+      });
+      reminderService.start();
+    } catch { /* Unreadable optional notification state must not stop the HUDs. */ }
+    return reminderService;
+  }
   function openGoogleSetup() {
     if (!googleSetupWindow) {
       const { createGoogleSetupWindow } = require("./mori-google-setup-window");
       const electron = calendarDependencies || require("electron");
-      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain,
+      googleSetupWindow = createGoogleSetupWindow({ BrowserWindow, shell, ipcMain, clipboard,
         dataDir: path.join(electron.app.getPath("userData"), "google-setup") });
     }
     return googleSetupWindow.open();
@@ -34,6 +51,7 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   function ensureCalendar() {
     if (calendarRuntime) return;
     const calendarElectron = calendarDependencies || require("electron");
+    const reminders = ensureReminderService(calendarElectron);
     const { createCalendarRuntime } = require("./mori-calendar-runtime");
     const { createCalendarWindow } = require("./mori-calendar-window");
     const { createCalendarSetupWindow } = require("./mori-calendar-setup-window");
@@ -43,13 +61,14 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     calendarRuntime = createCalendarRuntime({
       dataDir: calendarDir,
       safeStorage: calendarElectron.safeStorage, shell, managedClientFile,
-      onChange: () => { calendarWindow?.notify(); calendarSetupWindow?.notify(); },
+      onChange: () => { calendarWindow?.notify(); calendarSetupWindow?.notify();
+        reminders?.onCalendar(calendarRuntime.snapshot()); },
     });
     calendarWindow = createCalendarWindow({
       BrowserWindow, ipcMain, shell, screen: calendarElectron.screen,
       runtime: calendarRuntime, getPetBounds, getOtherBounds: () => mailWindow?.getBounds(),
       getSuppressed: getCalendarSuppressed,
-      dataDir: calendarDir, openSetup: () => calendarSetupWindow.open(),
+      dataDir: calendarDir, openSetup: () => calendarSetupWindow.open(), reminders,
     });
     calendarSetupWindow = createCalendarSetupWindow({ BrowserWindow, ipcMain,
       dialog: calendarElectron.dialog, runtime: calendarRuntime, dataDir: calendarDir,
@@ -59,15 +78,17 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
   function ensureMail() {
     if (mailRuntime) return;
     const electron = calendarDependencies || require("electron");
+    const reminders = ensureReminderService(electron);
     const { createMailRuntime } = require("./mori-mail-runtime");
     const { createMailWindow } = require("./mori-mail-window");
     const mailDir = path.join(electron.app.getPath("userData"), "mail");
     mailRuntime = createMailRuntime({ dataDir: mailDir,
-      safeStorage: electron.safeStorage, shell, onChange: () => mailWindow?.notify() });
+      safeStorage: electron.safeStorage, shell, onChange: () => {
+        mailWindow?.notify(); reminders?.onMail(mailRuntime.snapshot()); } });
     mailWindow = createMailWindow({ BrowserWindow, ipcMain, dialog: electron.dialog,
       clipboard, shell, screen: electron.screen, runtime: mailRuntime, dataDir: mailDir,
       getPetBounds, getOtherBounds: () => calendarWindow?.getBounds(),
-      getSuppressed: getCalendarSuppressed, openGoogleSetup });
+      getSuppressed: getCalendarSuppressed, openGoogleSetup, reminders });
   }
 
   function trusted(event, allowHud = false) {
@@ -98,10 +119,43 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
         login: getLoginStatus(), buildInfo: getBuildInfo() }),
       sessions: bridge?.getSnapshot() || [], error,
       selectedSessionId, selectionRevision,
+      hudStartup: { calendar: calendarWindow?.autoOpenEnabled() ?? null,
+        mail: mailWindow?.autoOpenEnabled() ?? null },
       pairingExpiresAt: pairing?.expiresAt || null };
   }
 
   handle("mori:status", state);
+  handle("mori:repair-login", () => {
+    if (typeof repairLoginItem !== "function" || getLoginStatus()?.reason !== "source_registration")
+      return { ok: false, reason: "repair_not_available" };
+    return repairLoginItem();
+  });
+  handle("mori:set-login-startup", value => {
+    if (typeof value !== "boolean" || typeof setLoginStartup !== "function")
+      return { ok: false, reason: "invalid-or-unavailable" };
+    return setLoginStartup(value);
+  });
+  handle("mori:set-hud-startup", value => {
+    if (!value || !["calendar", "mail"].includes(value.kind) || typeof value.enabled !== "boolean")
+      return { ok: false, reason: "invalid-payload" };
+    if (value.kind === "calendar") { ensureCalendar(); return calendarWindow.setAutoOpen(value.enabled); }
+    ensureMail(); return mailWindow.setAutoOpen(value.enabled);
+  });
+  handle("mori:open-calendar", () => {
+    ensureCalendar(); calendarRuntime.start(); return calendarWindow.open();
+  });
+  handle("mori:open-google-setup", () => openGoogleSetup());
+  handle("mori:open-agent-settings", () => {
+    if (!cliEnabled || typeof openAgentSettings !== "function") return { ok: false, reason: "cli-disabled" };
+    openAgentSettings(); return { ok: true };
+  });
+  handle("mori:install-cli-hook", async value => {
+    if (!cliEnabled || typeof installCliHook !== "function") return { ok: false, reason: "cli-disabled" };
+    if (!["codex", "claude-code"].includes(value)) return { ok: false, reason: "invalid-agent" };
+    const result = await installCliHook(value);
+    return { ok: result?.status === "ok", reason: result?.status === "ok" ? undefined : "install-failed",
+      message: String(result?.message || "").slice(0, 300) };
+  });
   handle("mori:pair", () => {
     const bridge = getBridge();
     const listener = getListenerStatus();
@@ -148,6 +202,19 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     const reason = await shell.openPath(extensionDir);
     return { ok: !reason, message: reason || "" };
   });
+  handle("mori:copy-chrome-setup", () => {
+    clipboard.writeText("chrome://extensions");
+    return { ok: true };
+  });
+  handle("mori:restart-cli", () => {
+    if (cliEnabled) return { ok: false, reason: "already-enabled" };
+    const electron = calendarDependencies || require("electron");
+    if (!electron.app?.relaunch || !electron.app?.quit) return { ok: false, reason: "unavailable" };
+    const args = [...process.argv.slice(1).filter(arg => arg !== "--enable-cli"), "--enable-cli"];
+    electron.app.relaunch({ args });
+    setImmediate(() => electron.app.quit());
+    return { ok: true };
+  });
   handle("mori:open-panel", payload => {
     if (payload !== undefined && (typeof payload?.id !== "string" || payload.id.length > 512)) return { ok: false, reason: "invalid-payload" };
     return open(payload);
@@ -187,23 +254,26 @@ module.exports = function createBrowserWindowRuntime({ BrowserWindow, ipcMain, c
     calendarRuntime?.dispose();
     mailWindow?.dispose();
     mailRuntime?.dispose();
+    reminderService?.dispose();
     googleSetupWindow?.dispose();
     if (window && !window.isDestroyed()) window.destroy();
     window = null; pairing = null;
   }
   function startCalendar() {
     ensureCalendar();
-    if (calendarWindow.autoOpenEnabled()) {
-      calendarWindow.open({ automatic: true });
+    if (calendarWindow.autoOpenEnabled() || reminderService?.enabled("calendar")) {
+      if (calendarWindow.autoOpenEnabled()) calendarWindow.open({ automatic: true });
       calendarRuntime.start();
     }
     startMail();
+    notify();
   }
   function startMail() {
     ensureMail();
-    if (!mailWindow.autoOpenEnabled()) return;
-    mailWindow.open({ automatic: true });
-    mailRuntime.start();
+    if (mailWindow.autoOpenEnabled() || reminderService?.enabled("mail")) {
+      if (mailWindow.autoOpenEnabled()) mailWindow.open({ automatic: true });
+      mailRuntime.start();
+    }
   }
   return { open, notify, dispose, startCalendar, startMail, openMail: () => {
     ensureMail();

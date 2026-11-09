@@ -35,11 +35,13 @@ test("Mail HUD keeps a usable window and restores resized dimensions and text sc
   }
   let bodyClears = 0;
   let cursor = { x: 250, y: 200 };
+  let linkedAccount = null;
+  const openedUrls = [];
   const make = (getSuppressed = () => false) => createMailWindow({ BrowserWindow: FakeWindow, ipcMain,
-    dialog: {}, clipboard: {}, shell: {}, dataDir,
+    dialog: {}, shell: { openExternal: async url => { openedUrls.push(url); } }, dataDir,
     screen: { getDisplayNearestPoint: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 900 } }),
       getCursorScreenPoint: () => cursor },
-    runtime: { snapshot: () => ({ account: null }), clearBody: () => { bodyClears++; } },
+    runtime: { snapshot: () => ({ account: linkedAccount }), clearBody: () => { bodyClears++; } },
     getPetBounds: () => ({ x: 100, y: 100, width: 80, height: 80 }), getSuppressed });
   let hud = make();
   t.after(() => hud.dispose());
@@ -52,6 +54,15 @@ test("Mail HUD keeps a usable window and restores resized dimensions and text sc
   assert.equal(first.options.alwaysOnTop, true);
   assert.equal(hud.autoOpenEnabled(), true);
   const trusted = { sender: first.webContents, senderFrame: first.webContents.mainFrame };
+  assert.equal(handlers.has("mori-mail:open-link"), false);
+  assert.equal(handlers.has("mori-mail:copy-link"), false);
+  assert.deepEqual(await handlers.get("mori-mail:open-gmail")({ sender: {} }),
+    { ok: false, reason: "untrusted-sender" });
+  assert.deepEqual(await handlers.get("mori-mail:open-gmail")(trusted),
+    { ok: false, reason: "unlinked" });
+  linkedAccount = "worker@example.com";
+  assert.deepEqual(await handlers.get("mori-mail:open-gmail")(trusted), { ok: true });
+  assert.deepEqual(openedUrls, ["https://mail.google.com/"]);
   assert.deepEqual(await handlers.get("mori-mail:zoom")({ sender: {} }, 1.5),
     { ok: false, reason: "untrusted-sender" });
   assert.equal((await handlers.get("mori-mail:zoom")(trusted, 1.5)).ok, true);

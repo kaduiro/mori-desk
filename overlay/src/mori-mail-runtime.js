@@ -1,7 +1,7 @@
 "use strict";
 
 const { createMailStore } = require("./mori-mail-store");
-const { email, ID_RE, MAX_SENDERS, normalizeMessage, sections, gmailUrl, plainBody } = require("./mori-mail-core");
+const { email, ID_RE, MAX_SENDERS, normalizeMessage, sections, plainBody } = require("./mori-mail-core");
 const api = require("./mori-mail-api");
 
 const AUTO_MS = 5 * 60000;
@@ -18,7 +18,8 @@ function createMailRuntime({ dataDir, safeStorage, shell, fetchImpl = fetch,
     priority: [], unread: [], fetchedAt: null, nextAt: null, partial: false,
     nextPageToken: null, gap: false, pendingCount: 0,
     configSource: store?.client ? "personal" : null,
-    senders: [], requestUnits: null, requestLimit: null };
+    senders: [], requestUnits: null, requestLimit: null,
+    minuteUnits: null, minuteLimit: null };
   let accessToken = null, expiresAt = 0, timer = null, tail = Promise.resolve();
   let disposed = false, generation = 0, lastAttemptAt = 0, bodyCache = new Map();
   let connectedAccount = null, retryAt = 0, failures = 0;
@@ -32,6 +33,14 @@ function createMailRuntime({ dataDir, safeStorage, shell, fetchImpl = fetch,
     return { ...state, priority: state.priority.map(row => ({ ...row })),
       unread: state.unread.map(row => ({ ...row })), senders: [...state.senders] };
   }
+  function diagnostics() {
+    let usage = null;
+    try { usage = store?.usage(now()) || null; }
+    catch { /* A damaged optional ledger must not make the HUD state call fail. */ }
+    return { ...snapshot(), requestUnits: usage?.units ?? null,
+      requestLimit: usage?.limit ?? null, minuteUnits: usage?.minuteUnits ?? null,
+      minuteLimit: usage?.minuteLimit ?? null };
+  }
   function publish(partial) {
     state = { ...state, ...partial };
     try { onChange(); } catch {}
@@ -39,15 +48,15 @@ function createMailRuntime({ dataDir, safeStorage, shell, fetchImpl = fetch,
   }
   function project(status = "ready", reason = null, nextAt = null) {
     const rows = sections(cache?.rows || [], settings.senders, settings.hidden);
-    const decorate = row => ({ ...row, url: gmailUrl(cache?.account, row.threadId) });
     const usage = store?.usage(now());
     return publish({ status, reason, nextAt, account: cache?.account || connectedAccount,
-      priority: rows.priority.map(decorate), unread: rows.unread.map(decorate), fetchedAt: cache?.fetchedAt || null,
+      priority: rows.priority, unread: rows.unread, fetchedAt: cache?.fetchedAt || null,
       partial: !!cache?.nextPageToken || !!cache?.pending || cache?.gap === true,
       nextPageToken: cache?.nextPageToken || null,
       gap: cache?.gap === true, pendingCount: cache?.pending?.changes?.length || 0,
       senders: [...settings.senders], requestUnits: usage?.units ?? null,
-      requestLimit: usage?.limit ?? null, configSource: store?.client ? "personal" : null });
+      requestLimit: usage?.limit ?? null, minuteUnits: usage?.minuteUnits ?? null,
+      minuteLimit: usage?.minuteLimit ?? null, configSource: store?.client ? "personal" : null });
   }
   function reserve(units) {
     try { return store.reserve(now(), units); }
@@ -312,10 +321,6 @@ function createMailRuntime({ dataDir, safeStorage, shell, fetchImpl = fetch,
       return { ok: true, body };
     } catch (error) { return { ok: false, reason: error.code || "failed" }; }
   }
-  function link(id) {
-    const row = cache?.rows.find(item => item.id === id);
-    return row ? gmailUrl(cache.account, row.threadId) : null;
-  }
   function reloadClient() {
     try { if (store.readAuth()) return { ok: false, reason: "disconnect-first" };
       store.reloadClient(); return { ok: true, ...project("unlinked") }; }
@@ -334,9 +339,9 @@ function createMailRuntime({ dataDir, safeStorage, shell, fetchImpl = fetch,
   }
   function dispose() { disposed = true; generation++; if (timer) clearInterval(timer); bodyCache.clear(); }
   function clearBody() { bodyCache.clear(); }
-  return { start, refresh, loadMore, connect, setSenders, hide, detail, link,
+  return { start, refresh, loadMore, connect, setSenders, hide, detail,
     reloadClient, canImportClient, disconnect, dispose, clearBody, snapshot,
-    diagnostics: () => snapshot() };
+    diagnostics };
 }
 
 module.exports = { createMailRuntime, AUTO_MS, MANUAL_MS };
