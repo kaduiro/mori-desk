@@ -41,13 +41,14 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
     || { ok: false, reason: "unavailable" });
   handle("mori-mail:quiet", value => reminders?.setQuiet(value?.start, value?.end)
     || { ok: false, reason: "unavailable" });
-  handle("mori-mail:auto-open", value => {
+  function setAutoOpen(value) {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-auto-open" };
     const previous = placement.autoOpen;
     placement.autoOpen = value;
     if (!saveLayout()) { placement.autoOpen = previous; return { ok: false, reason: "storage-error" }; }
     return { ok: true, autoOpen: value };
-  });
+  }
+  handle("mori-mail:auto-open", setAutoOpen);
   handle("mori-mail:pin", value => {
     if (typeof value !== "boolean") return { ok: false, reason: "invalid-pin" };
     placement.pinned = value;
@@ -235,7 +236,7 @@ function createMailWindow({ BrowserWindow, ipcMain, dialog, shell, screen,
     if (window && !window.isDestroyed()) window.destroy();
     window = null;
   }
-  return { open, notify, dispose, autoOpenEnabled: () => placement.autoOpen,
+  return { open, notify, dispose, setAutoOpen, autoOpenEnabled: () => placement.autoOpen,
     getBounds: () => window && !window.isDestroyed() ? window.getBounds() : null };
 }
 

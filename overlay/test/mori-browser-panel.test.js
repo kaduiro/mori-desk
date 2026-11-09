@@ -81,7 +81,7 @@ function session(overrides = {}) {
 }
 
 function harness(rows = [session()]) {
-  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "restart-cli", "open-mail", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "login-repair", "repair-login", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
+  const elements = new Map(["status", "pair", "connection", "connection-detail", "server-detail", "mode", "profiles", "count", "empty", "sessions", "history", "history-sessions", "history-count", "history-unread", "code", "pairing", "copy", "extension", "chrome-address", "restart-cli", "open-agent-settings", "install-codex", "install-claude", "open-calendar", "open-mail", "open-google-setup", "startup-summary", "enable-login", "disable-login", "calendar-startup", "mail-startup", "chatgpt-status", "chatgpt-detail", "claude-status", "claude-detail", "delivery-status", "login-status", "login-repair", "repair-login", "version-status"].map(id => [id, new Element(id === "history" ? "details" : "div")]));
   elements.get("history").open = false;
   elements.get("history").append(elements.get("history-sessions"));
   const document = {
@@ -105,7 +105,9 @@ function harness(rows = [session()]) {
     ack: async (id, noticeSequence) => { calls.push({ kind: "ack", id, noticeSequence }); return { ok: true }; },
     setLabel: (id, label) => { calls.push({ kind: "label", id, label }); return save(id, label); },
     dismiss: async id => { calls.push({ kind: "dismiss", id }); return { ok: true }; },
-    revoke: async () => ({ ok: true }), pair: async () => ({ ok: true }), copy: async () => ({ ok: true }), openExtension: async () => ({ ok: true }), restartCli: async () => ({ ok: true }), openMail: async () => ({ ok: true }),
+    revoke: async () => ({ ok: true }), pair: async () => ({ ok: true }), copy: async () => ({ ok: true }), openExtension: async () => ({ ok: true }), copyChromeSetup: async () => ({ ok: true }), restartCli: async () => ({ ok: true }), openAgentSettings: async () => ({ ok: true }), installCliHook: async agentId => { calls.push({ kind: "install-hook", agentId }); return { ok: true }; }, openCalendar: async () => ({ ok: true }), openMail: async () => ({ ok: true }), openGoogleSetup: async () => ({ ok: true }),
+    setLoginStartup: async enabled => { calls.push({ kind: "login-startup", enabled }); return { ok: true }; },
+    setHudStartup: async (kind, enabled) => { calls.push({ kind: "hud-startup", target: kind, enabled }); return { ok: true }; },
     repairLogin: async () => { calls.push({ kind: "repair-login" }); return { ok: true }; },
   } };
   const context = vm.createContext({ document, window, Intl, Date });
@@ -121,6 +123,34 @@ function harness(rows = [session()]) {
     historyCard(index = 0) { return elements.get("history-sessions").children[index]; },
   };
 }
+
+test("setup controls route only explicit startup choices", async () => {
+  const h = harness([]); await h.settle();
+  await h.refresh({ ...h.state, hudStartup: { calendar: true, mail: false }, connection: {
+    canPair: true, login: { state: "disabled", label: "ログイン時の自動起動：無効" },
+  } });
+  assert.equal(h.elements.get("calendar-startup").checked, true);
+  assert.equal(h.elements.get("mail-startup").checked, false);
+  assert.equal(h.elements.get("enable-login").disabled, false);
+  assert.equal(h.calls.length, 0, "status rendering must not change OS or HUD settings");
+  await h.elements.get("enable-login").fire("click");
+  h.elements.get("mail-startup").checked = true;
+  await h.elements.get("mail-startup").fire("change");
+  assert.deepEqual(h.calls, [{ kind: "login-startup", enabled: true },
+    { kind: "hud-startup", target: "mail", enabled: true }]);
+});
+
+test("CLI hook buttons stay inactive in browser mode and route explicit agent choices in CLI mode", async () => {
+  const h = harness([]); await h.settle();
+  assert.equal(h.elements.get("install-codex").disabled, true);
+  await h.elements.get("install-codex").fire("click");
+  assert.deepEqual(h.calls, []);
+  await h.refresh({ ...h.state, cliEnabled: true });
+  await h.elements.get("install-codex").fire("click");
+  await h.elements.get("install-claude").fire("click");
+  assert.deepEqual(h.calls, [{ kind: "install-hook", agentId: "codex" },
+    { kind: "install-hook", agentId: "claude-code" }]);
+});
 
 test("browser panel shows actionable stale-state context without treating retained generation as current", async () => {
   const h = harness(); await h.settle();

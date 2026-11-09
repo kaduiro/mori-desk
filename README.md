@@ -107,6 +107,8 @@ ZIP で取得する場合は **Code → Download ZIP → すべて展開** の�
 
 ## Chrome を接続する
 
+インストール版の初回起動後は「ブラウザ連携・セッション」の「初期設定と起動」から、Windows / Mac のログイン時起動、Calendar と Gmail の HUD の起動時表示、Google Cloud の案内、Chrome 拡張機能、CLI 連携の順に進められます。ログイン時起動と各 HUD は個別に設定できます。Chrome の拡張機能は Chrome 側で読み込みと有効化の確認が必要です。CLI は明示的に切り替えた後、Codex CLI と Claude Code のフックを使う方だけ接続できます。個人 Google Cloud の設定は画面内から Computer Use 用の指示をコピーして Codex または Claude に貼り付けられます。認証情報はアプリのファイル選択で取り込み、チャットに貼りません。
+
 1. `setup-windows.bat` と同じ場所から **`overlay` → `extensions` → `browser-bridge`**
    を開きます。`manifest.json` が直接入っているフォルダーが拡張機能です。
 2. Chrome の `chrome://extensions` を開き、「デベロッパーモード」をオンにします。

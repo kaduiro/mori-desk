@@ -10,6 +10,8 @@
 
 External / Testing の Gmail 権限などを使う更新トークンは通常 7 日で失効します。継続利用や不特定多数への公開は、OAuth の公開状態、制限付きスコープの審査と例外の適用範囲を別途確定してから行います。JSON の形式を検査できても、Mori Desk だけでは Cloud プロジェクトの所有者、請求先、実効枠は検証できません。
 
-OAuth JSON、認可コード、トークンをエージェントへ渡さないでください。支援用プロンプトはアプリ内「個人 Google Cloud の準備方法」にあります。ログイン、規約、請求先、OAuth 同意は本人が操作します。
+OAuth JSON、認可コード、トークンをエージェントへ渡さないでください。Mori Desk の「ブラウザ連携・セッション」→「Google Cloud の準備を開く」→「セットアップ指示をコピー」で、Codex または Claude の Computer Use に貼れる指示文を取得できます。既存プロジェクト・API・OAuth クライアントを画面で確認して再利用し、必要な新規設定だけ進める内容です。ログイン、規約、請求先、OAuth 同意、OS やブラウザーの信頼確認は本人が操作します。エージェントに画面操作機能がない場合は、この文書の手順を本人が行ってください。
+
+Setup は Google アカウントへ自動ログインせず、OAuth JSON を同梱しません。Google Cloud の準備と接続には各利用者の Google アカウントが必要です。確認画面や組織ポリシーを飛ばす方法は使いません。
 
 公式説明: [Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)、[公開状態](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)、[Gmail API の枠](https://developers.google.com/workspace/gmail/api/reference/quota)、[Calendar API の枠](https://developers.google.com/workspace/calendar/api/guides/quota)。

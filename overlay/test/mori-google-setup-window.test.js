@@ -12,6 +12,7 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "mori-google-guide-"));
   t.after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
   const opened = [];
+  const copied = [];
   const handlers = new Map();
   const ipcMain = { handle: (key, fn) => handlers.set(key, fn),
     removeHandler: key => handlers.delete(key) };
@@ -33,6 +34,7 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
     destroy() { this.destroyed = true; }
   }
   const guide = createGoogleSetupWindow({ BrowserWindow: FakeWindow, ipcMain, dataDir,
+    clipboard: { writeText: value => copied.push(value) },
     shell: { openExternal: url => { opened.push(url); } } });
   assert.deepEqual(guide.open(), { ok: true });
   const win = FakeWindow.last;
@@ -50,6 +52,13 @@ test("personal Cloud guide keeps navigation local and stores only a user-reporte
   }
   assert.equal(opened.length, ALLOWED_URLS.size);
   const trusted = { sender: win.webContents, senderFrame: win.webContents.mainFrame };
+  assert.equal((await handlers.get("mori-google-setup:copy-prompt")({ sender: {} })).reason, "untrusted-sender");
+  const prompt = await handlers.get("mori-google-setup:prompt")(trusted);
+  assert.equal(prompt.ok, true);
+  assert.match(prompt.text, /Computer Use/);
+  assert.match(prompt.text, /gmail\.readonly/);
+  assert.equal((await handlers.get("mori-google-setup:copy-prompt")(trusted)).ok, true);
+  assert.deepEqual(copied, [prompt.text]);
   assert.equal((await handlers.get("mori-google-setup:state")({ sender: {} })).reason, "untrusted-sender");
   assert.equal((await handlers.get("mori-google-setup:state")(trusted)).source, "unconfirmed");
   assert.equal((await handlers.get("mori-google-setup:save")(trusted,
