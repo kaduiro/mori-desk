@@ -233,6 +233,15 @@ async function refresh() {
     }
     $("delivery-status").textContent = connection.delivery?.label || "保存済み通知の同期状況は未確認";
     $("login-status").textContent = connection.login?.label || "ログイン時の自動起動：登録状態は未確認";
+    $("startup-summary").textContent = connection.login?.label || "ログイン時の自動起動：登録状態は未確認";
+    const loginState = connection.login?.state;
+    $("enable-login").disabled = !["enabled", "disabled"].includes(loginState) || loginState === "enabled";
+    $("disable-login").disabled = !["enabled", "disabled"].includes(loginState) || loginState === "disabled";
+    for (const kind of ["calendar", "mail"]) {
+      const checkbox = $(`${kind}-startup`);
+      checkbox.disabled = typeof value.hudStartup?.[kind] !== "boolean";
+      if (!checkbox.disabled) checkbox.checked = value.hudStartup[kind];
+    }
     $("login-repair").hidden = !connection.login?.canRepair;
     $("version-status").textContent = [
       `Mori Desk：${connection.desktopVersion || "未確認"}`,
@@ -240,6 +249,11 @@ async function refresh() {
       "ページで実行中の監視プログラムの版は、この表示では確認していません。",
     ].join("\n");
     $("mode").textContent = value.cliEnabled ? "CLI 連携モード：有効。CLI セッションはキャラクター下の HUD に一緒に表示されます。" : "ブラウザ用モード。CLI の自動セットアップは無効です。";
+    $("restart-cli").disabled = value.cliEnabled === true;
+    $("restart-cli").textContent = value.cliEnabled ? "CLI 連携モードで起動中" : "CLI 連携モードで再起動";
+    $("open-agent-settings").disabled = value.cliEnabled !== true;
+    $("install-codex").disabled = value.cliEnabled !== true;
+    $("install-claude").disabled = value.cliEnabled !== true;
     if (value.error || value.bridge?.error) {
       const errors = { secure_storage_unavailable: "OS の保護された鍵の保存先を利用できないため、ペアリングは停止しています。Windows / Mac で確認してください。",
         session_limit: "保存できるセッション数の上限です。保存済みの記録と未確認通知は保持しています。履歴の整理には後続版の保存容量対応が必要です。",
@@ -276,7 +290,29 @@ $("pair").addEventListener("click", async () => {
 });
 $("copy").addEventListener("click", () => act("copy", $("copy"), () => window.mori.copy(), "コードをコピーしました。"));
 $("extension").addEventListener("click", () => act("extension", $("extension"), () => window.mori.openExtension(), "開いた browser-bridge フォルダーを Chrome で選択してください。"));
+$("chrome-address").addEventListener("click", () => act("chrome-address", $("chrome-address"), () => window.mori.copyChromeSetup(), "Chrome のアドレス欄に貼り付けてください。"));
+$("restart-cli").addEventListener("click", () => act("restart-cli", $("restart-cli"),
+  () => window.mori.restartCli(), "CLI 連携モードで再起動します。"));
+$("open-agent-settings").addEventListener("click", () => act("open-agent-settings", $("open-agent-settings"),
+  () => window.mori.openAgentSettings(), "Agent 設定を開きました。"));
+for (const [buttonId, agentId] of [["install-codex", "codex"], ["install-claude", "claude-code"]]) {
+  const button = $(buttonId);
+  button.addEventListener("click", () => act(buttonId, button,
+    () => window.mori.installCliHook(agentId), `${agentId === "codex" ? "Codex CLI" : "Claude Code"} のフックを接続しました。Agent 設定で状態を確認してください。`));
+}
+$("open-google-setup").addEventListener("click", () => act("open-google-setup", $("open-google-setup"),
+  () => window.mori.openGoogleSetup(), "Google Cloud の手順を開きました。"));
+$("open-calendar").addEventListener("click", () => act("open-calendar", $("open-calendar"), () => window.mori.openCalendar(), "Calendar HUD を開きました。"));
 $("open-mail").addEventListener("click", () => act("open-mail", $("open-mail"), () => window.mori.openMail(), "受信メールの HUD を開きました。"));
+$("enable-login").addEventListener("click", () => act("enable-login", $("enable-login"),
+  () => window.mori.setLoginStartup(true), "ログイン時の起動を有効にしました。"));
+$("disable-login").addEventListener("click", () => act("disable-login", $("disable-login"),
+  () => window.mori.setLoginStartup(false), "ログイン時の起動を無効にしました。"));
+for (const kind of ["calendar", "mail"]) {
+  const checkbox = $(`${kind}-startup`);
+  checkbox.addEventListener("change", () => act(`${kind}-startup`, checkbox,
+    () => window.mori.setHudStartup(kind, checkbox.checked), "次回起動時の HUD 表示を保存しました。"));
+}
 $("repair-login").addEventListener("click", () => act("repair-login", $("repair-login"), () => window.mori.repairLogin(), "ログイン時の起動先をインストール版に修復しました。"));
 window.mori.onChange(refresh);
 refresh();

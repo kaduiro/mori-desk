@@ -820,7 +820,7 @@ index 6f84bbc..0ec8906 100644
    get claudeQuotaCollectionEnabled() { return claudeQuotaCollectionEnabled; },
    get doNotDisturb() { return doNotDisturb; },
    shouldDropForDnd: () => _state.shouldDropForDnd ? _state.shouldDropForDnd() : doNotDisturb,
-@@ -3117,6 +3189,41 @@
+@@ -3117,6 +3189,51 @@
  };
  const _server = require("./server")(_serverCtx);
  const { startHttpServer, getHookServerPort } = _server;
@@ -837,6 +837,15 @@ index 6f84bbc..0ec8906 100644
 +  getBuildInfo: () => moriBuildInfo,
 +  getListenerStatus: () => moriListenerStatus,
 +  getLoginStatus: _readMoriLoginStatus,
++  setLoginStartup: enabled => {
++    if (_settingsController.isLocked()) return { ok: false, reason: "settings_locked" };
++    const result = _settingsController.applyUpdate("openAtLogin", enabled);
++    if (result?.status !== "ok") return { ok: false, reason: "settings_update_failed" };
++    const status = _readMoriLoginStatus();
++    return { ok: status.enabled === enabled, status };
++  },
++  openAgentSettings: () => settingsWindowRuntime.open({ tab: "agents" }),
++  installCliHook: agentId => _settingsController.applyCommand("installAgentIntegration", { agentId }),
 +  repairLoginItem: () => {
 +    if (!app.isPackaged || _readMoriLoginStatus().reason !== "source_registration")
 +      return { ok: false, reason: "repair_not_available" };
@@ -848,6 +857,7 @@ index 6f84bbc..0ec8906 100644
 +    return { ok: _readMoriLoginStatus().state === "enabled" };
 +  },
 +  getPetBounds: () => getPetWindowBounds(),
++  getDoNotDisturb: () => doNotDisturb,
 +  getCalendarSuppressed: () => doNotDisturb || _mini.getMiniMode()
 +    || sessionHudEnabled === false || petWindowRuntime.isPetEffectivelyHidden(),
 +});

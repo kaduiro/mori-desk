@@ -152,7 +152,11 @@ async function listCalendars({ accessToken, requestPage, fetchImpl = fetch }) {
       const role = item.accessRole;
       calendars.push({ id: item.id, name: String(item.summaryOverride || item.summary || item.id).slice(0, 160),
         primary: item.primary === true, selected: item.selected === true,
-        readable: ["reader", "writer", "owner"].includes(role) });
+        readable: ["reader", "writer", "owner"].includes(role),
+        defaultReminders: Array.isArray(item.defaultReminders) ? item.defaultReminders
+          .filter(reminder => reminder?.method === "popup" && Number.isSafeInteger(reminder.minutes)
+            && reminder.minutes >= 0 && reminder.minutes <= 40320).slice(0, 5)
+          .map(reminder => reminder.minutes) : [] });
     }
     pageToken = typeof body.nextPageToken === "string" && body.nextPageToken ? body.nextPageToken : null;
   } while (pageToken);
